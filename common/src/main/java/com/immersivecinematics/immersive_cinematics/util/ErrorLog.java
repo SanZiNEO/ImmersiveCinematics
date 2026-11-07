@@ -14,7 +14,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * 脚本错误日志 — 写游戏目录 {@code logs/immersive_cinematics/script-errors.log}。
  *
  * 覆盖解析失败 / 校验问题 / 资源缺失 / 运行时异常：控制台 ERROR 级可见（报错不吞，作者直接看到），
- * 同时落盘完整堆栈供深挖。写盘串行化于 {@code LOCK}；限频表 {@code RATE_LIMIT} 记上次输出时刻与抑制计数，
+ * 同时落盘完整堆栈供深挖。{@link #warnRateLimited(String, String, long, String)} 走同一落盘通道，
+ * 但控制台 WARN、文件行带 {@code WARN} 标记（用于「已自愈 / 已降级」类诊断）。
+ * 写盘串行化于 {@code LOCK}；限频表 {@code RATE_LIMIT} 记上次输出时刻与抑制计数，
  * 同一 key 按调用方给定间隔限频，窗口内被抑制的次数合并到下一次输出。
  */
 public final class ErrorLog {
@@ -60,6 +62,25 @@ public final class ErrorLog {
     }
 
     /**
+     * 限频记录一条警告：与 {@link #logRateLimited(String, String, long, String)} 同构
+     * （同一 key 的限频窗口与抑制计数合并），但控制台与日志文件都是 <b>WARN</b> 级。
+     *
+     * 用于「已自愈 / 已降级」这类不需要作者立刻动手的诊断：事实要留痕，但级别不能冒充失败。
+     * 真正的失败仍走 {@link #logRateLimited(String, String, long, String)}（ERROR）。
+     *
+     * @param category   分类（控制台 / 文件里的 {@code [category]}）
+     * @param key        限频位置标识（与 ERROR 限频表共用，建议用不同 key 避免互相抑制）
+     * @param intervalMs 同一 key 的最小输出间隔（毫秒）
+     * @param message    告警描述
+     */
+    public static void warnRateLimited(String category, String key, long intervalMs, String message) {
+        String merged = rateLimit(key, intervalMs, message);
+        if (merged != null) {
+            write(category, merged, null, false, true);
+        }
+    }
+
+    /**
      * 限频记账：未到间隔 → 计数抑制并返回 {@code null}；否则返回待输出的文案
      * （带窗口内被抑制的次数）。
      */
@@ -93,7 +114,23 @@ public final class ErrorLog {
      * 统一输出：{@code consoleStack} 决定控制台是否打完整堆栈；日志文件始终追加完整堆栈（若有异常）。
      */
     private static void write(String category, String message, Throwable t, boolean consoleStack) {
-        if (t == null) {
+        write(category, message, t, consoleStack, false);
+    }
+
+    /**
+     * 统一输出（带级别）：{@code warn} = 控制台 WARN + 文件行带 {@code WARN } 标记，
+     * 否则控制台 ERROR（文件行沿用原格式，便于既有 grep）。
+     */
+    private static void write(String category, String message, Throwable t, boolean consoleStack, boolean warn) {
+        if (warn) {
+            if (t == null) {
+                LOGGER.warn("[{}] {}", category, message);
+            } else if (consoleStack) {
+                LOGGER.warn("[{}] {}", category, message, t);
+            } else {
+                LOGGER.warn("[{}] {}: {}", category, message, t.getClass().getSimpleName() + " " + t.getMessage());
+            }
+        } else if (t == null) {
             LOGGER.error("[{}] {}", category, message);
         } else if (consoleStack) {
             LOGGER.error("[{}] {}", category, message, t);
@@ -103,13 +140,14 @@ public final class ErrorLog {
         synchronized (LOCK) {
             try {
                 ensureWriter();
-                writer.printf("%1$tF %1$tT [%2$s] %3$s%n", System.currentTimeMillis(), category, message);
+                writer.printf(warn ? "%1$tF %1$tT [%2$s] WARN %3$s%n" : "%1$tF %1$tT [%2$s] %3$s%n",
+                        System.currentTimeMillis(), category, message);
                 if (t != null) {
                     t.printStackTrace(writer);
                 }
                 writer.flush();
             } catch (IOException ignored) {
-                // 日志文件都写不了就不强求（控制台 ERROR 已打过；不影响脚本播放）
+                // 日志文件都写不了就不强求（控制台已按级别输出；不影响脚本播放）
             }
         }
     }

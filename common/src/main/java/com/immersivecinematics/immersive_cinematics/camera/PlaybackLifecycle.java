@@ -297,13 +297,28 @@ final class PlaybackLifecycle {
                 pendingInstanceId = "";
                 // pending 优先：同脚本旧排队副本被本次请求取代，不能在本实例结束后再拉起
                 scriptQueue.cancel(next.getId());
-                ledger.reportPlaybackStarted(next, startScriptInternal(next, nextInstanceId));
+                // 玩家不在世界时 startScriptInternal 返回 null（已自行留痕）：没有实例就不上报 started，
+                // 否则 ledger 会记下一条并不存在的播放（BACKLOG R3）
+                PlaybackInstance restarted = startScriptInternal(next, nextInstanceId);
+                if (restarted != null) {
+                    ledger.reportPlaybackStarted(next, restarted);
+                } else {
+                    ErrorLog.logRateLimited("Camera", "started-skipped", 5000L,
+                            "播放启动未上报 started：玩家不在世界（scriptId=" + next.getId() + "）");
+                }
             }
             // 无 exclusive 时排空全部可播项；每启动一个后重新检查——新启动的 exclusive 会阻塞剩余项
             while (canDequeue()) {
                 ScriptQueue.Entry next = scriptQueue.pollFirstEligible(scriptNotPlaying);
                 if (next == null) break;
-                ledger.reportPlaybackStarted(next.script(), startScriptInternal(next.script(), next.instanceId()));
+                // 同上：startScriptInternal 返回 null（玩家不在世界）时不上报 started
+                PlaybackInstance started = startScriptInternal(next.script(), next.instanceId());
+                if (started != null) {
+                    ledger.reportPlaybackStarted(next.script(), started);
+                } else {
+                    ErrorLog.logRateLimited("Camera", "started-skipped", 5000L,
+                            "播放启动未上报 started：玩家不在世界（scriptId=" + next.script().getId() + "）");
+                }
             }
         }
 

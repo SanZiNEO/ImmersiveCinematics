@@ -479,6 +479,7 @@
         }
       ],
       "policy": {
+        "once": true,
         "timeout": 8,
         "on_timeout": [
           {

@@ -105,6 +105,12 @@ public class SubtitleLayer implements OverlayLayer {
         return opacity > 0.001f;
     }
 
+    /** 诊断用：当前字段不透明度，不参与渲染取值。 */
+    @Override
+    public float opacityForLog() {
+        return opacity;
+    }
+
     @Override
     public int getZIndex() {
         return zIndex;

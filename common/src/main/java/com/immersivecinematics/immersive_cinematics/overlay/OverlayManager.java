@@ -116,6 +116,7 @@ public class OverlayManager {
                                 + "@" + System.identityHashCode(layer), 5000L,
                         "覆盖层动画更新失败（层=" + layer.getClass().getSimpleName()
                                 + ", owner=" + layer.owner() + ", z=" + layer.getZIndex()
+                                + ", opacity=" + layer.opacityForLog()
                                 + "）：本帧跳过该层，下一帧重试", e);
             }
         }

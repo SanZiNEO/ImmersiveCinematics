@@ -140,6 +140,12 @@ public class FadeLayer implements OverlayLayer {
         return (float) (targetOpacity * (1.0 - Math.min(1.0, fadeOutElapsed / FADE_OUT_SECONDS)));
     }
 
+    /** 诊断用：当前有效不透明度（关键帧 opacity × 渐出系数），不参与渲染取值。 */
+    @Override
+    public float opacityForLog() {
+        return effectiveOpacity();
+    }
+
     /**
      * 从 #RRGGBB 十六进制字符串解析颜色值
      *

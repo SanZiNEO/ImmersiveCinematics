@@ -80,4 +80,13 @@ public interface OverlayLayer {
      * {@link #reset()} 不关闭资源——层仍在列表中，只是回到默认状态。
      */
     default void close() {}
+
+    /**
+     * 当前有效不透明度，<b>仅诊断日志用，不参与渲染</b>（渲染各自走本层的字段 / 关键帧插值，
+     * 不读此值）。{@link OverlayManager#update(double)} 的逐层异常日志会带上它，
+     * 便于从堆栈现场判断该层当时是否本就不可见。
+     *
+     * @return 该层当前有效不透明度（0~1）；{@link Float#NaN} = 该层不适用（无不透明度概念）
+     */
+    default float opacityForLog() { return Float.NaN; }
 }

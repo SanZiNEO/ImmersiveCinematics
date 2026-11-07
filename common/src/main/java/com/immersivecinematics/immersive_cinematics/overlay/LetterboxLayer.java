@@ -68,6 +68,12 @@ public class LetterboxLayer implements OverlayLayer {
         return targetAspectRatio > 0f && opacity * fadeOutFactor() > 0.001f;
     }
 
+    /** 诊断用：当前字段不透明度（不含渐出系数），不参与渲染取值。 */
+    @Override
+    public float opacityForLog() {
+        return opacity;
+    }
+
     @Override
     public int getZIndex() {
         return Z_INDEX;

@@ -119,7 +119,7 @@ public class LevelRendererVanillaMixin {
             boolean restored = this.immersivecinematics$occlusionRestore;
             this.minecraft.smartCull = restored;
             this.immersivecinematics$occlusionToggled = false;
-            ErrorLog.logRateLimited("Render", "smart-cull-stale", 5000L,
+            ErrorLog.warnRateLimited("Render", "smart-cull-stale", 5000L,
                     "上一帧 setupRender 未还原 smartCull（HEAD 之后抛异常，RETURN 注入未执行）："
                             + "已自愈还原为 " + restored + "，本帧按当前相机重新判定");
         }
