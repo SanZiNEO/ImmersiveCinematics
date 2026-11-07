@@ -1,6 +1,8 @@
 package com.immersivecinematics.immersive_cinematics.mixin;
 
 import com.immersivecinematics.immersive_cinematics.script.AudioListenerController;
+import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
+import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
 import net.minecraft.client.Camera;
 import net.minecraft.client.sounds.SoundManager;
 import org.spongepowered.asm.mixin.Mixin;
@@ -21,12 +23,20 @@ public class SoundManagerMixin {
     @ModifyArg(method = "updateSource", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/client/sounds/SoundEngine;updateSource(Lnet/minecraft/client/Camera;)V"), index = 0)
     private Camera immersivecinematics_listenerCamera(Camera camera) {
-        if (AudioListenerController.isCameraListener()) {
-            return AudioListenerController.cameraListener();
+        try {
+            if (AudioListenerController.isCameraListener()) {
+                return AudioListenerController.cameraListener();
+            }
+            if (AudioListenerController.shouldOverride()) {
+                return AudioListenerController.playerCamera();
+            }
+            return camera;
+        } catch (Exception e) {
+            // Mixin 边界：听者代理构建失败 → 本次回落原版相机，限频留全栈供定位
+            FatalErrors.rethrowIfFatal(e);
+            ErrorLog.logRateLimited("Audio", "listener:camera", 5000L,
+                    "听者相机代理构建失败：本次回落原版相机", e);
+            return camera;
         }
-        if (AudioListenerController.shouldOverride()) {
-            return AudioListenerController.playerCamera();
-        }
-        return camera;
     }
 }

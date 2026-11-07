@@ -3,6 +3,7 @@ package com.immersivecinematics.immersive_cinematics.mixin;
 import com.immersivecinematics.immersive_cinematics.api.CameraState;
 import com.immersivecinematics.immersive_cinematics.client.dimension.DimensionViews;
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneRenderer;
+import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -106,10 +107,22 @@ public class LevelRendererVanillaMixin {
      * 原版 {@code setupRender} 的遮挡剔除开关（{@code minecraft.smartCull}），lane pass 内按本 pass 的相机判定：
      * 相机所在方块实心渲染 → 本 pass 关掉遮挡剪枝（沿用原版旁观者口径：剪枝只对播种相机成立，相机埋在实心
      * 方块里会看不到外面）。主 pass 与非 lane 帧不改写，走原版判定；RETURN 侧无条件还原。
+     *
+     * 自愈：若 HEAD 改写后 {@code setupRender} 抛异常，RETURN 注入不会执行，原值就永久丢了
+     * （{@code smartCull} 停在 false = 全局遮挡剔除失效）。所以下一次 HEAD 先检测「上次已改写但未还原」，
+     * 把原值还回去再按本帧判定决定是否改写；限频告警一次（同一失败点 5s 内不重复刷屏）。
      */
     @Inject(method = "setupRender", at = @At("HEAD"), require = 0)
     private void immersivecinematics_applyCameraOcclusion(Camera camera, Frustum frustum,
                                                           boolean bl, boolean bl2, CallbackInfo ci) {
+        if (this.immersivecinematics$occlusionToggled) {
+            boolean restored = this.immersivecinematics$occlusionRestore;
+            this.minecraft.smartCull = restored;
+            this.immersivecinematics$occlusionToggled = false;
+            ErrorLog.logRateLimited("Render", "smart-cull-stale", 5000L,
+                    "上一帧 setupRender 未还原 smartCull（HEAD 之后抛异常，RETURN 注入未执行）："
+                            + "已自愈还原为 " + restored + "，本帧按当前相机重新判定");
+        }
         if (!immersivecinematics$occlusionOff(camera)) return;
         this.immersivecinematics$occlusionRestore = this.minecraft.smartCull;
         this.minecraft.smartCull = false;

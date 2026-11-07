@@ -13,6 +13,8 @@ import com.immersivecinematics.immersive_cinematics.script.event.EventSeekPlan;
 import com.immersivecinematics.immersive_cinematics.trigger.network.S2CSkipVoteUpdatePacket;
 import com.immersivecinematics.immersive_cinematics.trigger.network.S2CStopScriptPacket;
 import com.immersivecinematics.immersive_cinematics.trigger.server.fact.FactLedger;
+import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
+import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
 import com.immersivecinematics.immersive_cinematics.util.RuleCommandSource;
 import com.mojang.logging.LogUtils;
 import net.minecraft.commands.CommandSourceStack;
@@ -26,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -351,68 +354,93 @@ public class ScriptEventManager {
         int currentTick = serverTick;
 
         for (Map<String, ScriptPlayback> byInstance : scriptPlaybacks.values()) {
-            byInstance.entrySet().removeIf(entry -> {
-                ScriptPlayback pb = entry.getValue();
-                if (pb.viewers.isEmpty()) {
-                    // 全部观看者已离开：实例结束，授权与实例投票一并撤销（后续规则命令按无授权拒绝）
+            // 服务端 tick 边界：逐实例隔离，单条坏脚本 / 坏关键帧只停该实例，其余实例继续
+            Iterator<Map.Entry<String, ScriptPlayback>> iterator = byInstance.entrySet().iterator();
+            while (iterator.hasNext()) {
+                ScriptPlayback pb = iterator.next().getValue();
+                try {
+                    if (tickPlayback(server, pb, currentTick)) {
+                        iterator.remove();
+                    }
+                } catch (Exception e) {
+                    FatalErrors.rethrowIfFatal(e);
+                    // 失败实例立即停播：移除账本条目（避免每 tick 重试），并撤销授权 / 清理实例事实
+                    ErrorLog.logRateLimited("Server", "script-event:" + pb.scriptId + ":" + pb.instanceId, 5000L,
+                            "服务端 EVENT 时间线处理失败（边界: server-tick，scriptId=" + pb.scriptId
+                                    + "，instanceId=" + pb.instanceId + "，tick=" + currentTick
+                                    + "）：该实例已停止并从播放账本移除，其余实例继续", e);
                     revokeGrant(pb.scriptId, pb.instanceId);
                     FactLedger.INSTANCE.clearInstance(pb.scriptId, pb.instanceId);
-                    return true;
+                    iterator.remove();
                 }
-
-                PlaybackGrant grant = grant(pb.scriptId, pb.instanceId);
-                pb.viewers.removeIf(uuid -> {
-                    if (server.getPlayerList().getPlayer(uuid) != null) return false;
-                    // 玩家退出：观看者 / 授权目标 / 限频状态一并清理，避免重连后读到上一轮授权
-                    if (grant != null) grant.targets().remove(uuid);
-                    RuleCommandRateLimiter.INSTANCE.forgetPlayer(uuid);
-                    return true;
-                });
-                pb.viewerOrigins.keySet().retainAll(pb.viewers);
-
-                // 暂停态：不处理 keyframe（恢复帧按上报内容位置重定基准）
-                if (pb.paused) {
-                    return false;
-                }
-
-                // 时间线读数 = 上报的内容位置 + 基准之后经过的服务端 tick
-                // （未收到上报 = 基准不动，回落 tick 推算——不卡事件）
-                float elapsed = pb.timelineAnchorSeconds + (currentTick - pb.timelineAnchorTick) / 20f;
-
-                // 事件边沿：只推进 (上次扫描时间, 本次 elapsed] 区间；首次从 -inf 开始
-                float previous = pb.scannedThroughSeconds;
-                if (!(elapsed > previous)) {
-                    return false;
-                }
-
-                for (int clipIndex = 0; clipIndex < pb.eventClips.size(); clipIndex++) {
-                    Clip clip = pb.eventClips.get(clipIndex);
-                    float clipStart = clip.getStartTime();
-                    float clipDuration = clip.getDuration();
-                    float clipEnd = clipDuration < 0 ? Float.POSITIVE_INFINITY : clipStart + clipDuration;
-
-                    if (elapsed < clipStart || previous >= clipEnd) {
-                        continue;
-                    }
-
-                    double to = Math.min(elapsed, clipEnd);
-                    if (!(to >= clipStart)) {
-                        continue;
-                    }
-
-                    EventClipRuntime runtime = pb.eventRuntimes.get(clipIndex);
-                    int start = runtime.cursor();
-                    int end = runtime.advance(to - clipStart);
-                    for (int i = start; i < end; i++) {
-                        fireEvent(pb, server, runtime.record(i), currentTick);
-                    }
-                }
-                pb.scannedThroughSeconds = elapsed;
-
-                return false;
-            });
+            }
         }
         scriptPlaybacks.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+    }
+
+    /**
+     * 单个播放实例的一 tick 处理：观看者清理 + EVENT 时间线边沿推进。
+     *
+     * @return {@code true} = 该实例已结束（无观看者），调用方应从账本移除
+     */
+    private boolean tickPlayback(MinecraftServer server, ScriptPlayback pb, int currentTick) {
+        if (pb.viewers.isEmpty()) {
+            // 全部观看者已离开：实例结束，授权与实例投票一并撤销（后续规则命令按无授权拒绝）
+            revokeGrant(pb.scriptId, pb.instanceId);
+            FactLedger.INSTANCE.clearInstance(pb.scriptId, pb.instanceId);
+            return true;
+        }
+
+        PlaybackGrant grant = grant(pb.scriptId, pb.instanceId);
+        pb.viewers.removeIf(uuid -> {
+            if (server.getPlayerList().getPlayer(uuid) != null) return false;
+            // 玩家退出：观看者 / 授权目标 / 限频状态一并清理，避免重连后读到上一轮授权
+            if (grant != null) grant.targets().remove(uuid);
+            RuleCommandRateLimiter.INSTANCE.forgetPlayer(uuid);
+            return true;
+        });
+        pb.viewerOrigins.keySet().retainAll(pb.viewers);
+
+        // 暂停态：不处理 keyframe（恢复帧按上报内容位置重定基准）
+        if (pb.paused) {
+            return false;
+        }
+
+        // 时间线读数 = 上报的内容位置 + 基准之后经过的服务端 tick
+        // （未收到上报 = 基准不动，回落 tick 推算——不卡事件）
+        float elapsed = pb.timelineAnchorSeconds + (currentTick - pb.timelineAnchorTick) / 20f;
+
+        // 事件边沿：只推进 (上次扫描时间, 本次 elapsed] 区间；首次从 -inf 开始
+        float previous = pb.scannedThroughSeconds;
+        if (!(elapsed > previous)) {
+            return false;
+        }
+
+        for (int clipIndex = 0; clipIndex < pb.eventClips.size(); clipIndex++) {
+            Clip clip = pb.eventClips.get(clipIndex);
+            float clipStart = clip.getStartTime();
+            float clipDuration = clip.getDuration();
+            float clipEnd = clipDuration < 0 ? Float.POSITIVE_INFINITY : clipStart + clipDuration;
+
+            if (elapsed < clipStart || previous >= clipEnd) {
+                continue;
+            }
+
+            double to = Math.min(elapsed, clipEnd);
+            if (!(to >= clipStart)) {
+                continue;
+            }
+
+            EventClipRuntime runtime = pb.eventRuntimes.get(clipIndex);
+            int start = runtime.cursor();
+            int end = runtime.advance(to - clipStart);
+            for (int i = start; i < end; i++) {
+                fireEvent(pb, server, runtime.record(i), currentTick);
+            }
+        }
+        pb.scannedThroughSeconds = elapsed;
+
+        return false;
     }
 
     /**
@@ -434,7 +462,7 @@ public class ScriptEventManager {
         }
         for (UUID uuid : pb.viewers) {
             ServerPlayer p = server.getPlayerList().getPlayer(uuid);
-            if (p != null) executeCommand(p, command);
+            if (p != null) executeCommand(pb, p, command);
         }
     }
 
@@ -607,16 +635,26 @@ public class ScriptEventManager {
         return pb != null && pb.viewers.contains(playerId);
     }
 
-    private void executeCommand(ServerPlayer player, String command) {
+    private void executeCommand(ScriptPlayback pb, ServerPlayer player, String command) {
         String[] parts = command.split("\\s*&&\\s*");
         // 成功结果（/locate 坐标等）发给玩家，失败反馈吞掉（不打扰玩家，错误原因进 ErrorLog 排查）
         CommandSourceStack source = new com.immersivecinematics.immersive_cinematics.util.SuccessOnlySource(player);
         for (String part : parts) {
             if (part.trim().isEmpty()) continue;
             try {
-                player.server.getCommands().performPrefixedCommand(source, part.trim());
+                // 返回值 0 = 命令失败（未知命令 / 语法错 / 权限不足），失败反馈已被 SuccessOnlySource 吞掉
+                int result = player.server.getCommands().performPrefixedCommand(source, part.trim());
+                if (result == 0) {
+                    // 不记录命令原文（审计口径）：只留脚本身份、玩家与命令长度
+                    ErrorLog.logRateLimited("Event", "command-failed:" + pb.scriptId + ":" + pb.instanceId, 5000L,
+                            "EVENT 命令执行失败（script=" + pb.scriptId + ", instance=" + pb.instanceId
+                                    + ", player=" + player.getName().getString()
+                                    + ", 命令长度=" + part.length() + "）");
+                }
             } catch (Exception e) {
-                LOGGER.error("Failed to execute event command for player {}: /{}", player.getName().getString(), part.trim(), e);
+                // 不记录命令原文（审计口径）：只留异常类型与玩家
+                LOGGER.error("事件命令片段执行失败（玩家 {}）：{}",
+                        player.getName().getString(), e.getClass().getName());
             }
         }
     }

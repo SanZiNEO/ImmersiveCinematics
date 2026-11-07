@@ -307,7 +307,8 @@ public final class LaneCompositor {
             blitShaderSource = resources;
             try {
                 blitShader = new ShaderInstance(resources, SHADER_NAME, DefaultVertexFormat.POSITION_TEX);
-            } catch (IOException e) {
+            } catch (IOException | RuntimeException e) {
+                // 语法错误 / uniform 不匹配抛 RuntimeException（不是 IOException）：同一资源周期内不重试
                 ErrorLog.log("Render", "lane 合成着色器加载失败（" + SHADER_NAME + "）："
                         + "本资源周期内退回原版 position_tex（lane 纹理 alpha 会透底），"
                         + "检查 assets/minecraft/shaders/core/" + SHADER_NAME + ".*", e);

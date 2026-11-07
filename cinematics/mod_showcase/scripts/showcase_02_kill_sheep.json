@@ -11,10 +11,7 @@
         "repeatable": false,
         "delay": 0.5,
         "conditions": {
-          "entity": [
-            "minecraft:sheep"
-          ],
-          "mode": "and"
+          "entity": "minecraft:sheep"
         }
       }
     ],

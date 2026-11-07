@@ -2218,6 +2218,10 @@ public final class ScriptValidator {
                     // schema 表达不了：场景组字段互相配合（position+radius / corner1+corner2），文案带场景语义
                     validateDeathConditions(conditions, tp + ".conditions", issues);
                 } else {
+                    // 已删除的旧写法：entity_kill / inventory 的 mode（数组形态一并由 schema 的类型检查拦住）
+                    if (("entity_kill".equals(type) || "inventory".equals(type)) && conditions.has("mode")) {
+                        issues.add(tp + ".conditions.mode 已移除：多项判定用 any / all_of 组合器表达");
+                    }
                     validateConditionsBySchema(conditions, tp + ".conditions", type, issues);
                 }
             }

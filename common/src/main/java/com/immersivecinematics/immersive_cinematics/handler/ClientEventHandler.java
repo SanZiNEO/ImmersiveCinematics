@@ -18,6 +18,10 @@ import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.nio.file.Path;
 
 /**
  * 客户端事件处理：把平台事件翻译成相机 / 按键 / 覆盖层的调用。
@@ -25,6 +29,9 @@ import net.minecraft.client.gui.GuiGraphics;
  * 只保留纯逻辑；平台（Fabric/Forge）负责把原生事件转发到这里。
  */
 public final class ClientEventHandler {
+
+    /** 日志通道名固定为 {@code ImmersiveCinematics/Client}。 */
+    private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/Client");
 
     /** 平台注册按键绑定的回调（各加载器注册表 API 不同，由平台实现）。 */
     @FunctionalInterface
@@ -41,12 +48,13 @@ public final class ClientEventHandler {
     /** 客户端初始化：确保资源目录与 scripts 目录存在，编辑器首次保存时无需再建目录。 */
     public static void onClientInit() {
         com.immersivecinematics.immersive_cinematics.util.ResourcePath.ensureDir();
+        Path scriptsDir = Minecraft.getInstance().gameDirectory.toPath()
+                .resolve("immersive_cinematics").resolve("scripts");
         try {
-            java.nio.file.Files.createDirectories(
-                    Minecraft.getInstance().gameDirectory.toPath()
-                            .resolve("immersive_cinematics").resolve("scripts"));
-        } catch (Exception ignored) {
-            // 目录已存在/权限受限即跳过（ResourcePath.ensureDir 已处理 resource；scripts 由编辑器按需创建）
+            java.nio.file.Files.createDirectories(scriptsDir);
+        } catch (Exception e) {
+            // 目录建不出来时编辑器保存必然失败，先留 WARN（含路径）便于定位
+            LOGGER.warn("创建脚本目录失败: {}（编辑器保存将不可用）", scriptsDir, e);
         }
     }
 

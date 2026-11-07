@@ -34,6 +34,8 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.UUID;
@@ -44,6 +46,11 @@ import java.util.UUID;
  * 本类只保留「读玩家 / 世界状态」的部分并委托共享核。线程契约：仅服务端主线程。
  */
 public class Evaluators {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/Trigger");
+
+    /** gamestage 反射失败只提示一次（缺可选依赖是常态，不刷屏）。 */
+    private static volatile boolean gamestageReflectionLogged = false;
 
     /** 区域条件外扩：委托共享几何核（规则侧客户端同一实现）。 */
     public static JsonObject expandConditions(JsonObject c, float buffer) {
@@ -129,40 +136,13 @@ public class Evaluators {
                 .orElse(false);
     }
 
+    /**
+     * entity_kill：读「最近一次击杀」这条事实，再匹配 entity + 场景（不是「最后一条匹配的击杀」）。
+     * 只认单值 {@code entity}；击杀一组生物用 {@code all_of} + 多个单值子条件表达。
+     */
     public static boolean evaluateEntityKill(ServerPlayer player, JsonObject c) {
         if (!c.has("entity")) return false;
-        var entity = c.get("entity");
-        PlayerFacts facts = factsOf(player);
-
-        if (!entity.isJsonArray()) {
-            // 单值：读「最近一次击杀」这条事实，再匹配 entity + 场景（不是「最后一条匹配的击杀」）
-            return EventFactMatch.matches(facts.lastOf(FactType.ENTITY_KILL, ""), c);
-        }
-
-        String mode = c.has("mode") ? c.get("mode").getAsString() : "or";
-
-        if ("and".equals(mode)) {
-            // 累计口径：本会话击杀过的实体（索引键）里是否每个目标都出现过
-            boolean anyRequirement = false;
-            for (JsonElement elem : entity.getAsJsonArray()) {
-                String pattern = elem.getAsString();
-                if (!facts.anyObject(FactType.ENTITY_KILL, id -> GeometryConditions.matchesId(id, pattern))) {
-                    return false;
-                }
-                anyRequirement = true;
-            }
-            if (!anyRequirement) return false;
-            // 场景条件按最近一次击杀记录判定（击杀时刻的位置，非玩家当前位置）
-            Fact last = facts.lastOf(FactType.ENTITY_KILL, "");
-            return last != null && EventFactMatch.matchesScene(last.scene(), c);
-        }
-
-        Fact last = facts.lastOf(FactType.ENTITY_KILL, "");
-        if (last == null || !EventFactMatch.matchesScene(last.scene(), c)) return false;
-        for (JsonElement elem : entity.getAsJsonArray()) {
-            if (GeometryConditions.matchesId(last.object(), elem.getAsString())) return true;
-        }
-        return false;
+        return EventFactMatch.matches(factsOf(player).lastOf(FactType.ENTITY_KILL, ""), c);
     }
 
     /**
@@ -234,35 +214,13 @@ public class Evaluators {
         return c.has("level") || c.has("total");
     }
 
+    /**
+     * item_pickup：匹配最近一次捡起（{@code item} 单值）。捡起一组物品中的任意一件
+     * 用 {@code any} + 多个单值子条件表达。
+     */
     public static boolean evaluateItemPickup(ServerPlayer player, JsonObject c) {
         if (!c.has("item")) return false;
-        JsonElement item = c.get("item");
-        PlayerFacts facts = factsOf(player);
-
-        // 数组模式：item 为数组 + mode（"or" 默认 = 捡起任一触发；"and" = 全部捡过才触发，基于本会话累计索引）
-        if (item.isJsonArray()) {
-            String mode = c.has("mode") ? c.get("mode").getAsString() : "or";
-            if ("and".equals(mode)) {
-                boolean anyRequirement = false;
-                for (JsonElement elem : item.getAsJsonArray()) {
-                    String pattern = elem.getAsString();
-                    if (!facts.anyObject(FactType.ITEM_PICKUP, id -> GeometryConditions.matchesId(id, pattern))) {
-                        return false;
-                    }
-                    anyRequirement = true;
-                }
-                return anyRequirement;
-            }
-            Fact last = facts.lastOf(FactType.ITEM_PICKUP, "");
-            if (last == null) return false;
-            for (JsonElement elem : item.getAsJsonArray()) {
-                if (GeometryConditions.matchesId(last.object(), elem.getAsString())) return true;
-            }
-            return false;
-        }
-
-        // 单物品模式：item 为字符串，匹配最近一次捡起
-        return EventFactMatch.matches(facts.lastOf(FactType.ITEM_PICKUP, ""), c);
+        return EventFactMatch.matches(factsOf(player).lastOf(FactType.ITEM_PICKUP, ""), c);
     }
 
     public static boolean evaluateItemDrop(ServerPlayer player, JsonObject c) {
@@ -389,6 +347,11 @@ public class Evaluators {
         return EventFactMatch.matches(latest, c);
     }
 
+    /**
+     * inventory：{@code items} 里的每个模式都要在背包里找得到（presence 恒为「全部拥有」，
+     * 「拥有其中任意一件」用 {@code any} + 多个单值子条件表达）。
+     * {@code change}（increase / decrease）走净变化判定：任一模式的数量发生对应变化即真。
+     */
     public static boolean evaluateInventory(ServerPlayer player, JsonObject c) {
         if (!c.has("items") || !c.get("items").isJsonArray()) return false;
         var items = c.getAsJsonArray("items");
@@ -423,22 +386,8 @@ public class Evaluators {
             return false;
         }
 
-        String mode = c.has("mode") ? c.get("mode").getAsString() : "and";
         var inventory = player.getInventory();
         int size = inventory.getContainerSize();
-
-        if ("or".equals(mode)) {
-            for (int i = 0; i < size; i++) {
-                var stack = inventory.getItem(i);
-                if (!stack.isEmpty()) {
-                    String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-                    for (String p : patterns) {
-                        if (GeometryConditions.matchesId(id, p)) return true;
-                    }
-                }
-            }
-            return false;
-        }
 
         java.util.Set<String> remaining = new java.util.HashSet<>(patterns);
         for (int i = 0; i < size; i++) {
@@ -538,7 +487,11 @@ public class Evaluators {
             var hasStage = helper.getMethod("hasStage", net.minecraft.world.entity.player.Player.class, String.class);
             return (boolean) hasStage.invoke(null, player, stage);
         } catch (Exception e) {
-            // 可选集成：Gamestage 模组未安装 / 反射失败 → 该触发永不生效（特性缺失即正确行为，非错误，不刷屏）
+            // 可选集成：GameStages 未安装 / 反射失败 → 该触发永不生效（特性缺失即正确行为，非错误）
+            if (!gamestageReflectionLogged) {
+                gamestageReflectionLogged = true;
+                LOGGER.info("GameStages 未安装或反射失败，gamestage 触发器不生效");
+            }
             return false;
         }
     }

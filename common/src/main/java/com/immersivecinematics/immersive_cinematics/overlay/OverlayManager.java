@@ -107,7 +107,17 @@ public class OverlayManager {
     public void update(double deltaTime) {
         double step = Math.max(0.0, Math.min(0.25, deltaTime));
         for (OverlayLayer layer : layers) {
-            layer.tick(step);
+            try {
+                layer.tick(step);
+            } catch (Exception e) {
+                FatalErrors.rethrowIfFatal(e);
+                // 限频 key 按「失败点 + 层实例」：同类层的不同实例互不掩盖（字符串只在异常分支构造）
+                ErrorLog.logRateLimited("Render", "overlay-tick:" + layer.getClass().getName()
+                                + "@" + System.identityHashCode(layer), 5000L,
+                        "覆盖层动画更新失败（层=" + layer.getClass().getSimpleName()
+                                + ", owner=" + layer.owner() + ", z=" + layer.getZIndex()
+                                + "）：本帧跳过该层，下一帧重试", e);
+            }
         }
     }
 

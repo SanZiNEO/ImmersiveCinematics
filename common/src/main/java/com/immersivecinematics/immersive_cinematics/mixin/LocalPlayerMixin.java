@@ -3,6 +3,8 @@ package com.immersivecinematics.immersive_cinematics.mixin;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.camera.PlaybackInstance;
 import com.immersivecinematics.immersive_cinematics.script.PlayerMoveController;
+import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
+import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
 import net.minecraft.client.player.LocalPlayer;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -25,8 +27,19 @@ public class LocalPlayerMixin {
         PlaybackInstance instance = CameraManager.INSTANCE.activeInstance();
         if (instance == null) return;
         PlayerMoveController ctrl = instance.player().getPlayerMovement();
-        if (ctrl != null && ctrl.isMoving()) {
-            ctrl.applyFakeInput((LocalPlayer) (Object) this);
+        if (ctrl == null || !ctrl.isMoving()) return;
+        LocalPlayer player = (LocalPlayer) (Object) this;
+        try {
+            ctrl.applyFakeInput(player);
+        } catch (Exception e) {
+            // Mixin 边界：本帧不驱动移动（放行原版键盘），限频留全栈供定位
+            FatalErrors.rethrowIfFatal(e);
+            ErrorLog.logRateLimited("Input", "player-move:" + instance.scriptId(), 5000L,
+                    "假输入注入失败（scriptId=" + instance.scriptId()
+                            + ", instanceId=" + instance.instanceId()
+                            + ", 目标=(" + ctrl.targetX() + ", " + ctrl.targetZ() + ")"
+                            + ", 玩家=(" + player.getX() + ", " + player.getZ() + ")）"
+                            + "：本帧不驱动移动", e);
         }
     }
 }

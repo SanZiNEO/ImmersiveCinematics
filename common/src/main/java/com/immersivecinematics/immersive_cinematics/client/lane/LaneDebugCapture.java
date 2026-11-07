@@ -46,13 +46,28 @@ public final class LaneDebugCapture {
     private static int frames;
     private static int rounds;
     private static boolean captureThisFrame;
+    /** 帧内异常后的关闭标志（幂等）：只关掉 ICINEMATICS_CAPTURE 这条捕获路径，诊断会话的图片钩子不受影响。 */
+    private static volatile boolean disabled;
 
     private LaneDebugCapture() {
     }
 
-    /** 本钩子是否开启（开关外零差异的判据）。 */
+    /** 本钩子是否开启（开关外零差异的判据；异常关闭后返回 {@code false}）。 */
     public static boolean isEnabled() {
-        return ENABLED;
+        return ENABLED && !disabled;
+    }
+
+    /**
+     * 关闭本次调试捕获（幂等）：帧尾读回抛异常后由边界调用，避免每帧重试同一失败（读回 / PNG 分配）。
+     * 只影响 {@code ICINEMATICS_CAPTURE} 这条通道；F5 诊断会话的检查点图片由 {@link LaneDiagnostics} 自己管。
+     */
+    public static void disable() {
+        if (disabled) {
+            return;
+        }
+        disabled = true;
+        captureThisFrame = false;
+        LOGGER.warn("[lane-capture] 调试捕获因帧内异常关闭：本会话不再读回 lane 画面（{}）", DIR_NAME);
     }
 
     /**
@@ -61,7 +76,7 @@ public final class LaneDebugCapture {
      * 不会在没有 lane 的帧上重复出图。关闭时零差异。
      */
     public static void beginFrame() {
-        if (!ENABLED) {
+        if (!ENABLED || disabled) {
             return;
         }
         frames++;
@@ -86,7 +101,7 @@ public final class LaneDebugCapture {
             writeDiagnostic(diagnostic, LaneDiagnostics.laneImageName(cameraId, "raw"),
                     "相机 " + cameraId + " raw");
         }
-        if (!ENABLED || !captureThisFrame || target == null || target.width <= 0 || target.height <= 0) {
+        if (!ENABLED || disabled || !captureThisFrame || target == null || target.width <= 0 || target.height <= 0) {
             return;
         }
         NativeImage image = download(target, false);   // false = 保留原始 alpha
@@ -119,7 +134,7 @@ public final class LaneDebugCapture {
                 }
             }
         }
-        if (!ENABLED || !captureThisFrame || dest == null) {
+        if (!ENABLED || disabled || !captureThisFrame || dest == null) {
             return;
         }
         RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
@@ -155,7 +170,7 @@ public final class LaneDebugCapture {
                 writeDiagnostic(diagnostic, LaneDiagnostics.windowImageName(), "窗口终帧");
             }
         }
-        if (!ENABLED || !captureThisFrame) {
+        if (!ENABLED || disabled || !captureThisFrame) {
             return;
         }
         captureThisFrame = false;

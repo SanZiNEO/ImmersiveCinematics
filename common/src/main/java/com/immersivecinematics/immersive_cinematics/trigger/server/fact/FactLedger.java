@@ -4,6 +4,7 @@ import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.ScriptManager;
 import com.immersivecinematics.immersive_cinematics.script.TriggerDefinition;
 import com.immersivecinematics.immersive_cinematics.trigger.server.fact.LegacyStateMigration.LegacyTrigger;
+import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
 import com.mojang.logging.LogUtils;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -121,7 +122,9 @@ public final class FactLedger {
             }
             playerFacts.put(player, facts);
         } catch (Exception e) {
-            LOGGER.error("Failed to load facts for player {}", player, e);
+            FatalErrors.rethrowIfFatal(e);
+            // 数据损坏不静默：记录文件路径并明确「该玩家状态已重置」，不带着坏数据继续
+            LOGGER.error("Failed to load facts for player {} (file: {}): 该玩家状态已重置为空", player, file, e);
             playerFacts.put(player, new PlayerFacts());
         }
     }
@@ -150,9 +153,18 @@ public final class FactLedger {
             return;
         }
         for (Map.Entry<UUID, PlayerFacts> entry : playerFacts.entrySet()) {
-            if (entry.getValue().isDirty()) {
-                savePlayer(entry.getKey(), entry.getValue());
+            if (!entry.getValue().isDirty()) {
+                continue;
+            }
+            UUID player = entry.getKey();
+            try {
+                savePlayer(player, entry.getValue());
                 entry.getValue().markClean();
+            } catch (RuntimeException e) {
+                // IO 边界：单个玩家序列化 / 写入失败不影响其余玩家继续落盘
+                FatalErrors.rethrowIfFatal(e);
+                LOGGER.error("Failed to save facts for player {} (file: {}): 该玩家状态本次未落盘，其余玩家继续",
+                        player, file(player), e);
             }
         }
     }
@@ -170,12 +182,22 @@ public final class FactLedger {
             Files.writeString(tmp, new StringTagVisitor().visit(root));
             Files.move(tmp, file(player), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
-            LOGGER.error("Failed to save facts for player {}", player, e);
-            try {
-                Files.deleteIfExists(tmp);
-            } catch (IOException ignored) {
-                // 临时文件清理失败可忽略（主保存错误已记录）；不掩盖主错误
-            }
+            LOGGER.error("Failed to save facts for player {} (file: {})", player, file(player), e);
+            deleteTmp(tmp);
+        } catch (RuntimeException e) {
+            // 序列化 / 路径构造等运行时失败：同样只停该玩家，清理临时文件后不向上抛
+            FatalErrors.rethrowIfFatal(e);
+            LOGGER.error("Failed to serialize facts for player {} (file: {}): 该玩家状态本次未落盘",
+                    player, file(player), e);
+            deleteTmp(tmp);
+        }
+    }
+
+    private static void deleteTmp(Path tmp) {
+        try {
+            Files.deleteIfExists(tmp);
+        } catch (IOException ignored) {
+            // 临时文件清理失败可忽略（主保存错误已记录）；不掩盖主错误
         }
     }
 

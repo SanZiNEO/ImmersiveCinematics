@@ -2,10 +2,13 @@ package com.immersivecinematics.immersive_cinematics.fabric;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import com.immersivecinematics.immersive_cinematics.Config;
 import net.fabricmc.loader.api.FabricLoader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -21,6 +24,9 @@ public class FabricConfig implements Config.ConfigProvider {
 
     public static final FabricConfig INSTANCE = new FabricConfig();
 
+    /** 日志通道名固定为 {@code ImmersiveCinematics/Config}。 */
+    private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/Config");
+
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Path CONFIG_PATH = FabricLoader.getInstance().getConfigDir().resolve("immersive_cinematics.json");
 
@@ -35,10 +41,9 @@ public class FabricConfig implements Config.ConfigProvider {
         if (Files.exists(CONFIG_PATH)) {
             try (Reader reader = Files.newBufferedReader(CONFIG_PATH)) {
                 root = GSON.fromJson(reader, JsonObject.class);
-            } catch (IOException e) {
-                // 配置读取失败 → 回退默认配置；作者应看到（WARN）
-                org.slf4j.LoggerFactory.getLogger("ImmersiveCinematics/Config")
-                        .warn("配置读取失败，将使用默认配置: {}", e.getMessage());
+            } catch (Exception e) {
+                // 配置读取/解析失败（含 JSON 语法错误）→ 回退默认配置；带路径便于定位
+                LOGGER.warn("配置读取失败，将使用默认配置: {}", CONFIG_PATH, e);
                 root = null;
             }
         }
@@ -80,15 +85,23 @@ public class FabricConfig implements Config.ConfigProvider {
     }
 
     private int getInt(String key, int defaultValue) {
-        if (root.has(key) && root.get(key).isJsonPrimitive()) {
-            return root.get(key).getAsInt();
+        JsonElement element = root.get(key);
+        if (element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isNumber()) {
+            return element.getAsInt();
+        }
+        if (element != null) {
+            LOGGER.warn("配置项类型不符，使用默认值 {}: key={} ({})", defaultValue, key, CONFIG_PATH);
         }
         return defaultValue;
     }
 
     private boolean getBoolean(String key, boolean defaultValue) {
-        if (root.has(key) && root.get(key).isJsonPrimitive()) {
-            return root.get(key).getAsBoolean();
+        JsonElement element = root.get(key);
+        if (element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isBoolean()) {
+            return element.getAsBoolean();
+        }
+        if (element != null) {
+            LOGGER.warn("配置项类型不符，使用默认值 {}: key={} ({})", defaultValue, key, CONFIG_PATH);
         }
         return defaultValue;
     }
@@ -118,8 +131,7 @@ public class FabricConfig implements Config.ConfigProvider {
             Files.writeString(CONFIG_PATH, GSON.toJson(root));
         } catch (IOException e) {
             // 配置写入失败 → 改动本次不生效，作者该知道（WARN 可见）
-            org.slf4j.LoggerFactory.getLogger("ImmersiveCinematics/Config")
-                    .warn("配置写入失败: {} ({})", e.getMessage(), CONFIG_PATH);
+            LOGGER.warn("配置写入失败: {} ({})", e.getMessage(), CONFIG_PATH);
         }
     }
 }

@@ -3,32 +3,109 @@
     "id": "showcase_07_barter",
     "name": "猪灵交易",
     "author": "AI",
-    "description": "捡起猪灵交易掉落的黑曜石触发：交易成功展示，镜头注视猪灵",
+    "description": "捡起猪灵交易掉落的黑曜石触发：交易成功展示，镜头注视猪灵；任一猪灵战利品在 5s 窗口内被捡起即触发",
     "triggers": [
       {
         "id": "pickup_barter_loot",
-        "type": "item_pickup",
+        "type": "any",
         "repeatable": false,
         "delay": 0.5,
+        "continuity": {
+          "window": 100
+        },
         "conditions": {
-          "item": [
-            "minecraft:iron_boots",
-            "minecraft:potion",
-            "minecraft:iron_nugget",
-            "minecraft:ender_pearl",
-            "minecraft:string",
-            "minecraft:quartz",
-            "minecraft:obsidian",
-            "minecraft:crying_obsidian",
-            "minecraft:fire_charge",
-            "minecraft:leather",
-            "minecraft:soul_sand",
-            "minecraft:nether_brick",
-            "minecraft:spectral_arrow",
-            "minecraft:gravel",
-            "minecraft:blackstone"
-          ],
-          "mode": "or"
+          "list": [
+            {
+              "type": "item_pickup",
+              "conditions": {
+                "item": "minecraft:iron_boots"
+              }
+            },
+            {
+              "type": "item_pickup",
+              "conditions": {
+                "item": "minecraft:potion"
+              }
+            },
+            {
+              "type": "item_pickup",
+              "conditions": {
+                "item": "minecraft:iron_nugget"
+              }
+            },
+            {
+              "type": "item_pickup",
+              "conditions": {
+                "item": "minecraft:ender_pearl"
+              }
+            },
+            {
+              "type": "item_pickup",
+              "conditions": {
+                "item": "minecraft:string"
+              }
+            },
+            {
+              "type": "item_pickup",
+              "conditions": {
+                "item": "minecraft:quartz"
+              }
+            },
+            {
+              "type": "item_pickup",
+              "conditions": {
+                "item": "minecraft:obsidian"
+              }
+            },
+            {
+              "type": "item_pickup",
+              "conditions": {
+                "item": "minecraft:crying_obsidian"
+              }
+            },
+            {
+              "type": "item_pickup",
+              "conditions": {
+                "item": "minecraft:fire_charge"
+              }
+            },
+            {
+              "type": "item_pickup",
+              "conditions": {
+                "item": "minecraft:leather"
+              }
+            },
+            {
+              "type": "item_pickup",
+              "conditions": {
+                "item": "minecraft:soul_sand"
+              }
+            },
+            {
+              "type": "item_pickup",
+              "conditions": {
+                "item": "minecraft:nether_brick"
+              }
+            },
+            {
+              "type": "item_pickup",
+              "conditions": {
+                "item": "minecraft:spectral_arrow"
+              }
+            },
+            {
+              "type": "item_pickup",
+              "conditions": {
+                "item": "minecraft:gravel"
+              }
+            },
+            {
+              "type": "item_pickup",
+              "conditions": {
+                "item": "minecraft:blackstone"
+              }
+            }
+          ]
         }
       }
     ],

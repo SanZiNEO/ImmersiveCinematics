@@ -7,6 +7,7 @@ import com.immersivecinematics.immersive_cinematics.control.ExitReason;
 import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.ScriptMeta;
+import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
 import com.immersivecinematics.immersive_cinematics.util.GameClock;
 import com.immersivecinematics.immersive_cinematics.util.PreviewClock;
 import net.minecraft.client.Minecraft;
@@ -355,10 +356,17 @@ final class PlaybackLifecycle {
      *
      * @param editorDriven {@code true} = 编辑器播放实例（时钟源 = 编辑器播放头、恒排列表末位、
      *                     参与内容行为并集但不参与游戏控制与账本）
-     * @return 新启动的实例（调用方据此上报服务端账本）
+     * @return 新启动的实例（调用方据此上报服务端账本）；玩家尚未进入世界时返回 {@code null}
      */
     PlaybackInstance startScriptInternal(CinematicScript script, String instanceId, boolean editorDriven) {
         Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null) {
+            // 玩家尚未进入世界（主菜单 / 断线瞬间）：没有初始视角可写，明确拒绝并留痕
+            ErrorLog.logRateLimited("Camera", "start-script:no-player", 5000L,
+                    "播放启动被跳过：玩家尚未进入世界（instanceId=" + instanceId
+                            + ", editorDriven=" + editorDriven + "）");
+            return null;
+        }
         if (!previewChannel.isEditorPlayback()) {
             mc.setScreen(null);
         }

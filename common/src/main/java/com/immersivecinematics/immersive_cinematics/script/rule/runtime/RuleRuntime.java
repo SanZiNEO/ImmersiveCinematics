@@ -287,7 +287,7 @@ public final class RuleRuntime {
             stepBinding(ledger, head, elapsed, dt, nowReal, i);
         }
 
-        releasePauseWithoutReleaser();
+        releasePauseWithoutReleaser(ledger);
         updateSuspension(player);
         diagnoseUnreachableHolds(ledger, head, player);
     }
@@ -620,14 +620,49 @@ public final class RuleRuntime {
     // ===== 释放可达性诊断 =====
 
     /**
-     * {@code pause} 没有任何释放者（规则集合里既无 {@code resume} 动作，也无带 {@code schedule}
-     * 的绑定）→ 告警并自动释放该来源。与旧 {@code clip.rules} 的同片段口径一致：防卡死。
+     * {@code pause} 在本执行内已无仍可触发的 {@code resume} → 告警并自动释放该来源。
+     *
+     * <p>判据不是「规则集合里写没写 {@code resume}」：写了但绑定已 {@code finished}
+     * （含超时终结）或 {@code once} 已成功，就再也触发不了。与旧 {@code clip.rules}
+     * 的同片段口径一致：防卡死。</p>
      */
-    private void releasePauseWithoutReleaser() {
-        if (pauseReleasable || !holds.has(SuspensionLedger.ACTION_PAUSE)) return;
+    private void releasePauseWithoutReleaser(ClipExecutionLedger ledger) {
+        if (!holds.has(SuspensionLedger.ACTION_PAUSE)) return;
+        if (hasLivePauseReleaser(ledger)) return;
         holds.releaseAll(SuspensionLedger.ACTION_PAUSE);
         warn("pause:no-releaser",
-                "规则动作 pause 已无释放者（规则集合里没有 resume 动作）——自动释放");
+                "规则动作 pause 已无释放者（本执行内没有仍可触发的 resume）——自动释放");
+    }
+
+    /**
+     * 本执行内是否仍有可触发的 {@code resume}（{@code pause} 的活释放者）。
+     *
+     * <ul>
+     *   <li>静态层面就无释放者（{@link #pauseReleasable} 为 false）→ 没有；</li>
+     *   <li>任一绑定带非立即 {@code schedule} → 有（调度释放仍可能）；</li>
+     *   <li>动作 / {@code on_timeout} 含 {@code resume} 的绑定：执行未知、激活尚未对应该执行、
+     *       或尚未 {@code finished}（且非 {@code once} 已成功）→ 有。</li>
+     * </ul>
+     */
+    private boolean hasLivePauseReleaser(ClipExecutionLedger ledger) {
+        if (!pauseReleasable) return false;
+        for (int i = 0; i < bindingCount; i++) {
+            RuleBinding binding = bindings[i];
+            if (!binding.schedule().isImmediate()) return true;
+            RuleDefinition definition = binding.definition();
+            if (!hasActionType(definition.actions(), "resume")
+                    && !hasActionType(definition.onTimeout(), "resume")) {
+                continue;
+            }
+            ClipExecution execution = ledger.executionOf(binding.target());
+            if (execution == null) return true;   // 未知 → 保守按仍可触发
+            RuleActivation activation = activations[i];
+            if (activation.executionId() != execution.executionId()) return true;   // 本执行尚未建立激活
+            if (!activation.finished() && !(definition.once() && activation.succeeded())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

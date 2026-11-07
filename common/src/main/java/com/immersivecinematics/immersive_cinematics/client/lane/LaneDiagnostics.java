@@ -54,13 +54,36 @@ public final class LaneDiagnostics {
     private static final Gson PRETTY_GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final int MAX_LANES = 64;
 
-    private static final Session SESSION = loadSession();
+    /** 当前诊断会话；{@code null} = 未启用 / 已因异常关闭（{@link #disable()}）。 */
+    private static volatile Session SESSION = loadSession();
+
+    /**
+     * 写盘线程的关闭哨兵：{@link #disable()} 投递后，写盘线程把已排队的行刷完即退出。
+     * 用 {@code new String} 保证引用唯一（事件行都是 GSON 产物，不会与它同一引用）。
+     */
+    private static final String EVENT_SHUTDOWN = new String("\u0000shutdown");
 
     private LaneDiagnostics() {
     }
 
     public static boolean isEnabled() {
         return SESSION != null;
+    }
+
+    /**
+     * 关闭本次诊断会话（幂等）：帧尾钩子异常后由边界调用，避免每帧重试同一失败路径。
+     * 关闭后所有钩子都走「会话为 null」的零开销路径；已排队的事件由写盘线程刷完即退出。
+     */
+    public static void disable() {
+        Session s = SESSION;
+        if (s == null) return;
+        SESSION = null;
+        if (!s.events.offer(EVENT_SHUTDOWN)) {
+            // 队列满：清空后重投，保证写盘线程一定能收到哨兵（丢的是尚未落盘的尾部事件，诊断已失败）
+            s.events.clear();
+            s.events.offer(EVENT_SHUTDOWN);
+        }
+        LOGGER.warn("[diagnostics] 诊断会话因帧内异常关闭（{}）：后续帧不再采集", s.dir.getFileName());
     }
 
     public static void onFrameStart(Minecraft mc, boolean renderWorld) {
@@ -333,8 +356,8 @@ public final class LaneDiagnostics {
 
         Session(Minecraft mc, Path manifestPath, String raw, JsonObject root) throws IOException {
             this.manifestPath = manifestPath;
-            this.maxImages = clamp(intOr(root, "maxImages", 160), 1, 2000);
-            int perCase = clamp(intOr(root, "maxImagesPerCase", 24), 1, maxImages);
+            this.maxImages = clamp(intOr(root, "maxImages", 160, "manifest"), 1, 2000);
+            int perCase = clamp(intOr(root, "maxImagesPerCase", 24, "manifest"), 1, maxImages);
             parseCases(root, perCase);
             if (cases.isEmpty()) throw new IOException("f-round.json 没有可用 case");
             for (Case c : cases) runtimes.add(new Rt(c));
@@ -343,7 +366,7 @@ public final class LaneDiagnostics {
                     .resolve("diagnostics").resolve("sessions");
             Files.createDirectories(base);
             String stamp = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").format(LocalDateTime.now());
-            String name = safeFile(strOr(root, "sessionName", ""));
+            String name = safeFile(strOr(root, "sessionName", "", "manifest"));
             Path sessionDir = base.resolve(stamp + (name.isEmpty() ? "" : "-" + name));
             for (int i = 2; Files.exists(sessionDir) && i < 100; i++) {
                 sessionDir = base.resolve(stamp + (name.isEmpty() ? "" : "-" + name) + "-" + i);
@@ -384,13 +407,15 @@ public final class LaneDiagnostics {
             for (int i = 0; i < arr.size(); i++) {
                 try {
                     JsonObject c = arr.get(i).getAsJsonObject();
-                    String id = strOr(c, "id", "");
-                    String script = strOr(c, "script", "");
+                    String where = "cases[" + i + "]";
+                    String id = strOr(c, "id", "", where);
+                    String script = strOr(c, "script", "", where);
                     if (id.isEmpty() || script.isEmpty()) continue;
-                    int run = Math.max(0, intOr(c, "run", 0));
-                    double[] checkpoints = checkpoints(c);
-                    boolean firstLast = "first-last".equalsIgnoreCase(strOr(c, "lanes", "all"));
-                    int caseMax = clamp(intOr(c, "maxImages", perCase), 1, maxImages);
+                    where = "case " + id;
+                    int run = Math.max(0, intOr(c, "run", 0, where));
+                    double[] checkpoints = checkpoints(c, where);
+                    boolean firstLast = "first-last".equalsIgnoreCase(strOr(c, "lanes", "all", where));
+                    int caseMax = clamp(intOr(c, "maxImages", perCase, where), 1, maxImages);
                     JsonElement pe = c.get("perf");
                     boolean perf = pe != null && pe.isJsonObject();
                     double settle = 2.0;
@@ -399,11 +424,11 @@ public final class LaneDiagnostics {
                     LaneRenderer.LaneContent content = null;
                     if (perf) {
                         JsonObject p = pe.getAsJsonObject();
-                        settle = doubleOr(p, "settleSeconds", 2.0);
+                        settle = doubleOr(p, "settleSeconds", 2.0, where);
                         if (!Double.isFinite(settle) || settle < 0) settle = 2.0;
-                        frames = clamp(intOr(p, "frames", 600), 1, 100_000);
-                        expected = Math.max(-1, intOr(p, "expectedLanes", -1));
-                        String mode = strOr(p, "content", "");
+                        frames = clamp(intOr(p, "frames", 600, where), 1, 100_000);
+                        expected = Math.max(-1, intOr(p, "expectedLanes", -1, where));
+                        String mode = strOr(p, "content", "", where);
                         if ("FULL".equalsIgnoreCase(mode)) content = LaneRenderer.LaneContent.FULL;
                         else if ("WORLD_ONLY".equalsIgnoreCase(mode)) content = LaneRenderer.LaneContent.WORLD_ONLY;
                         if (run == 0) run = 1;
@@ -418,7 +443,7 @@ public final class LaneDiagnostics {
             }
         }
 
-        private double[] checkpoints(JsonObject c) {
+        private double[] checkpoints(JsonObject c, String where) {
             JsonElement e = c.get("checkpoints");
             if (e == null || !e.isJsonArray()) return new double[0];
             JsonArray arr = e.getAsJsonArray();
@@ -427,7 +452,10 @@ public final class LaneDiagnostics {
                 try {
                     double v = arr.get(i).getAsDouble();
                     if (Double.isFinite(v) && v > 0) values.add(v);
-                } catch (Throwable ignored) {
+                } catch (RuntimeException ex) {
+                    // 坏检查点只丢这一个点，其余照常（原值写进日志便于定位 manifest）
+                    LOGGER.warn("[diagnostics] {}: checkpoints[{}] 不是数字（原值={}），跳过该点：{}",
+                            where, i, arr.get(i), ex.toString());
                 }
             }
             values.sort(Double::compareTo);
@@ -1006,6 +1034,9 @@ public final class LaneDiagnostics {
                     StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND)) {
                 while (true) {
                     String line = events.take();
+                    if (line == EVENT_SHUTDOWN) {
+                        break;   // 会话已关闭：刷完已排队的行再退出（引用相等，只有 disable() 投递该常量）
+                    }
                     w.write(line);
                     w.newLine();
                     w.flush();
@@ -1146,29 +1177,39 @@ public final class LaneDiagnostics {
         return v < min ? min : Math.min(v, max);
     }
 
-    private static int intOr(JsonObject o, String k, int d) {
+    private static int intOr(JsonObject o, String k, int d, String where) {
+        JsonElement e = o.get(k);
+        if (e == null || !e.isJsonPrimitive()) return d;
         try {
-            JsonElement e = o.get(k);
-            return e != null && e.isJsonPrimitive() ? e.getAsInt() : d;
-        } catch (Throwable t) {
+            return e.getAsInt();
+        } catch (RuntimeException ex) {
+            // 字段类型不符只影响这一个字段：按默认值继续，原值 + case 上下文写进日志便于定位 manifest
+            LOGGER.warn("[diagnostics] {}: 字段 '{}' 不是整数（原值={}），按默认值 {} 处理：{}",
+                    where, k, e, d, ex.toString());
             return d;
         }
     }
 
-    private static double doubleOr(JsonObject o, String k, double d) {
+    private static double doubleOr(JsonObject o, String k, double d, String where) {
+        JsonElement e = o.get(k);
+        if (e == null || !e.isJsonPrimitive()) return d;
         try {
-            JsonElement e = o.get(k);
-            return e != null && e.isJsonPrimitive() ? e.getAsDouble() : d;
-        } catch (Throwable t) {
+            return e.getAsDouble();
+        } catch (RuntimeException ex) {
+            LOGGER.warn("[diagnostics] {}: 字段 '{}' 不是数字（原值={}），按默认值 {} 处理：{}",
+                    where, k, e, d, ex.toString());
             return d;
         }
     }
 
-    private static String strOr(JsonObject o, String k, String d) {
+    private static String strOr(JsonObject o, String k, String d, String where) {
+        JsonElement e = o.get(k);
+        if (e == null || !e.isJsonPrimitive()) return d;
         try {
-            JsonElement e = o.get(k);
-            return e != null && e.isJsonPrimitive() ? e.getAsString() : d;
-        } catch (Throwable t) {
+            return e.getAsString();
+        } catch (RuntimeException ex) {
+            LOGGER.warn("[diagnostics] {}: 字段 '{}' 不是字符串（原值={}），按默认值 '{}' 处理：{}",
+                    where, k, e, d, ex.toString());
             return d;
         }
     }
@@ -1184,6 +1225,9 @@ public final class LaneDiagnostics {
         return b.toString();
     }
 
+    /** 模组版本探测失败是否已记录（可选探测：首次 INFO，之后静默）。 */
+    private static boolean modVersionProbeLogged;
+
     /** 模组版本：优先 Fabric，其次 Forge；都不在时返回 null。只查一个 id，不做通用模组列表。 */
     private static String modVersion(String id) {
         try {
@@ -1198,7 +1242,9 @@ public final class LaneDiagnostics {
                 return String.valueOf(Class.forName("net.fabricmc.loader.api.Version")
                         .getMethod("getFriendlyString").invoke(ver));
             }
-        } catch (Throwable ignored) {
+        } catch (Exception | LinkageError e) {
+            // 合法缺失（例如 Forge 环境没有 FabricLoader）：继续试下一个，首次记一条 INFO
+            reportModVersionProbe("FabricLoader", e);
         }
         try {
             Class<?> l = Class.forName("net.minecraftforge.fml.ModList");
@@ -1211,9 +1257,17 @@ public final class LaneDiagnostics {
                         .getMethod("getVersion").invoke(info);
                 return String.valueOf(ver);
             }
-        } catch (Throwable ignored) {
+        } catch (Exception | LinkageError e) {
+            reportModVersionProbe("ModList", e);
         }
         return null;
+    }
+
+    /** 可选探测失败只记一次 INFO（environment.json 的版本字段留空是合法结果，不按帧刷屏）。 */
+    private static void reportModVersionProbe(String probe, Throwable t) {
+        if (modVersionProbeLogged) return;
+        modVersionProbeLogged = true;
+        LOGGER.info("[diagnostics] 模组版本探测不可用（{}）：environment.json 的版本字段留空（缺失是合法结果）", probe, t);
     }
 
     /** Iris/Oculus API v0：只读“光影包是否启用”；未安装返回 null。 */

@@ -1,0 +1,474 @@
+{
+  "meta": {
+    "id": "test_camera_hysteresis_quadrant",
+    "name": "B19 迟滞四象限对照",
+    "author": "ImmersiveCinematics",
+    "description": "B19 实机对照：四条 CAMERA 轨各 1 个 20s 片段，同时从 t=0 起播，用 dest 合成参数把画面切成四象限（左上 q_tl / 右上 q_tr / 左下 q_bl / 右下 q_br），四片走同一条轨迹：position.x 方波 0→10→0（t=2 起跳、t=6 回落），yaw 方波 0→90→0（同一时刻），position.y=64 / position.z=0 / pitch=0 / roll=0 / fov=70 / zoom=1 常值。迟滞：左上不写 motion_*（无迟滞对照），右上 motion_position+motion_yaw = exponential_smooth(tau=0.15)，左下 = spring(stiffness=8.0, damping=0.5)，右下 = inertia(stiffness=8.0, damping=0.75)。方波用相邻两帧近似（t=2→0 与 t=2.001→10、t=6→10 与 t=6.001→0）：属性对象只接受 value/keyframes，interp 由 schema 固定（position.x = linear），脚本层无法声明 step，1ms 间隔在 60/120Hz 渲染下等同瞬时跳变。实机看跟手度 / 过冲 / 拖影，建议 60 / 120 / 解锁三档各看一次。",
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "login",
+        "repeatable": false,
+        "delay": 0
+      }
+    ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 20,
+            "loop": false,
+            "id": "q_tl",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "position_mode": {
+                "value": "absolute"
+              },
+              "dest.x": {
+                "value": 0.0
+              },
+              "dest.y": {
+                "value": 0.0
+              },
+              "dest.w": {
+                "value": 0.5
+              },
+              "dest.h": {
+                "value": 0.5
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.001,
+                    "value": 10.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 10.0
+                  },
+                  {
+                    "time": 6.001,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position.y": {
+                "value": 64.0
+              },
+              "position.z": {
+                "value": 0.0
+              },
+              "yaw": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.001,
+                    "value": 90.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 90.0
+                  },
+                  {
+                    "time": 6.001,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 20,
+            "loop": false,
+            "id": "q_tr",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "position_mode": {
+                "value": "absolute"
+              },
+              "dest.x": {
+                "value": 0.5
+              },
+              "dest.y": {
+                "value": 0.0
+              },
+              "dest.w": {
+                "value": 0.5
+              },
+              "dest.h": {
+                "value": 0.5
+              },
+              "motion_position": {
+                "value": {
+                  "type": "exponential_smooth",
+                  "tau": 0.15
+                }
+              },
+              "motion_yaw": {
+                "value": {
+                  "type": "exponential_smooth",
+                  "tau": 0.15
+                }
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.001,
+                    "value": 10.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 10.0
+                  },
+                  {
+                    "time": 6.001,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position.y": {
+                "value": 64.0
+              },
+              "position.z": {
+                "value": 0.0
+              },
+              "yaw": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.001,
+                    "value": 90.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 90.0
+                  },
+                  {
+                    "time": 6.001,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 20,
+            "loop": false,
+            "id": "q_bl",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "position_mode": {
+                "value": "absolute"
+              },
+              "dest.x": {
+                "value": 0.0
+              },
+              "dest.y": {
+                "value": 0.5
+              },
+              "dest.w": {
+                "value": 0.5
+              },
+              "dest.h": {
+                "value": 0.5
+              },
+              "motion_position": {
+                "value": {
+                  "type": "spring",
+                  "stiffness": 8.0,
+                  "damping": 0.5
+                }
+              },
+              "motion_yaw": {
+                "value": {
+                  "type": "spring",
+                  "stiffness": 8.0,
+                  "damping": 0.5
+                }
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.001,
+                    "value": 10.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 10.0
+                  },
+                  {
+                    "time": 6.001,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position.y": {
+                "value": 64.0
+              },
+              "position.z": {
+                "value": 0.0
+              },
+              "yaw": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.001,
+                    "value": 90.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 90.0
+                  },
+                  {
+                    "time": 6.001,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 20,
+            "loop": false,
+            "id": "q_br",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "position_mode": {
+                "value": "absolute"
+              },
+              "dest.x": {
+                "value": 0.5
+              },
+              "dest.y": {
+                "value": 0.5
+              },
+              "dest.w": {
+                "value": 0.5
+              },
+              "dest.h": {
+                "value": 0.5
+              },
+              "motion_position": {
+                "value": {
+                  "type": "inertia",
+                  "stiffness": 8.0,
+                  "damping": 0.75
+                }
+              },
+              "motion_yaw": {
+                "value": {
+                  "type": "inertia",
+                  "stiffness": 8.0,
+                  "damping": 0.75
+                }
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.001,
+                    "value": 10.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 10.0
+                  },
+                  {
+                    "time": 6.001,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position.y": {
+                "value": 64.0
+              },
+              "position.z": {
+                "value": 0.0
+              },
+              "yaw": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.001,
+                    "value": 90.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 90.0
+                  },
+                  {
+                    "time": 6.001,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

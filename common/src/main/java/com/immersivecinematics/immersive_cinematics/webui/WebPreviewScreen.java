@@ -5,6 +5,8 @@ import com.immersivecinematics.immersive_cinematics.api.CameraState;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.control.CinematicKeyBindings;
 import com.immersivecinematics.immersive_cinematics.control.FlightModeManager;
+import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
+import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
 import com.google.gson.JsonObject;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
@@ -46,6 +48,9 @@ public class WebPreviewScreen extends Screen {
     /** 播放状态广播节流：50ms 一次（约 20Hz） */
     private long lastPlaybackStateBroadcast;
 
+    /** 画面捕获失败后关闭本次捕获，直到重开编辑器（新实例）恢复。 */
+    private boolean captureDisabled;
+
     /** 打开预览屏：{@code init()} 时启动本地 WebUI 服务并开始推流。 */
     public WebPreviewScreen() {
         super(Component.literal("Web Preview"));
@@ -69,8 +74,18 @@ public class WebPreviewScreen extends Screen {
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         minecraft.renderBuffers().bufferSource().endBatch();
-        WebFrameCapture.capture(minecraft);
-        WebFrameStreamer.onFrame();
+        if (!captureDisabled) {
+            try {
+                WebFrameCapture.capture(minecraft);
+                WebFrameStreamer.onFrame();
+            } catch (Exception e) {
+                // 渲染边界：关闭本次捕获直到重开编辑器；播放状态推送 / 飞控照常
+                FatalErrors.rethrowIfFatal(e);
+                captureDisabled = true;
+                ErrorLog.logRateLimited("WebUI", "preview-capture", 5000L,
+                        "编辑器预览画面捕获异常（已关闭本次捕获，重开编辑器后恢复）", e);
+            }
+        }
 
         // 核心双向通信：按 50ms 节流把真实播放器时间/播放状态推给外部编辑器。
         // 没有这个，前端只能收到画面，永远不知道脚本是否在播放、播到哪。

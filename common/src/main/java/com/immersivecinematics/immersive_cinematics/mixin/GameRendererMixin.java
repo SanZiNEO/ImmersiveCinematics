@@ -17,6 +17,7 @@ import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -24,6 +25,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(GameRenderer.class)
 public abstract class GameRendererMixin {
+
+    /** 帧号：仅用于帧尾调试边界的日志定位（每次 {@code render} 自增一次，不参与渲染、不分配）。 */
+    @Unique
+    private long immersivecinematics$frameSeq;
 
     /**
      * lane pass 内让 {@code getMainCamera()} 返回当前 lane 的相机：Iris / Oculus 相机 uniform、水下判定、
@@ -87,13 +92,33 @@ public abstract class GameRendererMixin {
      * 此刻世界 → lane 合成 → 原版后处理 → master 调色 → GUI 已画完，主 framebuffer 仍是最终图像，原版在
      * {@code render} 返回后才整幅拷到窗口且不改内容，故读回 = 玩家看到的窗口画面。未开捕获 / 未进世界时零差异。
      * 诊断计时（{@link LaneDiagnostics#onFrameEnd}）排在本钩子之后，截图帧在统计中整体剔除。
+     *
+     * 调试路径隔离：两条都是可选调试通道，任一失败即关闭它自己（幂等），不每帧重试同一失败；
+     * 两者分开捕获，一个失败不连带关掉另一个。GL 上下文丢失 / 线程断言等致命异常照常上抛。
      */
     @Inject(method = "render", at = @At("RETURN"))
     private void onRenderFrameEnd(float partialTick, long nanoTime, boolean renderLevel, CallbackInfo ci) {
+        long frame = ++this.immersivecinematics$frameSeq;
         Minecraft mc = Minecraft.getInstance();
-        LaneDebugCapture.onFrameEnd(mc);
-        // F5 诊断会话帧尾：必须排在窗口读回之后，使整帧计时包含 RETURN 前的读回（截图帧随后被剔除）。
-        LaneDiagnostics.onFrameEnd(mc);
+        try {
+            LaneDebugCapture.onFrameEnd(mc);
+        } catch (Exception e) {
+            FatalErrors.rethrowIfFatal(e);
+            LaneDebugCapture.disable();
+            ErrorLog.logRateLimited("Render", "frame-end-capture", 5000L,
+                    "帧尾调试捕获失败（frame=" + frame + ", renderLevel=" + renderLevel
+                            + "）：已关闭本次调试捕获，后续帧不再读回", e);
+        }
+        try {
+            // F5 诊断会话帧尾：必须排在窗口读回之后，使整帧计时包含 RETURN 前的读回（截图帧随后被剔除）。
+            LaneDiagnostics.onFrameEnd(mc);
+        } catch (Exception e) {
+            FatalErrors.rethrowIfFatal(e);
+            LaneDiagnostics.disable();
+            ErrorLog.logRateLimited("Render", "frame-end-diagnostics", 5000L,
+                    "帧尾 F5 诊断失败（frame=" + frame + ", renderLevel=" + renderLevel
+                            + "）：已关闭本次诊断会话，后续帧不再采集", e);
+        }
     }
 
     /**

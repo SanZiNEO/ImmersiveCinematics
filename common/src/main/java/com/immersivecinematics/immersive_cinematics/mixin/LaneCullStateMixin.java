@@ -4,6 +4,8 @@ import com.immersivecinematics.immersive_cinematics.client.lane.LaneCullBridge;
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneCullSlot;
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneCullSlots;
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneRenderer;
+import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
+import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
 import com.mojang.logging.LogUtils;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.minecraft.client.renderer.LevelRenderer;
@@ -178,7 +180,17 @@ public class LaneCullStateMixin implements LaneCullBridge {
 
     @Inject(method = "addRecentlyCompiledChunk", at = @At("HEAD"))
     private void ic$mirrorCompiledChunk(ChunkRenderDispatcher.RenderChunk renderChunk, CallbackInfo ci) {
-        LaneCullSlots.mirrorCompiled(this, renderChunk);
+        try {
+            LaneCullSlots.mirrorCompiled(this, renderChunk);
+        } catch (RuntimeException e) {
+            // 区块编译完成回调可能来自任意线程：这里捕获只为不让异常被池线程静默吞掉（缺块无法定位）。
+            FatalErrors.rethrowIfFatal(e);
+            int rendererId = System.identityHashCode(this);
+            ErrorLog.logRateLimited("Render", "lane-cull-mirror:" + rendererId, 5000L,
+                    "lane 剔除候选集投递失败（chunk=" + renderChunk.getOrigin()
+                            + ", renderer=" + rendererId
+                            + "）：该块不进入 lane 候选集（lane 画面可能缺块），本帧跳过", e);
+        }
     }
 
     // ===== 视距变化 / 换世界 / 立即全量重建 =====

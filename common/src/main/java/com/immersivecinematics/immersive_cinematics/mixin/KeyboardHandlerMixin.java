@@ -4,6 +4,8 @@ import com.immersivecinematics.immersive_cinematics.control.FlightModeManager;
 import com.immersivecinematics.immersive_cinematics.control.InputRouter;
 import com.immersivecinematics.immersive_cinematics.control.InputTarget;
 import com.immersivecinematics.immersive_cinematics.control.CinematicKeyBindings;
+import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
+import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
 import net.minecraft.client.KeyboardHandler;
 import net.minecraft.client.KeyMapping;
 import org.spongepowered.asm.mixin.Mixin;
@@ -46,26 +48,35 @@ public abstract class KeyboardHandlerMixin {
         // 接收层：任何键都先路由，只有路由结果不是 GAME 才 cancel
         if (windowPointer == 0) return; // 忽略无效窗口
 
-        // 传输层：路由决策
-        InputTarget target = inputRouter.routeKeyboard(key, scanCode, action, modifiers);
+        InputTarget target = null;
+        try {
+            // 传输层：路由决策
+            target = inputRouter.routeKeyboard(key, scanCode, action, modifiers);
 
-        switch (target) {
-            case GAME:
-                return; // 放行
-            case SELF:
-                // 跳过键：只更新 KeyMapping，不交给游戏
-                boolean pressed = action == 1 || action == 2;
-                CinematicKeyBindings.SKIP_KEY.setDown(pressed);
-                ci.cancel();
-                return;
-            case BLOCK:
-                ci.cancel();
-                return;
-            case FLIGHT:
-                // 走中转层：统一喂给独立飞控模块，再拦截，不给游戏/编辑器 UI
-                FlightModeManager.INSTANCE.onKeyEvent(key, scanCode, action);
-                ci.cancel();
-                return;
+            switch (target) {
+                case GAME:
+                    return; // 放行
+                case SELF:
+                    // 跳过键：只更新 KeyMapping，不交给游戏
+                    boolean pressed = action == 1 || action == 2;
+                    CinematicKeyBindings.SKIP_KEY.setDown(pressed);
+                    ci.cancel();
+                    return;
+                case BLOCK:
+                    ci.cancel();
+                    return;
+                case FLIGHT:
+                    // 走中转层：统一喂给独立飞控模块，再拦截，不给游戏/编辑器 UI
+                    FlightModeManager.INSTANCE.onKeyEvent(key, scanCode, action);
+                    ci.cancel();
+                    return;
+            }
+        } catch (Exception e) {
+            // Mixin 边界：失败 = 放行原版（不 cancel），限频留全栈供定位
+            FatalErrors.rethrowIfFatal(e);
+            ErrorLog.logRateLimited("Input", "keyboard:press", 5000L,
+                    "键盘事件处理异常（key=" + key + ", scanCode=" + scanCode + ", action=" + action
+                            + ", target=" + target + "）：不拦截，放行原版", e);
         }
     }
 

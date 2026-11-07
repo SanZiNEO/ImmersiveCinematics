@@ -2,9 +2,8 @@ package com.immersivecinematics.immersive_cinematics.camera;
 
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.ScriptParser;
+import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
 import com.immersivecinematics.immersive_cinematics.util.PreviewClock;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * 编辑器播放通道：编辑器播放实例、脚本缓存、暂停态与直控标志。
@@ -21,9 +20,6 @@ import org.slf4j.LoggerFactory;
  * 线程：仅客户端主线程。
  */
 final class PreviewChannel {
-
-    /** 日志通道名固定为 {@code ImmersiveCinematics/CameraManager}，不随类名变化。 */
-    private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/CameraManager");
 
     /** 编辑器播放头（编辑器实例的时钟源）。 */
     private final PreviewClock previewClock;
@@ -139,8 +135,11 @@ final class PreviewChannel {
                 }
                 instance.player().repositionAudio(previewHead);
             }
-        } catch (ScriptParser.ScriptParseException e) {
-            LOGGER.error("编辑器传入的脚本 JSON 解析失败", e);
+        } catch (Exception e) {
+            // 编辑器边界：解析/应用失败保留上一次可用脚本，编辑器继续可用（限频留全栈供定位）
+            ErrorLog.logRateLimited("Editor", "preview:push-script", 5000L,
+                    "编辑器脚本应用失败（json 长度=" + (jsonContent == null ? 0 : jsonContent.length())
+                            + "）：保留上一次可用脚本", e);
         }
     }
 
@@ -179,6 +178,7 @@ final class PreviewChannel {
             if (previewScript == null) return;
             lifecycle.startScriptInternal(previewScript, "", true);
         }
+        if (previewInstance == null) return; // 玩家尚未进入世界 / 启动被跳过：无实例可续播
         disableMacroLoop(previewInstance);
         double previewHead = previewClock.seconds();
         previewInstance.player().alignTime(previewHead, previewHead);

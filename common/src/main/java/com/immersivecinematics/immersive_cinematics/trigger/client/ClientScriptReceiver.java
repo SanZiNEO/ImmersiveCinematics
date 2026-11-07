@@ -3,6 +3,7 @@ package com.immersivecinematics.immersive_cinematics.trigger.client;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.ScriptParser;
+import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
 import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
 import com.immersivecinematics.immersive_cinematics.trigger.network.C2SPlaybackStartedPacket;
 import com.immersivecinematics.immersive_cinematics.trigger.network.S2CPlayScriptPacket;
@@ -105,28 +106,40 @@ public class ClientScriptReceiver {
     /**
      * 播放服务端下发的脚本；{@code refId} 非空时回一条传输层 ACK。
      *
-     * 回执与「是否真的开始播放」解耦：排队 / 被拒也必须回，见下方行内说明。
+     * 回执与「是否真的开始播放」解耦：排队 / 被拒 / 解析失败也必须回，见下方行内说明。
      */
     public static void handlePlayScript(S2CPlayScriptPacket packet) {
         Minecraft.getInstance().execute(() -> {
+            String instanceId = packet.getInstanceId();
+            String refId = packet.getRefId();
+            String scriptId = "";
+            int jsonLength = -1;
             try {
-                CinematicScript script = ScriptParser.parse(packet.getScriptJson());
-                ClientScriptCache.putScript(script.getId(), script);
-                int result = CameraManager.INSTANCE.playCinematic(script, packet.getInstanceId());
+                String json = packet.getScriptJson();
+                jsonLength = json != null ? json.length() : 0;
+                CinematicScript script = ScriptParser.parse(json);
+                scriptId = script.getId();
+                ClientScriptCache.putScript(scriptId, script);
+                int result = CameraManager.INSTANCE.playCinematic(script, instanceId);
                 LOGGER.info("Playing script from server: {} (result={}, instance={})",
-                        script.getId(), result, packet.getInstanceId());
+                        scriptId, result, instanceId);
                 if (result == 0) {
-                    LOGGER.warn("Play request rejected (not in world): {}", script.getId());
-                }
-                // play 回执属传输层 ACK：排队 / 被拒也必须回，否则服务端 AckTracker 超时重发 play 包导致重复入队。
-                // started 恒为 false ——「已开始播放」由 CameraManager 在脚本真正开始时单独上报，这里绝不谎报。
-                if (packet.getRefId() != null && !packet.getRefId().isEmpty()) {
-                    com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard.sendToServer("C2SPlaybackStarted(ack)",
-                            () -> com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
-                                    new C2SPlaybackStartedPacket(script.getId(), packet.getInstanceId(), packet.getRefId(), false)));
+                    LOGGER.warn("Play request rejected (not in world): {}", scriptId);
                 }
             } catch (Exception e) {
-                LOGGER.error("Failed to parse script from server", e);
+                FatalErrors.rethrowIfFatal(e);
+                ErrorLog.logRateLimited("Net", "client:play-script:" + instanceId, 5000L,
+                        "处理 S2C 播放包失败（边界: packet:S2CPlayScript，scriptId=" + scriptId
+                                + "，instanceId=" + instanceId + "，refId=" + refId
+                                + "，json 长度=" + jsonLength + "）：本次播放已放弃，ACK 仍回", e);
+            }
+            // play 回执属传输层 ACK：排队 / 被拒 / 解析失败都必须回，否则服务端 AckTracker 超时重发 play 包导致重复入队。
+            // started 恒为 false ——「已开始播放」由 CameraManager 在脚本真正开始时单独上报，这里绝不谎报。
+            if (refId != null && !refId.isEmpty()) {
+                String ackScriptId = scriptId;
+                com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard.sendToServer("C2SPlaybackStarted(ack)",
+                        () -> com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
+                                new C2SPlaybackStartedPacket(ackScriptId, instanceId, refId, false)));
             }
         });
     }
@@ -181,15 +194,16 @@ public class ClientScriptReceiver {
      */
     public static void handleScriptReload(S2CScriptReloadPacket packet) {
         Minecraft.getInstance().execute(() -> {
+            String fileName = packet.getFileName();
+            String fp = null;
             try {
-                String fileName = packet.getFileName();
                 Path file = Paths.get("immersive_cinematics", "scripts").resolve(fileName);
                 if (!Files.exists(file)) {
                     LOGGER.warn("Reload: 本地脚本文件不存在: {}", file);
                     return;
                 }
                 byte[] content = Files.readAllBytes(file);
-                String fp = ScriptFingerprint.of(content);
+                fp = ScriptFingerprint.of(content);
                 String prev = scriptFingerprints.get(fileName);
                 if (fp.equals(prev)) {
                     LOGGER.debug("Reload: 指纹未变化，忽略 {}", fileName);
@@ -201,7 +215,10 @@ public class ClientScriptReceiver {
                 CameraManager.INSTANCE.playCinematic(script);
                 LOGGER.info("Reloaded script from file: {}", fileName);
             } catch (Exception e) {
-                LOGGER.error("Failed to reload script from file", e);
+                FatalErrors.rethrowIfFatal(e);
+                ErrorLog.logRateLimited("Net", "client:script-reload:" + fileName, 5000L,
+                        "处理 S2C 脚本重载失败（边界: packet:S2CScriptReload，fileName=" + fileName
+                                + "，指纹=" + (fp != null ? fp : "未计算") + "）：本次重载已跳过", e);
             }
         });
     }

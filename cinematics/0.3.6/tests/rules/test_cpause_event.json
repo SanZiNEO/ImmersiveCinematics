@@ -1,0 +1,221 @@
+{
+  "meta": {
+    "id": "test_cpause_event",
+    "name": "C-pause 含 EVENT 暂停恢复",
+    "author": "ImmersiveCinematics",
+    "description": "C-pause 含 EVENT 的暂停 / 恢复实机夹具：CAMERA 片段 cam（20s，position.x 0→20、yaw 0→180 线性）在内容 6s 处由 r_pause（condition=time at 6，gate.at=6）执行 pause 并保持位置；r_resume 的 gate.at=5.5，判定源是不可达的 location（y=-100、radius=1，纯超时兜底），超时从门满足的 5.5s 起算 3.5s → 9.0s 真实时间由 on_timeout 执行 resume，实际暂停约 3s。EVENT 轨三条 command 记录：ev_4（t=4，pause 前，判「不重」）、ev_8（t=8，pause 后，判「不丢」）、ev_12（t=12，恢复后继续推进）。日志关键字 J1_EV_。",
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "login",
+        "repeatable": false,
+        "delay": 0
+      }
+    ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 20,
+            "loop": false,
+            "id": "cam",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "position_mode": {
+                "value": "absolute"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 20.0,
+                    "value": 20.0
+                  }
+                ]
+              },
+              "position.y": {
+                "value": 64.0
+              },
+              "position.z": {
+                "value": 0.0
+              },
+              "yaw": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 20.0,
+                    "value": 180.0
+                  }
+                ]
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 4,
+            "duration": 0.5,
+            "id": "ev_4",
+            "objects": {
+              "event_type": {
+                "value": "command"
+              },
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "say J1_EV_4"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "start_time": 8,
+            "duration": 0.5,
+            "id": "ev_8",
+            "objects": {
+              "event_type": {
+                "value": "command"
+              },
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "say J1_EV_8"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "start_time": 12,
+            "duration": 0.5,
+            "id": "ev_12",
+            "objects": {
+              "event_type": {
+                "value": "command"
+              },
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "say J1_EV_12"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "rules": [
+    {
+      "id": "r_pause",
+      "condition": {
+        "type": "time",
+        "at": 6
+      },
+      "actions": [
+        {
+          "type": "pause"
+        }
+      ],
+      "policy": {
+        "once": true
+      }
+    },
+    {
+      "id": "r_resume",
+      "condition": {
+        "type": "location",
+        "position": {
+          "x": 0,
+          "y": -100,
+          "z": 0
+        },
+        "radius": 1
+      },
+      "actions": [
+        {
+          "type": "resume"
+        }
+      ],
+      "policy": {
+        "timeout": 3.5,
+        "on_timeout": [
+          {
+            "type": "resume"
+          }
+        ]
+      }
+    }
+  ],
+  "rule_bindings": [
+    {
+      "id": "b_pause",
+      "rule": "r_pause",
+      "clip": "cam",
+      "gate": {
+        "at": 6
+      },
+      "control": "observe"
+    },
+    {
+      "id": "b_resume",
+      "rule": "r_resume",
+      "clip": "cam",
+      "gate": {
+        "at": 5.5
+      },
+      "control": "observe"
+    }
+  ]
+}

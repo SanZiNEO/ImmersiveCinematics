@@ -1,5 +1,8 @@
 package com.immersivecinematics.immersive_cinematics.webui;
 
+import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
+import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
+
 import java.nio.ByteBuffer;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -72,37 +75,44 @@ public class WebFrameStreamer {
     }
 
     private static void sendRaw(byte[] rgba) {
-        // 发送节流：采样无上限，这里控制实际发送约 60fps。
-        long now = System.currentTimeMillis();
-        long wait = SEND_INTERVAL_MS - (now - lastSend);
-        if (wait > 0) {
-            try {
-                Thread.sleep(wait);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return;
+        try {
+            // 发送节流：采样无上限，这里控制实际发送约 60fps。
+            long now = System.currentTimeMillis();
+            long wait = SEND_INTERVAL_MS - (now - lastSend);
+            if (wait > 0) {
+                try {
+                    Thread.sleep(wait);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
             }
+            lastSend = System.currentTimeMillis();
+
+            int w = WebFrameCapture.getWidth();
+            int h = WebFrameCapture.getHeight();
+            int stride = w * 4;
+
+            // OpenGL 读回自底向上，转成浏览器期待的从上到下。
+            byte[] flipped = new byte[rgba.length];
+            for (int y = 0; y < h; y++) {
+                System.arraycopy(rgba, (h - 1 - y) * stride, flipped, y * stride, stride);
+            }
+
+            int headerSize = 7;
+            ByteBuffer buf = ByteBuffer.allocate(headerSize + flipped.length);
+            buf.put((byte) FRAME_TYPE_RAW_RGBA);
+            buf.putShort((short) (frameCounter++ & 0xFFFF));
+            buf.putShort((short) w);
+            buf.putShort((short) h);
+            buf.put(flipped);
+
+            WebEditorServer.INSTANCE.broadcastBinary(buf.array());
+        } catch (RuntimeException e) {
+            // 线程边界：单帧失败不杀 worker，丢弃本帧继续下一帧（限频留全栈供定位）
+            FatalErrors.rethrowIfFatal(e);
+            ErrorLog.logRateLimited("WebUI", "frame-send", 5000L,
+                    "帧发送失败（bytes=" + rgba.length + "）：本帧丢弃，worker 继续", e);
         }
-        lastSend = System.currentTimeMillis();
-
-        int w = WebFrameCapture.getWidth();
-        int h = WebFrameCapture.getHeight();
-        int stride = w * 4;
-
-        // OpenGL 读回自底向上，转成浏览器期待的从上到下。
-        byte[] flipped = new byte[rgba.length];
-        for (int y = 0; y < h; y++) {
-            System.arraycopy(rgba, (h - 1 - y) * stride, flipped, y * stride, stride);
-        }
-
-        int headerSize = 7;
-        ByteBuffer buf = ByteBuffer.allocate(headerSize + flipped.length);
-        buf.put((byte) FRAME_TYPE_RAW_RGBA);
-        buf.putShort((short) (frameCounter++ & 0xFFFF));
-        buf.putShort((short) w);
-        buf.putShort((short) h);
-        buf.put(flipped);
-
-        WebEditorServer.INSTANCE.broadcastBinary(buf.array());
     }
 }

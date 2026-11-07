@@ -639,7 +639,8 @@ public final class ColorAdjustPass {
             shaderSource = resources;
             try {
                 shader = new ShaderInstance(resources, SHADER_NAME, DefaultVertexFormat.POSITION_TEX);
-            } catch (IOException e) {
+            } catch (IOException | RuntimeException e) {
+                // 语法错误 / uniform 不匹配抛 RuntimeException（不是 IOException）：同一资源周期内不重试，画面保持未调色
                 ErrorLog.log("Render", "画面颜色调整着色器加载失败（" + SHADER_NAME + "）："
                         + "本资源周期内不做颜色调整，检查 assets/minecraft/shaders/core/" + SHADER_NAME + ".*", e);
             }

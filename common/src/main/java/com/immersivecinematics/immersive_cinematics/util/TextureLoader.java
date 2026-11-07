@@ -19,9 +19,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 从 {@link ResourcePath} 目录加载 PNG / GIF 纹理到 Minecraft 纹理系统。
@@ -37,6 +39,13 @@ public final class TextureLoader {
     private static final Map<String, int[]> sizeCache = new HashMap<>();
     /** GIF 帧序列缓存（fileName → GifAnimation） */
     private static final Map<String, GifAnimation> gifCache = new HashMap<>();
+    /**
+     * 已上报过「文件不存在」的文件（绝对路径字符串）。
+     *
+     * <p>缺失路径不进 {@link #textureCache}，每次渲染都会重试 → 不加限频会逐帧刷屏；
+     * 这里做「每文件一次」告警，{@link #clearCache()} 时一并清空（重载资源后可再次上报）。
+     */
+    private static final Set<String> MISSING_REPORTED = new HashSet<>();
 
     private static final int MAX_GIF_FRAMES = 256;
     private static final int MAX_GIF_DIMENSION = 1024;
@@ -58,7 +67,9 @@ public final class TextureLoader {
 
         Path filePath = ResourcePath.resolve(fileName);
         if (!Files.exists(filePath)) {
-            LOGGER.debug("Texture file not found: {}", filePath);
+            if (MISSING_REPORTED.add(filePath.toString())) {
+                LOGGER.warn("Texture file not found: {}（该图层/图片将按缺失处理）", filePath);
+            }
             return null;
         }
 
@@ -197,5 +208,6 @@ public final class TextureLoader {
         gifCache.clear();
         textureCache.clear();
         sizeCache.clear();
+        MISSING_REPORTED.clear();
     }
 }

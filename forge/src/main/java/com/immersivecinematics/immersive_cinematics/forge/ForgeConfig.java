@@ -6,6 +6,11 @@ import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.config.ModConfigEvent;
+import net.minecraftforge.fml.loading.FMLPaths;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.nio.file.Path;
 
 /**
  * Forge 平台配置实现。
@@ -19,6 +24,13 @@ import net.minecraftforge.fml.event.config.ModConfigEvent;
 public class ForgeConfig implements Config.ConfigProvider {
 
     public static final ForgeConfig INSTANCE = new ForgeConfig();
+
+    /** 日志通道名固定为 {@code ImmersiveCinematics/Config}。 */
+    private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/Config");
+
+    /** COMMON 配置的落盘路径（仅用于失败日志定位；Forge 负责实际读写）。 */
+    private static final Path CONFIG_PATH = FMLPaths.CONFIGDIR.get()
+            .resolve(ImmersiveCinematics.MOD_ID + "-common.toml");
 
     private static final ForgeConfigSpec.Builder BUILDER = new ForgeConfigSpec.Builder();
 
@@ -116,23 +128,29 @@ public class ForgeConfig implements Config.ConfigProvider {
     public Config.ConfigValues load() {
         // ForgeConfigSpec.get() 在 ModConfigEvent 触发前不可调用
         if (!loaded) return Config.ConfigValues.defaults();
-        return new Config.ConfigValues(
-                SKIP_HOLD_THRESHOLD_MS.get(),
-                SHOW_SKIP_HUD.get(),
-                SKIP_VOTE_RATIO.get(),
-                SKIP_HUD_X.get(),
-                SKIP_HUD_Y.get(),
-                VOTE_HUD_X.get(),
-                VOTE_HUD_Y.get(),
-                DEBUG_LOGGING.get(),
-                TRIGGER_POLL_LOCATION.get(),
-                TRIGGER_POLL_BIOME.get(),
-                TRIGGER_POLL_INVENTORY.get(),
-                TRIGGER_POLL_STRUCTURE.get(),
-                TRIGGER_POLL_GAMESTAGE.get(),
-                CAMERA_CENTER_REPORT_INTERVAL.get(),
-                RULE_COMMAND_PERMISSION_LEVEL.get()
-        );
+        try {
+            return new Config.ConfigValues(
+                    SKIP_HOLD_THRESHOLD_MS.get(),
+                    SHOW_SKIP_HUD.get(),
+                    SKIP_VOTE_RATIO.get(),
+                    SKIP_HUD_X.get(),
+                    SKIP_HUD_Y.get(),
+                    VOTE_HUD_X.get(),
+                    VOTE_HUD_Y.get(),
+                    DEBUG_LOGGING.get(),
+                    TRIGGER_POLL_LOCATION.get(),
+                    TRIGGER_POLL_BIOME.get(),
+                    TRIGGER_POLL_INVENTORY.get(),
+                    TRIGGER_POLL_STRUCTURE.get(),
+                    TRIGGER_POLL_GAMESTAGE.get(),
+                    CAMERA_CENTER_REPORT_INTERVAL.get(),
+                    RULE_COMMAND_PERMISSION_LEVEL.get()
+            );
+        } catch (Exception e) {
+            // 配置值不可用（TOML 损坏 / 值缺失）→ 本次使用默认值；带路径便于定位
+            LOGGER.warn("Forge 配置读取失败，使用默认值: {}", CONFIG_PATH, e);
+            return Config.ConfigValues.defaults();
+        }
     }
 
     @Override

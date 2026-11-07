@@ -132,6 +132,16 @@ public class PlayerMoveController {
         return current != null;
     }
 
+    /** 当前移动目标的世界 X 坐标（仅诊断日志用；无目标时为 {@link Double#NaN}）。 */
+    public double targetX() {
+        return current == null ? Double.NaN : current.x;
+    }
+
+    /** 当前移动目标的世界 Z 坐标（仅诊断日志用；无目标时为 {@link Double#NaN}）。 */
+    public double targetZ() {
+        return current == null ? Double.NaN : current.z;
+    }
+
     /**
      * 宏观循环折返瞬间：目标索引单调推进（{@link #destIndex}），回到起点需复位，
      * 否则第二圈起不再驱动玩家移动。不清目标表（与脚本启动时同一份）。

@@ -83,6 +83,8 @@ public final class LaneRenderer {
     private static boolean irisDepthVersionResolved;
     /** 首次成功递增时打一行 INFO（只一次，不按 lane 刷屏）。 */
     private static boolean irisDepthVersionBumpLogged;
+    /** 深度重挂降级是否已记录（首次 INFO；失败可能逐帧复现，之后静默不刷屏）。 */
+    private static boolean irisDepthVersionDegradeLogged;
 
     /**
      * lane 内容开关。默认全关（{@link #WORLD_ONLY}）——副画面只要世界地形；
@@ -815,7 +817,7 @@ public final class LaneRenderer {
      * 把 lane FBO 的 Iris 深度重挂版本 +1，迫使该 lane pass 的 {@code RenderTargets.resizeIfNeeded}
      * 把 {@code depthtex0/1/2}、{@code gdepthtex}、{@code centerDepthSampler} 重挂到 lane 自己的深度纹理。
      * 回主画面无需手动恢复：Iris 缓存停在本 lane 版本上，下一次主 pass 的 resizeIfNeeded 因版本不同自动重挂。
-     * 无光影 / 字段不存在 / 反射失败：静默跳过（无光影路径零影响）。
+     * 无光影 / 字段不存在 / 反射失败：降级为原行为（渲染本身不受影响），首次记一条 INFO。
      */
     private static void bumpIrisDepthBufferVersion(RenderTarget laneTarget, RenderTarget mainTarget) {
         Field field = irisDepthVersionField();
@@ -837,9 +839,18 @@ public final class LaneRenderer {
                 LOGGER.info("[lane] Iris 深度重挂已接管：lane pass 内 depthtex0/1/2 / gdepthtex / "
                         + "centerDepthSampler 采样 lane FBO 自己的深度（{}）", IRIS_DEPTH_VERSION_FIELD);
             }
-        } catch (Throwable ignored) {
+        } catch (Exception e) {
             // 字段语义变化 / 访问被拒：降级为原行为（屏幕空间效果仍采样非 lane pass 的深度），渲染本身不受影响
+            reportIrisDepthDegrade("递增 " + IRIS_DEPTH_VERSION_FIELD + " 失败", e);
         }
+    }
+
+    /** 首次记一条「Iris 深度重挂未接管，降级为原行为」；之后静默（失败逐帧复现，不刷屏）。 */
+    private static void reportIrisDepthDegrade(String where, Throwable t) {
+        if (irisDepthVersionDegradeLogged) return;
+        irisDepthVersionDegradeLogged = true;
+        LOGGER.info("[lane] Iris 深度重挂未接管（{}），降级为原行为：lane pass 内 depthtex0/1/2 / gdepthtex / "
+                + "centerDepthSampler 继续采样非 lane pass 的深度，渲染本身不受影响", where, t);
     }
 
     /** 反射解析一次 {@code iris$depthBufferVersion}；无光影或失败时返回 {@code null}（之后不再尝试）。 */
@@ -851,8 +862,9 @@ public final class LaneRenderer {
                     Field field = RenderTarget.class.getDeclaredField(IRIS_DEPTH_VERSION_FIELD);
                     field.setAccessible(true);
                     irisDepthVersionField = field;
-                } catch (Throwable ignored) {
-                    // 字段不存在 / 无反射权限：保持 null，之后每次静默跳过
+                } catch (Exception e) {
+                    // 字段不存在 / 无反射权限：保持 null，之后不再尝试（降级为原行为，首次记一条 INFO）
+                    reportIrisDepthDegrade("解析 " + IRIS_DEPTH_VERSION_FIELD + " 失败", e);
                 }
             }
         }

@@ -122,7 +122,6 @@ public final class TriggerSchemas {
     private static Map<String, FieldDef> entityKill() {
         Map<String, FieldDef> m = new LinkedHashMap<>();
         m.put("entity", new FieldDef("string", null, true));
-        m.put("mode", new FieldDef("enum", "or", false, List.of("or", "and")));
         m.put("dimension", new FieldDef("string", ""));
         m.put("biome", new FieldDef("string", ""));
         m.put("position", new FieldDef("map", null));
@@ -132,7 +131,7 @@ public final class TriggerSchemas {
         return m;
     }
 
-    /** death 场景条件（镜像 entity_kill 的场景组，无 entity / mode）：字段缺省 = 不限制 */
+    /** death 场景条件（镜像 entity_kill 的场景组，无 entity）：字段缺省 = 不限制 */
     private static Map<String, FieldDef> death() {
         Map<String, FieldDef> m = new LinkedHashMap<>();
         m.put("dimension", new FieldDef("string", ""));
@@ -243,7 +242,6 @@ public final class TriggerSchemas {
     private static Map<String, FieldDef> inventory() {
         Map<String, FieldDef> m = new LinkedHashMap<>();
         m.put("items", new FieldDef("array", null, true));
-        m.put("mode", new FieldDef("enum", "and", false, List.of("and", "or")));
         m.put("change", new FieldDef("enum", "", false, List.of("", "increase", "decrease")));
         return m;
     }
