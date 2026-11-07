@@ -255,7 +255,7 @@ I-3 移交的规则 / 路径项与 I-4 卫生项，全部在本轮关闭：
 |---|---|---|---|
 | I5-R1 | ~~数组型触发条件~~ | **J-1 已关闭（2026-11-07）** | 裁决 = 唯一格式 `any` / `all_of`：删除 `entity_kill` / `item_pickup` 数组形态与 `entity_kill` / `inventory` 的 `mode`；两条夹具改写（`showcase_02` 单值、`showcase_07` `any` + `continuity.window`）；见 `C-trigger/trigger-conditions.md` §6.1 |
 | I5-R2 | ~~`E:/tmp/icv` 6 个旧格式 self-test 失效~~ | **J-1 已关闭（2026-11-07）** | 样本改新格式；`SELFTEST: all validator-rule self-tests passed`，全量 `6 of 260`（6 支为 `tests/faults/` 负例） |
-| I5-R3 | `test_h11_hard_hide.json` Forge 复测 | **J-1 部分关闭（2026-11-07）**：内置层接管 + 白名单重画已复测通过（`hud.hotbar` 重画、其余全隐藏，见 `J-media/verification-2026-11-07.md` §七） | **剩余**：真实第三方 overlay 模组的 `allowlist` / `normal` 两态像素对照 → 归属 H5-R1 批次（关闭条件 = 装模组后两态对照记录） |
+| I5-R3 | `test_h11_hard_hide.json` Forge 复测 | **J-1 已关闭（2026-11-07）**：内置层接管 + 白名单重画均复测通过（`hud.hotbar` 重画、其余全隐藏，见 `J-media/verification-2026-11-07.md` §七） | 第三方 overlay 模组属**契约边界**：注册/分类门面（`HudLayerRegistry`）已就绪，适配由模组侧完成，本仓不追第三方实测 |
 | I5-R4 | ~~内联片段默认 `exit` 不执行~~ | **J-1 已关闭（2026-11-07）** | `ClipBranchController.poll()` 扫描账本全部记录、单一 `applyExit` 派发（主线与分支 target 同处）；探针 28/28；夹具改回内联 `exit.goto` 并实机通过（`J-media/verification-2026-11-07.md` §一） |
 
 ### M-2. A–H 孤儿欠账（2026-11-06 用户裁决归属，不属 I 轮）
@@ -269,6 +269,18 @@ I-3 移交的规则 / 路径项与 I-4 卫生项，全部在本轮关闭：
 | C-pause 实机复验 | **J-1 已关闭（2026-11-07）** | 同上 §四 + `verification-2026-11-07.md` §五（含 clip3 卡死修复） |
 | F 轮失败处理 P1/P2 | **J-1 已关闭（2026-11-07）** | 同上 §五 + `failure-handling-audit.md` §0.4 / §9 + `verification-2026-11-07.md` §六 |
 | F5 光影 per-pipeline（WP5） | **K 轮** | [`K-optimization/shader-per-pipeline.md`](K-optimization/shader-per-pipeline.md) |
+
+### M-3. J-1 收尾（本轮无新增移交项）
+
+J1-R1~R5 已在 J-1 内全部关闭，不留移交：
+
+- **R1**：`OverlayLayer.opacityForLog()`（默认 `NaN`）+ 四层实现 + `OverlayManager` 逐层 tick 日志带 opacity。
+- **R2**：`ErrorLog.warnRateLimited(...)`（同限频窗口、WARN 级）；D9「已自愈」改用 WARN。
+- **R3**：`PlaybackLifecycle` 两处接播在 `startScriptInternal` 返回 null 时不再上报 started，改为限频日志。
+- **R4**：等值探针扩到 21 支（yaw/roll 环绕、无限折叠、path 几何、多关键帧）；非正 `zoom` 由校验期拒绝（`ObjectValidator`「缩放必须为正」）并在探针里断言。
+- **R5**：`test_rules_actions` clip2 规则补 `once`，实机 `goto 拒绝=0` 且 `fully complete`。
+
+证据：`J-media/verification-2026-11-07.md` §九。
 
 ---
 

@@ -141,9 +141,9 @@ Wave 4
 | T4 / T5 | ✅ 完成 | snap 单帧硬切 / blend 每帧 ≤0.012px·0.09°、窗口 12s；链式 t=48 衔接 0.025px·0.155° |
 | T6 | ✅ 完成 | 四象限逐帧 yaw 表（对照 / exp / spring / inertia）+ 逐型结论 + 60/120/解锁三档 |
 | T7 | ✅ 完成 | 位置恒 0.000/6.004（666 帧）、EVENT 4/8/12 各一次、恢复推进到 20.002；**另修复 clip3 卡死**（pause 释放判据改「本执行内仍可触发的 resume」） |
-| T8 | ✅ 完成 | 旧/新对拍 10/10 PASS：5 支仓库夹具全通道 maxAbsDiff=0；补测角度环绕（mod 360 差 0）、zoom 几何、多关键帧（≤9.54e-7） |
+| T8 | ✅ 完成 | 旧/新对拍 **21/21 PASS**：5 支仓库夹具全通道 maxAbsDiff=0；补测 yaw/roll 环绕（mod 360 差 0）、无限折叠 3 支、path 几何 5 支、多关键帧（≤9.54e-7）；非正 zoom 由校验期拒绝并断言 |
 | T9 | ✅ 完成 | `E:/tmp/icv` SELFTEST 全过；Forge h11 接管 + 白名单重画（`hud.hotbar`）复测通过 |
-| T10 | ✅ 完成 | 本文档 + `J-media/verification-2026-11-07.md` + 各专篇回写 + `I-BACKLOG.md` 新增 J1-R1~R5 |
+| T10 | ✅ 完成 | 本文档 + `J-media/verification-2026-11-07.md` + 各专篇回写；**本轮新增遗留 R1~R5 已全部关闭，BACKLOG 无新增移交项** |
 
 ### 探针与命令（可复跑）
 
@@ -153,7 +153,7 @@ Wave 4
 | 全量校验 | `sh E:/tmp/icv/run.sh E:/Documents/GitHub/ImmersiveCinematics/cinematics` | `6 of 260` + `SELFTEST: all validator-rule self-tests passed` |
 | I5Probe | `E:/tmp/i5/probe`（javac + java） | `SUMMARY pass=24 fail=0`（语料 260 支 = 252 正常 + 8 负例） |
 | 出口探针 | `sh E:/tmp/j1-exit/run.sh` | `SUMMARY pass=28 fail=0` |
-| 等值探针 | `sh E:/tmp/j1-equiv/run.sh` | `SUMMARY pass=10 fail=0` |
+| 等值探针 | `sh E:/tmp/j1-equiv/run.sh` | `SUMMARY pass=21 fail=0` |
 
 ### 本轮新增 deprecated / 兼容路径
 

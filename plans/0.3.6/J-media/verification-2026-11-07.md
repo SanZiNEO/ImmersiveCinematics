@@ -131,3 +131,17 @@ Forge dev 客户端（`:forge:Client`，临时 `--quickPlaySingleplayer`，测�
 2. 多关键帧分段：旧格式一份关键帧必须带两通道节点并集，新格式每属性各自节点 → 分段切法不同带来 ≤1e-6 级 float 舍入。
 
 语义差异（设计变更，已由 I 轮记录）：morph 两侧各取完整实际状态、路径条目化——不是数值等值能覆盖的部分，见 `I-script-core/migration-report.md`。
+
+> 探针最终覆盖（收尾后）：**21 支夹具 / `SUMMARY pass=21 fail=0`** —— 仓库 5 支（5/5 全通道 0）、yaw 环绕 2 支、roll 环绕 2 支、pitch 1 支、多关键帧 1 支、无限折叠 3 支（repeat/pingpong/`duration<0` 哨兵）、path 几何 5 支（bspline / catmull_rom / clothoid / bezier / 合成最小例）。非正 `zoom` 由校验期拒绝（`ObjectValidator`「缩放必须为正」），探针断言该拒绝后不计入数值对拍。4 次篡改自检均能报超差并还原。
+
+## 九、J-1 收尾（本轮新增遗留全部关闭）
+
+| 项 | 处置 | 验证 |
+|---|---|---|
+| R1 A9 日志缺 opacity | `OverlayLayer.opacityForLog()`（默认 `NaN`）+ `FadeLayer` / `ImageLayer` / `SubtitleLayer` / `LetterboxLayer` 各自返回真实值；`OverlayManager` 逐层 tick 日志追加 `opacity=` | `:common:compileJava` 通过；`grep opacityForLog` = 接口 + 4 实现 + 调用点 |
+| R2 限频日志只有 ERROR | 新增 `ErrorLog.warnRateLimited(...)`（同限频窗口与抑制计数合并，WARN 级）；D9 `smart-cull-stale`（已自愈）迁移过去 | 编译通过；ERROR 调用点与文件行格式不变 |
+| R3 null 玩家仍报 started | `PlaybackLifecycle` 两处接播：`startScriptInternal` 返回 null 时不上报 `started`，改打 `started-skipped` 限频日志 | 编译通过；`PlaybackLedger.reportPlaybackStarted` 的 null 容错保留 |
+| R4 等值探针覆盖缺口 | 探针扩到 21 支（见 §八末尾）；非正 `zoom` 由校验期拒绝并断言 | `SUMMARY pass=21 fail=0` |
+| R5 clip2 `goto_clip` 逐帧重复 launch | 规则 `r_c3_2_1` 补 `"once": true`（原缺省每帧重触发，首次成功后后续被拒） | 实机：`goto 拒绝=0`，`Script 'test_rules_actions' fully complete` |
+
+> 结论：**J-1 无新增移交项**。第三方 overlay 模组的 allowlist/normal 像素对照属契约边界（`HudLayerRegistry` 门面已就绪，适配在模组侧）。
