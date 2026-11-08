@@ -1,6 +1,5 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
-import com.immersivecinematics.immersive_cinematics.script.identity.UsageIndex;
 import com.immersivecinematics.immersive_cinematics.script.path.PathCollection;
 import com.immersivecinematics.immersive_cinematics.script.rule.RuleCollection;
 
@@ -28,15 +27,6 @@ public class CinematicScript {
     /** 脚本级独立片段表（{@code clips[]}；缺省空列表）。构造后不再修改。 */
     private final List<Clip> standaloneClips;
 
-    /**
-     * 使用边构建器（解析期由 {@link ScriptParser} 装入）；{@link #getUsageIndex()} 首次访问时冻结。
-     * 解析期装配顺序：先建脚本 → 登记全部轨道放置 → 装入 builder → 首次查询时冻结。
-     */
-    private UsageIndex.Builder usageBuilder;
-
-    /** 冻结后的使用边索引（惰性，首次 {@link #getUsageIndex()} 建成；此后只读）。 */
-    private UsageIndex usageIndex;
-
     /** id → 片段索引（惰性，覆盖 timeline 全部内联片段 + 独立片段；重复 id 保留第一个） */
     private Map<String, Clip> clipsById;
 
@@ -55,12 +45,6 @@ public class CinematicScript {
     /** 有限内容末端（秒，构造期派生）：timeline 片段展开末端最大值；无片段 = 0。仅 {@link #hasFiniteContentEnd()} 时有效。 */
     private final double contentEndSeconds;
 
-    /** 是否存在至少一个有限窗口的 timeline 片段（构造期派生）。 */
-    private final boolean hasFiniteDisplayEnd;
-
-    /** 有限窗口 timeline 片段展开末端最大值（构造期派生）；仅 {@link #hasFiniteDisplayEnd()} 时有效。 */
-    private final double finiteDisplayEndSeconds;
-
     public CinematicScript(ScriptMeta meta, Timeline timeline) {
         this(meta, timeline, List.of());
     }
@@ -78,8 +62,6 @@ public class CinematicScript {
 
         boolean infinite = meta != null && meta.isMacroLoop() && meta.getMacroLoopCount() < 0;
         double content = 0.0;
-        double display = 0.0;
-        boolean finiteDisplay = false;
         List<TimelineTrack> tracks = timeline != null ? timeline.getTracks() : null;
         if (tracks != null) {
             for (TimelineTrack track : tracks) {
@@ -91,8 +73,6 @@ public class CinematicScript {
                         continue;
                     }
                     double end = clip.getWindowEnd();
-                    if (!finiteDisplay || end > display) display = end;
-                    finiteDisplay = true;
                     if (end > content) content = end;
                 }
             }
@@ -102,8 +82,6 @@ public class CinematicScript {
         }
         this.infiniteContent = infinite;
         this.contentEndSeconds = content;
-        this.hasFiniteDisplayEnd = finiteDisplay;
-        this.finiteDisplayEndSeconds = display;
     }
 
     public ScriptMeta getMeta() { return meta; }
@@ -141,29 +119,6 @@ public class CinematicScript {
         return clipIndex().get(id);
     }
 
-    /** 使用边构建器（解析期装配用；未装配时 {@code null}）。 */
-    public UsageIndex.Builder usageBuilder() { return usageBuilder; }
-
-    /** 装入使用边构建器；同时丢弃已冻结的旧索引（解析期只发生一次）。 */
-    public void setUsageBuilder(UsageIndex.Builder usageBuilder) {
-        this.usageBuilder = usageBuilder;
-        this.usageIndex = null;
-    }
-
-    /**
-     * 使用边索引（惰性冻结）：首次访问时用 {@link #usageBuilder()} 对当前 id 表冻结；
-     * 无 builder → 空索引。冻结后重复访问返回同一实例。
-     */
-    public UsageIndex getUsageIndex() {
-        UsageIndex index = usageIndex;
-        if (index == null) {
-            UsageIndex.Builder builder = usageBuilder;
-            index = builder != null ? builder.freeze(clipIndex()) : UsageIndex.empty();
-            usageIndex = index;
-        }
-        return index;
-    }
-
     public String getRawJson() { return rawJson; }
     public void setRawJson(String rawJson) { this.rawJson = rawJson; }
 
@@ -192,21 +147,6 @@ public class CinematicScript {
             throw new IllegalStateException("内容无限，没有有限末端：" + getId());
         }
         return contentEndSeconds;
-    }
-
-    /** 是否存在至少一个有限窗口的 timeline 片段（独立片段不计）。 */
-    public boolean hasFiniteDisplayEnd() { return hasFiniteDisplayEnd; }
-
-    /**
-     * 有限窗口 timeline 片段的 {@link Clip#getWindowEnd()} 最大值（独立片段不计）。
-     *
-     * @throws IllegalStateException 没有任何有限窗口的 timeline 片段（不用数值哨兵）
-     */
-    public double finiteDisplayEnd() {
-        if (!hasFiniteDisplayEnd) {
-            throw new IllegalStateException("没有有限窗口的 timeline 片段：" + getId());
-        }
-        return finiteDisplayEndSeconds;
     }
 
     // ========== 内部：id 索引 ==========

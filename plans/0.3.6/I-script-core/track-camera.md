@@ -315,7 +315,7 @@ CameraClipRuntime
 | 参考系不写实例字段，装配不依赖调用顺序 | 参考系只经 `PositionResult#frame()` 传递 | 已实现；旧实现的 per-frame `frame` 隐藏顺序未复现 |
 | `CameraLane` 携带可空合成参数 | `CameraLane` 增加可空 `CameraLaneComposite`（opacity / dest / source / mask）；新格式由相机求值器一次算出，`ScriptLaneDriver#resolve` 直接读 | 已实现；旧格式为 `null`，走旧插值 |
 | `isClipUsable` 只看范围内对象 | 新格式只扫 `[0,duration]` 内对象；超界关键帧不参与、也不让片段不可用 | 已实现 |
-| 路径条目消费（选轴 geometry/timing、切线来源） | `script/path/{PathBinding,PathBindingSource,PathTiming,PathBindingResolver}`；geometry/timing 覆盖 `position.x/y/z` 的选中轴，未选轴仍按 `SampledProperty`；`orient=tangent` 的切线 = 选轴路径导数 + 未选轴采样导数 | 消费侧已实现；**脚本级 `paths[]` 的解析 / 校验 / 索引未实现（I-4）**；`CameraKeyframeEvaluator#setPathBindingSource` 是 I-4 接线口，缺省 `PathBindingSource.NONE` |
+| 路径条目消费（选轴 geometry/timing、切线来源） | `script/path/{PathBinding,PathBindingSource,PathTiming,PathBindingResolver}`；geometry/timing 覆盖 `position.x/y/z` 的选中轴，未选轴仍按 `SampledProperty`；`orient=tangent` 的切线 = 选轴路径导数 + 未选轴采样导数 | 消费侧已实现；**脚本级 `paths[]` 的解析 / 校验 / 索引未实现（I-4）**；`CameraFrameEvaluator#setPathBindingSource` 是 I-4 接线口，缺省 `PathBindingSource.NONE` |
 | 两侧完整状态 → 过渡只混合快照 | 新格式每侧求完整状态（位置/朝向 + 本段 motion + 本段 breath）；每侧一份 `LaneMotionStepper`（`motionA`/`motionB`），一帧一侧一次；混合后不再叠加 motion/breath | 已实现；旧格式保留「混合后 next motion + prev breath」，逐位不变 |
 | motion / breath 时间基准 | 新格式 breath 用该侧 `executionLocalTime`（每侧相位独立）；旧格式 breath 用 `globalTime`；motion 的 `dt` 两侧都用 `globalTime` | 已实现 |
 | motion/breath/modifier/transition/10 条调色曲线对新格式可用 | 新格式在**解析期**由 `ScriptParser.parseObjectClip` 归一成强类型（`MathModel`/`ClipModifier`/`TransitionParams`/`ColorCurve`），`LaneMotionStepper`/`Clip.getModifier()`/`Clip.getTransitionSpec()`/`Clip.getColorCurve()` 直接可用 | 已实现 |

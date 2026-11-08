@@ -69,46 +69,6 @@ public class Timeline {
         return findTrack(TrackTypeId.CAMERA);
     }
 
-    /**
-     * 获取 Letterbox 轨道（最多 1 条）。
-     *
-     * @return Letterbox 轨道，可能为空
-     */
-    public Optional<TimelineTrack> getLetterboxTrack() {
-        return findTrack(TrackTypeId.LETTERBOX);
-    }
-
-    /**
-     * 获取所有 Audio 轨道。
-     *
-     * @return Audio 轨道列表（按时间轴顺序）
-     */
-    public List<TimelineTrack> getAudioTracks() {
-        return tracks.stream()
-                .filter(t -> TrackTypeId.AUDIO.equals(t.getType()))
-                .toList();
-    }
-
-    /**
-     * 获取 Event 轨道（最多 1 条）。
-     *
-     * @return Event 轨道，可能为空
-     */
-    public Optional<TimelineTrack> getEventTrack() {
-        return findTrack(TrackTypeId.EVENT);
-    }
-
-    /**
-     * 获取所有 ModEvent 轨道。
-     *
-     * @return ModEvent 轨道列表（按时间轴顺序）
-     */
-    public List<TimelineTrack> getModEventTracks() {
-        return tracks.stream()
-                .filter(t -> TrackTypeId.MOD_EVENT.equals(t.getType()))
-                .toList();
-    }
-
     @Override
     public String toString() {
         return String.format("Timeline{tracks=%d}", tracks.size());

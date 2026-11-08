@@ -18,17 +18,16 @@ import java.util.function.Predicate;
  *   <li>{@link #exists} / {@link #count} / {@link #last(FactType, String, String)} / {@link #lastOf}
  *       走常驻索引，是<b>累计口径</b>：保留集按 {@link FactType#maxRetained()} 淘汰旧事实后，计数与「最近一次」
  *       仍然成立。键 = {@code script + '\u0000' + object}。</li>
- *   <li>{@link #anyWithin} / {@link #lastWithin} / {@link #lastMatching} /
+ *   <li>{@link #anyWithin} / {@link #lastWithin} /
  *       {@link #last(FactType, String, String, FactResult)}
  *       扫描保留集，<b>受保留深度约束</b>：比保留集最旧事实更早的记录查不到。保留上限按类型声明，
  *       窗口口径（{@code dwell} / {@code window} ≤ 1200 tick）应按对应类型的上限取用。</li>
- *   <li>{@link #anyObject} 扫描索引键（累计口径），只匹配 {@code object} 维度。</li>
  * </ul>
  *
  * <p>保留集按 append 顺序保存；调用方应保证 tick 非降序，窗口查询依赖这一点做提前停止
  * （从新到旧扫描，遇到 {@code tick < fromTick} 立即返回）。
  *
- * <p>脏位只由 {@link FactType.Durability#PERSISTENT} 事实的追加与 v1 转换置起：
+ * <p>脏位只由 {@link FactType.Durability#PERSISTENT} 事实的追加置起：
  * 会话事实不参与落盘，追加它们不应触发写文件。
  */
 public final class PlayerFacts {
@@ -93,29 +92,6 @@ public final class PlayerFacts {
             }
         }
         return latest;
-    }
-
-    /**
-     * 该类型在该脚本下最近一条满足 {@code filter} 的事实；{@code filter == null} 视为不过滤。
-     *
-     * <p>从新到旧扫描保留集（与 {@link #lastWithin} 同口径），因此受保留深度约束；谓词只影响命中项，
-     * 不改变「最近」的判定。找不到返回 {@code null}。
-     */
-    public Fact lastMatching(FactType type, String script, Predicate<Fact> filter) {
-        TypeFacts typeFacts = types.get(type);
-        if (typeFacts == null) {
-            return null;
-        }
-        String expectedScript = normalize(script);
-        Predicate<Fact> predicate = filter == null ? fact -> true : filter;
-        Iterator<Fact> iterator = typeFacts.retained.descendingIterator();
-        while (iterator.hasNext()) {
-            Fact fact = iterator.next();
-            if (fact.script().equals(expectedScript) && predicate.test(fact)) {
-                return fact;
-            }
-        }
-        return null;
     }
 
     // ===== Retention-window queries =====
@@ -202,33 +178,6 @@ public final class PlayerFacts {
         return null;
     }
 
-    /** 该类型下是否存在任一事实的 {@code object} 满足匹配器；累计口径（扫描索引键）。 */
-    public boolean anyObject(FactType type, Predicate<String> objectMatcher) {
-        if (objectMatcher == null) {
-            return false;
-        }
-        TypeFacts typeFacts = types.get(type);
-        if (typeFacts == null) {
-            return false;
-        }
-        for (String key : typeFacts.index.keySet()) {
-            int separator = key.indexOf(KEY_SEPARATOR);
-            String object = separator < 0 ? key : key.substring(separator + 1);
-            if (objectMatcher.test(object)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    // ===== Retention inspection =====
-
-    /** 该类型保留集当前条数。 */
-    public int retainedCount(FactType type) {
-        TypeFacts typeFacts = types.get(type);
-        return typeFacts == null ? 0 : typeFacts.retained.size();
-    }
-
     /** 该类型保留集的只读快照（append 顺序，最旧在前）。 */
     public List<Fact> retained(FactType type) {
         TypeFacts typeFacts = types.get(type);
@@ -287,11 +236,6 @@ public final class PlayerFacts {
 
     public void markClean() {
         dirty = false;
-    }
-
-    /** v1 一次性转换后显式置脏（转换结果需要在下一次保存时写成 v2）。 */
-    public void markDirty() {
-        dirty = true;
     }
 
     /** 只收集持久类型的事实（保留集内的），供 SNBT v2 落盘。 */

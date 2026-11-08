@@ -4,7 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
-import com.immersivecinematics.immersive_cinematics.script.PositionData;
+import com.immersivecinematics.immersive_cinematics.script.object.position.PointKinds;
 import com.immersivecinematics.immersive_cinematics.script.schema.SchemaRegistry;
 import com.immersivecinematics.immersive_cinematics.spi.ObjectDef;
 import com.immersivecinematics.immersive_cinematics.spi.PropertyMode;
@@ -501,7 +501,7 @@ public final class ObjectValidator {
             String mode = valueOf("position_mode");
             String space = valueOf("position_space");
             String origin = valueOf("position_origin");
-            int originKind = PositionData.originKindOf(origin);
+            int originKind = PointKinds.kindOf(origin);
             boolean base = "base".equals(space);
             boolean absolute = "absolute".equals(mode);
 
@@ -560,15 +560,15 @@ public final class ObjectValidator {
         }
 
         private static boolean isEntityOrigin(int originKind, boolean base) {
-            return originKind == PositionData.ORIGIN_SELECTOR
-                    || originKind == PositionData.ORIGIN_PLAYER
-                    || (originKind == PositionData.NO_ORIGIN && base);
+            return originKind == PointKinds.SELECTOR
+                    || originKind == PointKinds.PLAYER
+                    || (originKind == PointKinds.NO_KIND && base);
         }
 
         private void checkFreezes(int originKind, boolean base, String facingSource, String facingTarget) {
             if (objects.has("position_origin_freeze")) {
-                boolean dynamic = originKind == PositionData.ORIGIN_SELECTOR
-                        || (originKind == PositionData.NO_ORIGIN && base);
+                boolean dynamic = originKind == PointKinds.SELECTOR
+                        || (originKind == PointKinds.NO_KIND && base);
                 if (!dynamic) {
                     issues.add(prefix + "position_origin_freeze: 写了但当前点源不是实体选择器，不读取（已忽略）");
                 }
@@ -592,7 +592,7 @@ public final class ObjectValidator {
         }
 
         private boolean isEntitySelector(String path) {
-            return PositionData.originKindOf(valueOf(path)) == PositionData.ORIGIN_SELECTOR;
+            return PointKinds.kindOf(valueOf(path)) == PointKinds.SELECTOR;
         }
 
         /**

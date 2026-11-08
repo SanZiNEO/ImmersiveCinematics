@@ -88,7 +88,7 @@ public abstract class CameraMixin {
     /**
      * lane 相机返回 true 让 Minecraft 认为相机处于「分离」（第三人称）模式，从而渲染玩家身体模型。
      * 不影响手臂（由 {@code GameRenderer.renderItemInHand()} 按 {@code CameraType.isFirstPerson()}
-     * 单独判定），也不影响 HUD（见 {@link GuiMixin}）。
+     * 单独判定），也不影响 HUD。
      */
     @Inject(method = "isDetached", at = @At("HEAD"), cancellable = true)
     private void onIsDetached(CallbackInfoReturnable<Boolean> cir) {

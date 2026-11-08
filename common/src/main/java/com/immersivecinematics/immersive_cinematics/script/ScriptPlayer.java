@@ -7,7 +7,6 @@ import com.immersivecinematics.immersive_cinematics.control.ExitReason;
 import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
 import com.immersivecinematics.immersive_cinematics.script.execution.ClipExecutionLedger;
 import com.immersivecinematics.immersive_cinematics.script.execution.ClipTimeSource;
-import com.immersivecinematics.immersive_cinematics.script.object.ClipRuntimeCache;
 import com.immersivecinematics.immersive_cinematics.script.object.SampledClip;
 import com.immersivecinematics.immersive_cinematics.script.track.TrackDriver;
 import com.immersivecinematics.immersive_cinematics.script.track.TrackRegistry;
@@ -99,7 +98,6 @@ public class ScriptPlayer implements ClipTimeSource {
     }
 
     public PlayerMoveController getPlayerMovement() { return playerMovement; }
-    public Vec3 getOriginPos() { return originPos; }
 
     // 当前活跃的脚本运行时行为（从 ScriptMeta.RuntimeBehavior 直接持有）
     private ScriptMeta.RuntimeBehavior currentBehavior = null;
@@ -173,11 +171,7 @@ public class ScriptPlayer implements ClipTimeSource {
     /** {@link #activeCameraLanes} 的只读视图（零分配；内容随上面的缓冲每次刷新）。 */
     private final List<CameraLane> activeCameraLanesView = Collections.unmodifiableList(activeCameraLanes);
 
-    /**
-     * CAMERA lane 调色的对象采样缓存：仅 {@code lane.clip().hasObjects()} 时使用（旧格式 lane 仍走
-     * {@link ColorAdjustSampler#sample(Clip, double)}，像素路径不变）。脚本替换 / 停播时清空。
-     */
-    private final ClipRuntimeCache cameraLaneRuntime = new ClipRuntimeCache(TrackTypeId.CAMERA);
+    /** CAMERA lane 调色的曲线缓存（与 ADJUST 分开持有）；脚本替换 / 停播时清空。 */
     private final ColorAdjustSampler.CurveCache cameraLaneCurves = new ColorAdjustSampler.CurveCache();
 
     /**
@@ -244,8 +238,7 @@ public class ScriptPlayer implements ClipTimeSource {
                 }
             }
         }
-        // 片段对象已换：CAMERA lane 的采样缓冲 / 曲线解析结果失效
-        cameraLaneRuntime.clear();
+        // 片段对象已换：CAMERA lane 的曲线解析结果失效
         cameraLaneCurves.clear();
         // 玩家移动控制：增量替换后重新提取 EVENT position 关键帧
         playerMovement.onScriptStart(newScript, originPos);
@@ -334,7 +327,6 @@ public class ScriptPlayer implements ClipTimeSource {
         trackPlayers = Collections.emptyList();
         activeCameraClips.clear();
         activeCameraLanes.clear();
-        cameraLaneRuntime.clear();
         cameraLaneCurves.clear();
         if (oneShotHost != null) {
             oneShotHost.onStop();
@@ -506,22 +498,6 @@ public class ScriptPlayer implements ClipTimeSource {
     }
 
     /**
-     * 距内容终点的剩余秒数（终点 = 执行账本的 {@link ClipExecutionLedger#contentEnd()}，不是静态片段窗口）。
-     * 无限内容（永不结束片段 / 宏观无限圈）→ {@link Double#MAX_VALUE}（「不会自然结束」哨兵，读方无需判 NaN）；
-     * 已过终点 → {@code 0}；未播放 → {@code 0}。宏观循环按 {@code a + N × (b − a)} 计；内容比静态窗口长时
-     * 本值可大于「片段窗口派生末端 − 已播时间」——时间不是结束判据。
-     */
-    public double getRemainingTime() {
-        if (!playing || script == null) return 0.0;
-        if (isMacroLoopActive()) {
-            if (macroLoopCount < 0) return Double.MAX_VALUE; // 无限重复：不自然结束
-            return Math.max(0.0, macroLoopTotalEnd() - getElapsedSeconds());
-        }
-        if (!executions.hasFiniteContentEnd()) return Double.MAX_VALUE; // 无限内容：无内容终点
-        return Math.max(0.0, executions.contentEnd() - getElapsedSeconds());
-    }
-
-    /**
      * hold_at_end 的驻留位置（秒）= 有限内容末端退 {@link #HOLD_END_EPSILON}，让最后一帧保持住；
      * 无有限内容末端（永不结束片段 / 空时间轴）→ 当前播放头。
      * 驻留点由实际内容自然完成给出，不由静态片段窗口末端决定。
@@ -547,9 +523,9 @@ public class ScriptPlayer implements ClipTimeSource {
             if (tp instanceof CameraTrackPlayer ctp) {
                 cameraLaneIndex++;
                 for (CameraLane lane : ctp.getLaneSnapshots()) {
-                    // 每条 lane 各自用「自己的相机片段 + 片段本地时间」采样调色（重叠窗口下各自独立）。
-                    // 57 通道 + value-only 曲线全部来自对象模型（旧格式关键帧扫描已随格式删除）。
-                    SampledClip sample = cameraLaneRuntime.sample(lane.clip(), lane.clipLocalTime());
+                    // 每条 lane 直接复用求值器产出的采样结果（与六参数同一时刻、同一 SampledClip）；
+                    // lane 无 objects 时全部通道回落 schema 缺省，调色参数归一为恒等。
+                    SampledClip sample = lane.sample();
                     ColorAdjustParams adjust = ColorAdjustSampler.sampleCameraLaneObjects(lane.clip(), sample,
                             cameraLaneCurves);
                     // 恒等参数归一化为 null —— 渲染侧因此保持 lane FBO 直接进合成的原路径。
@@ -614,11 +590,6 @@ public class ScriptPlayer implements ClipTimeSource {
 
     public CinematicScript getScript() {
         return script;
-    }
-
-    /** 当前脚本运行时行为；无脚本播放时为 {@code null}。 */
-    public ScriptMeta.RuntimeBehavior getCurrentProperties() {
-        return currentBehavior;
     }
 
     // ========== 帧回调驱动 ==========

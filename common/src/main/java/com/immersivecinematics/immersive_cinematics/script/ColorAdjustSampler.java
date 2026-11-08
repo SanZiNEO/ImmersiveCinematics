@@ -22,7 +22,7 @@ import java.util.Map;
  * 十条曲线在解析期已归一为 {@link ColorCurve} 并挂在 {@link Clip} 上，这里只按 clip 缓存 LUT 来源
  * （{@link CurveCache}），运行期不再解析曲线结构。两个使用方：
  * ADJUST 轨（master，作用于整体画面）与 {@link ScriptPlayer#collectCameraLanes()} 的逐 lane 采样
- * （每条 lane 用自己的相机片段与 {@link CameraLane#clipLocalTime()}）。
+ * （每条 lane 用自己的相机片段与 {@link CameraLane#sample()}）。
  * 结果只承载 RGB：参数语义 / 范围 / 缺省见 {@link ColorAdjustParams}，像素级契约见 {@code ic_color_adjust.fsh}。
  * LUT 与层级混合只属 ADJUST 轨（master）：lane 路径恒得 {@code lut = null} 与缺省混合。
  */
@@ -138,7 +138,7 @@ public final class ColorAdjustSampler {
      * {@code blendMode=normal}、{@code blendAmount=1}。
      *
      * @param clip   产出该 lane 的相机片段（已归一曲线）
-     * @param sample 该片段在 {@code lane.clipLocalTime()} 的采样
+     * @param sample 该片段本帧的采样结果（{@link CameraLane#sample()}）
      * @param curves 曲线缓存（与 ADJUST 分开持有，脚本替换时清空）
      */
     public static ColorAdjustParams sampleCameraLaneObjects(Clip clip, SampledClip sample, CurveCache curves) {

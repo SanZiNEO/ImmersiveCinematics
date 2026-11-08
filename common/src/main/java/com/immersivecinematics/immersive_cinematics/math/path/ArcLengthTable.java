@@ -12,7 +12,7 @@ import java.util.Arrays;
  * 深度与节点数双重封顶，触顶即停不抛错。
  * 查询精度由 {@link #uAt(double)} 的牛顿迭代保证（归一化残差 ≤ 1e-9），与表密度解耦；
  * 表密度只影响查询成本与初值质量，节点上限只用来挡病态曲线。表不改变曲线几何，查询期不分配。
- * 零长曲线：{@link #uAt(double)} 返回定义域起点，{@link #sAt(double)} 返回 0。
+ * 零长曲线：{@link #uAt(double)} 返回定义域起点。
  */
 public final class ArcLengthTable {
 
@@ -73,7 +73,7 @@ public final class ArcLengthTable {
         // 第一遍：粗估总长，把尺度无关的相对容差折成绝对容差；判据因此不随叶尺度收紧。
         double lengthEstimate = estimateLength(expression, min, max);
         if (!(lengthEstimate > 0.0)) {
-            // 零长曲线：单节点表；uAt 返回定义域起点，sAt 返回 0。
+            // 零长曲线：单节点表；弧长坐标恒为定义域起点。
             this.us = new double[]{min};
             this.raws = new double[]{0.0};
             this.totalLength = 0.0;
@@ -182,29 +182,6 @@ public final class ArcLengthTable {
             u = next;
         }
         return bestU;
-    }
-
-    /**
-     * 参数 u 映射到归一化弧长：u 先 clamp 到定义域，二分定位叶后取
-     * 「节点累积弧长 + {@code [us[lo], u]} 的 5 点 GL 积分」再除以总长。
-     * 零长曲线返回 0。
-     */
-    public double sAt(double u) {
-        if (totalLength <= 0.0) {
-            return 0.0;
-        }
-        double clamped = domain.clamp(u);
-        if (clamped <= us[0]) {
-            return 0.0;
-        }
-        if (clamped >= us[us.length - 1]) {
-            return 1.0;
-        }
-        double s = normalizedAt(clamped);
-        if (s <= 0.0) {
-            return 0.0;
-        }
-        return s >= 1.0 ? 1.0 : s;
     }
 
     /** 表项数量，即叶节点边界数；≤ {@link #MAX_NODES}。 */

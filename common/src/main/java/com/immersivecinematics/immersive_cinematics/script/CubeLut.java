@@ -34,7 +34,7 @@ import org.slf4j.LoggerFactory;
  * 最细 = 各通道 {@code (size3D - 1) / DOMAIN 跨度} 取大；再从 m0 向上搜到 {@code min(8·m0, 上限 - 1)}，取首个
  * 「源表折点平面全部落在合成网格上」的步数（格点对齐，避免插值走样）。1D 段令 {@code m = max(m, min(size1D - 1, 上限 - 1))}，
  * size1D 超上限时按上限重采样并记 WARN（误差有上界）。纯 1D LUT（无 3D 段）的合成表 = 对角表：每个格点 = 逐通道 1D 曲线作用在单位网格上。
- * 不可变：{@link #data1D()} / {@link #data3D()} / {@link Composed3D#data()} 返回内部只读数组，调用方不得修改。
+ * 不可变：{@link Composed3D#data()} 返回内部只读数组，调用方不得修改。
  */
 public final class CubeLut {
 
@@ -122,14 +122,6 @@ public final class CubeLut {
             throw new CubeLutException(displayName, 0, "读取失败: " + e.getMessage(), e);
         }
         return parseLines(lines, displayName);
-    }
-
-    /** 解析一段 .cube 文本（测试 / 编辑器粘贴用）。 */
-    public static CubeLut parseText(String text, String displayName) throws CubeLutException {
-        if (text == null) {
-            throw new CubeLutException(displayName, 0, "内容为 null");
-        }
-        return parseLines(Arrays.asList(text.split("\\R", -1)), displayName);
     }
 
     // ==================== 解析核心 ====================
@@ -388,74 +380,6 @@ public final class CubeLut {
         }
     }
 
-    // ==================== 访问器 ====================
-
-    /** TITLE 文本；未声明返回 {@code null}。 */
-    public String title() {
-        return title;
-    }
-
-    /** 是否含 1D 部分。 */
-    public boolean has1D() {
-        return size1D > 0;
-    }
-
-    /** 是否含 3D 部分。 */
-    public boolean has3D() {
-        return size3D > 0;
-    }
-
-    /** 1D 尺寸；无 1D 部分返回 0。 */
-    public int size1D() {
-        return size1D;
-    }
-
-    /** 3D 尺寸；无 3D 部分返回 0。 */
-    public int size3D() {
-        return size3D;
-    }
-
-    /** 3D 采样点总数（{@code size3D³}）；无 3D 部分返回 0。 */
-    public int entries3D() {
-        return size3D == 0 ? 0 : size3D * size3D * size3D;
-    }
-
-    /**
-     * 1D 数据（RGB 交错，长度 {@code size1D * 3}，第 i 个采样点 = {@code data[3i..3i+2]}）；
-     * 无 1D 部分返回 {@code null}。返回内部数组，调用方不得修改。
-     */
-    public float[] data1D() {
-        return data1D;
-    }
-
-    /**
-     * 3D 数据（RGB 交错，长度 {@code size3D³ * 3}，红最快，见 {@link #index3D}）；
-     * 无 3D 部分返回 {@code null}。返回内部数组，调用方不得修改。
-     */
-    public float[] data3D() {
-        return data3D;
-    }
-
-    /** 1D 输入域下界（长度 3）；无 1D 部分时为 DOMAIN 缺省值。返回内部数组，调用方不得修改。 */
-    public float[] domainMin1D() {
-        return domainMin1D;
-    }
-
-    /** 1D 输入域上界（长度 3）。返回内部数组，调用方不得修改。 */
-    public float[] domainMax1D() {
-        return domainMax1D;
-    }
-
-    /** 3D 输入域下界（长度 3）。返回内部数组，调用方不得修改。 */
-    public float[] domainMin3D() {
-        return domainMin3D;
-    }
-
-    /** 3D 输入域上界（长度 3）。返回内部数组，调用方不得修改。 */
-    public float[] domainMax3D() {
-        return domainMax3D;
-    }
-
     // ==================== 合成 3D 表 ====================
 
     /**
@@ -687,13 +611,13 @@ public final class CubeLut {
      * @param r    红通道格点索引（0..size-1，变化最快）
      * @param g    绿通道格点索引
      * @param b    蓝通道格点索引（变化最慢）
-     * @return 该格点在 {@link #data3D()} 中的采样点下标（乘 3 得分量下标）
+     * @return 该格点在 3D 数据中的采样点下标（乘 3 得分量下标）
      */
     public static int index3D(int size, int r, int g, int b) {
         return (b * size + g) * size + r;
     }
 
-    /** {@link #index3D(int, int, int, int)} 的实例版本（用本 LUT 的 {@link #size3D()}）。 */
+    /** {@link #index3D(int, int, int, int)} 的实例版本（用本 LUT 的 3D 尺寸）。 */
     public int index3D(int r, int g, int b) {
         return index3D(size3D, r, g, b);
     }
@@ -707,32 +631,15 @@ public final class CubeLut {
 
     // ==================== 内部工具 ====================
 
-    /** 解析失败异常：携带文件名 + 行号（0 = 与具体行无关）+ 原因。 */
+    /** 解析失败异常：消息携带文件名 + 行号（0 = 与具体行无关）+ 原因。 */
     public static class CubeLutException extends Exception {
-
-        private final String file;
-        private final int line;
 
         public CubeLutException(String file, int line, String reason) {
             super(file + (line > 0 ? ":" + line : "") + ": " + reason);
-            this.file = file;
-            this.line = line;
         }
 
         public CubeLutException(String file, int line, String reason, Throwable cause) {
             super(file + (line > 0 ? ":" + line : "") + ": " + reason, cause);
-            this.file = file;
-            this.line = line;
-        }
-
-        /** 出错文件（展示名）。 */
-        public String getFile() {
-            return file;
-        }
-
-        /** 出错行号；0 表示与具体行无关。 */
-        public int getLine() {
-            return line;
         }
     }
 

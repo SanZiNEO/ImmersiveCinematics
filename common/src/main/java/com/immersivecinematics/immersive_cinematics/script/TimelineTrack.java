@@ -6,7 +6,7 @@ import java.util.List;
 
 /**
  * 时间轴轨道 —— 同类型的片段数组；片段统一用 {@link Clip} 容器，轨道特有字段在 {@code Clip.data} 中，
- * 结构由 {@link SchemaLoader} 定义。
+ * 结构由轨道 schema（{@code TrackTypeSchema}）定义。
  */
 public class TimelineTrack {
 
@@ -27,13 +27,6 @@ public class TimelineTrack {
 
     /** 获取通用片段列表。 */
     public List<Clip> getClips() { return clips; }
-
-    /**
-     * 片段数量。
-     *
-     * @return 片段数
-     */
-    public int getClipCount() { return clips.size(); }
 
     @Override
     public String toString() {

@@ -195,11 +195,6 @@ public final class DimensionView {
         return sb;
     }
 
-    /** 实体 tick 是否已停用（连续失败达阈值或视图已关闭）。 */
-    public boolean isTickDisabled() {
-        return this.tickDisabled;
-    }
-
     /**
      * 把目标视图的区块缓存中心 / 半径对齐到该 lane 的相机：视图中心是单份共享状态，
      * 目标维度有自己的 {@link ClientChunkCache}，按 lane 相机逐帧推进（主画面那份由原版自己推进）。

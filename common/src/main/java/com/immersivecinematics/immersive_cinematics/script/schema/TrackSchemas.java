@@ -1,7 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.script.schema;
 
 import com.immersivecinematics.immersive_cinematics.script.object.ObjectCallpoints;
-import com.immersivecinematics.immersive_cinematics.selector.SelectorSchema;
 import com.immersivecinematics.immersive_cinematics.spi.FieldDef;
 import com.immersivecinematics.immersive_cinematics.spi.Interp;
 import com.immersivecinematics.immersive_cinematics.spi.ObjectDef;
@@ -17,7 +16,7 @@ import java.util.Set;
 /**
  * 各轨道类型的 Java 字段元数据：数据源即 Java 字段表，顺序 = 编辑器渲染顺序。
  *
- * clip 字段 = 片段级（不随关键帧变化）；keyframe 字段 = 逐关键帧插值。两者按 {@link TrackTypeSchema} 成对登记。
+ * 每轨只登记对象模型（{@code objects}）与七轨共用的播放控制（{@link TrackTypeSchema#playControl()}）。
  */
 public final class TrackSchemas {
 
@@ -35,375 +34,35 @@ public final class TrackSchemas {
         return map;
     }
 
-    /**
-     * 全轨道 clip 共有的字段（逐轨道显式登记，不做隐式合并）：{@code all()} 里七个 builder 各调一次。
-     *
-     * {@code rules} = 判定规则数组，任意轨道的片段都可挂（判定源与轨道无关，校验器不拦）；规则定义/绑定见 {@code script.rule.RuleCollection}。
-     */
-    private static void putCommonClipFields(Map<String, FieldDef> clips) {
-        clips.put("rules", new FieldDef("rules", null, false, List.of(), "rules"));
-    }
 
     /**
-     * CAMERA 轨道（相机运动 + 合成 + 自带调色）：clip 级 10 条曲线 + 关键帧 57 个调色通道（与 ADJUST 同名同缺省），
-     * 作用于本片段产出的 lane，在该 lane 渲染完成之后、合成之前生效（与 {@code dest} / {@code source} /
-     * {@code opacity} 同层）。{@code blend_mode} / {@code blend_amount} 属 master 专用（ADJUST），写在相机片段上
-     * 会被 validator 拦下；整体画面的调色走 ADJUST 轨。
+     * CAMERA 轨道（相机运动 + 合成 + 自带调色）：对象声明见 {@link #cameraObjects()}——位置 / 朝向点源、
+     * 合成参数、遮罩几何、10 条调色曲线与 57 个调色通道（与 ADJUST 同名同缺省），作用于本片段产出的 lane，
+     * 在该 lane 渲染完成之后、合成之前生效。{@code blend_mode} / {@code blend_amount} 属 master 专用（ADJUST），
+     * 写在相机片段上会被 validator 拦下；整体画面的调色走 ADJUST 轨。
      */
     private static TrackTypeSchema camera() {
-        Map<String, FieldDef> clips = new LinkedHashMap<>();
-        putCommonClipFields(clips);
-        // 过渡（clip 级）：缺省 cut = 直接切；transition_curve / transition_params / transition_interrupt
-        // 分别声明权重曲线 / 分参数 / 打断策略，缺省 = 全六通道同权重线性斜坡
-        clips.put("transition", new FieldDef("enum", "cut", false, List.of("cut", "morph"), "transition"));
-        clips.put("transition_duration", new FieldDef("float", 0.5f, false, List.of(), "transition"));
-        clips.put("transition_curve", new FieldDef("model", null, false, List.of(), "transition"));
-        clips.put("transition_params", new FieldDef("transition_params", null, false, List.of(), "transition"));
-        clips.put("transition_interrupt", new FieldDef("enum", "blend", false, List.of("blend", "snap"), "transition"));
-        // 路径曲线（clip 级）：按 type 选路径表达式，形态 / 参数表见 {@link PathCurveRegistry}
-        clips.put("curve", new FieldDef("path_curve", null));
-        clips.put("dimension", new FieldDef("string", ""));
-        // lane 合成遮罩形状：只属于 CAMERA（OVERLAY 的 fade 另有同名字段，语义相同但作用于颜色层）。
-        // 几何通道 mask_x / mask_y / mask_width / mask_height / mask_radius 是关键帧字段，见下方 kfs。
-        clips.put("mask_shape", new FieldDef("enum", "full", false, List.of("full", "rect", "circle")));
-        clips.put("loop", new FieldDef("bool", false));
-        clips.put("loop_count", new FieldDef("int", -1));
-        clips.put("loop_mode", new FieldDef("enum", "repeat", false, List.of("repeat", "pingpong")));
-        clips.put("cam_breath_enabled", new FieldDef("bool", false));
-        clips.put("cam_breath_intensity", new FieldDef("float", 0.05f));
-        clips.put("cam_breath_seed", new FieldDef("int", 0));
-        clips.put("cam_breath_type", new FieldDef("enum", "perlin", false,
-                List.of("perlin", "perlin_axis", "sine", "trauma")));
-        clips.put("cam_breath_speed", new FieldDef("float", 1.0f));
-        clips.put("cam_breath_trauma", new FieldDef("float", 1.0f));
-        clips.put("cam_breath_decay", new FieldDef("float", 0.5f));
-        // 相机参数运动模型（clip 级；缺省 null = 该通道不接模型 = 逐位不改变现状）：值 = 模型定义对象
-        // {type, ...}；类型 / 参数 schema 见 {@link MathModelRegistry}
-        clips.put("motion_position", new FieldDef("model", null, false, List.of(), "motion"));
-        clips.put("motion_yaw", new FieldDef("model", null, false, List.of(), "motion"));
-        clips.put("motion_pitch", new FieldDef("model", null, false, List.of(), "motion"));
-        clips.put("motion_roll", new FieldDef("model", null, false, List.of(), "motion"));
-        clips.put("motion_fov", new FieldDef("model", null, false, List.of(), "motion"));
-        clips.put("motion_zoom", new FieldDef("model", null, false, List.of(), "motion"));
-        // 覆盖链 Modifier（clip 级）：本片段声明一条静态 Modifier（掩码 / 合成模式 / 应用序 / 每通道值），
-        // 形态与校验见 ScriptParser#parseClipModifier
-        clips.put("modifier", new FieldDef("modifier", null, false, List.of(), "modifier"));
-        // 本片段活跃时跳过 Modifier 链（缺省 false = 不跳过）
-        clips.put("suppress_modifiers", new FieldDef("bool", false, false, List.of(), "modifier"));
-        clips.put("orient", new FieldDef("enum", "manual", false, List.of("manual", "tangent")));
-        clips.put("yaw_offset", new FieldDef("float", 0f));
-        clips.put("pitch_offset", new FieldDef("float", 0f));
-        // 调色（clip 级）：曲线定义一次，关键帧只控各自强度；曲线不随时间变，故挂 clip
-        // 曲线组：复合 RGB 曲线 + 每通道曲线
-        clips.put("rgb_curve", new FieldDef("color_curve", null));
-        clips.put("r_curve", new FieldDef("color_curve", null));
-        clips.put("g_curve", new FieldDef("color_curve", null));
-        clips.put("b_curve", new FieldDef("color_curve", null));
-        // 六条 hue 曲线（DaVinci 曲线页；键 = hue 或 sat / lum，在 HSL 块内生效）
-        clips.put("hv_h_curve", new FieldDef("color_curve", null));   // hue → hue
-        clips.put("hv_s_curve", new FieldDef("color_curve", null));   // hue → saturation
-        clips.put("hv_l_curve", new FieldDef("color_curve", null));   // hue → luminance
-        clips.put("lv_s_curve", new FieldDef("color_curve", null));   // luminance → saturation
-        clips.put("sv_s_curve", new FieldDef("color_curve", null));   // saturation → saturation
-        clips.put("sv_l_curve", new FieldDef("color_curve", null));   // saturation → luminance
-
-        Map<String, FieldDef> kfs = new LinkedHashMap<>();
-        kfs.put("position", new FieldDef("position", null, true));
-        kfs.put("position_mode", new FieldDef("enum", "relative", false, List.of("relative", "absolute")));
-        // 基准坐标系（base 表达空间的参照系）：原点 = 位置点源 facing_origin（留空 = 世界轴偏移用玩家激活位置、
-        // 基准坐标系偏移用玩家实体 @p）；前轴 = facing_target（点源，留空 = 位置点源自身朝向）
-        kfs.put("facing_origin", new FieldDef("string", ""));
-        kfs.put("facing_origin_x", new FieldDef("float", 0f));
-        kfs.put("facing_origin_y", new FieldDef("float", 0f));
-        kfs.put("facing_origin_z", new FieldDef("float", 0f));
-        // 点源时态（live = 逐帧重取 / snapshot = 首次解析到的点冻结；seek 重取、loop 折返延续、morph 两侧各持）：
-        // 只对实体选择器形态生效，静态来源（坐标 / 方块 / 结构 / 玩家激活位置）写 = 无效果（validator 提示）
-        kfs.put("facing_origin_time", new FieldDef("enum", "live", false, List.of("live", "snapshot")));
-        // 基准坐标系前轴目标：留空 = 位置点源自身朝向；否则 = 位置点源 → 该目标的连线方向（点源，见
-        // camera/source/PointSource；"coordinate" 形态的坐标取 facing_target_x/y/z）；
-        // 偏移 facing_target_offset
-        kfs.put("facing_target", new FieldDef("string", ""));
-        kfs.put("facing_target_x", new FieldDef("float", null));
-        kfs.put("facing_target_y", new FieldDef("float", null));
-        kfs.put("facing_target_z", new FieldDef("float", null));
-        // 点源偏移（{dx,dy,dz} 世界轴 / {fwd,up,right} 基准坐标系；见 camera/source/PointSource.Offset）
-        kfs.put("facing_target_offset", new FieldDef("map", null));
-        kfs.put("facing_target_time", new FieldDef("enum", "live", false, List.of("live", "snapshot")));
-        kfs.put("follow", new FieldDef("enum", "none", false, List.of("none", "entity")));
-        kfs.put("follow_selector", new FieldDef("string", "@p"));
-        kfs.put("look_at", new FieldDef("enum", "none", false, List.of("none", "player", "coordinate", "entity", "block")));
-        kfs.put("look_at_selector", new FieldDef("string", "@p"));
-        // 部位百分比：实体包围盒内按每轴百分比取点（0 ~ 100，缺省 50 = 中心）；只对 look_at=entity 有效
-        kfs.put("look_at_part", new FieldDef("map", null));
-        kfs.put("look_at_target_x", new FieldDef("float", null));
-        kfs.put("look_at_target_y", new FieldDef("float", null));
-        kfs.put("look_at_target_z", new FieldDef("float", null));
-        kfs.put("look_at_target_structure", new FieldDef("string", ""));
-        // 方块点源（block:<方块 id>[:<半径>]）：look_at=block 时的注视目标，取就近搜索到的方块中心
-        kfs.put("look_at_target_block", new FieldDef("string", ""));
-        // 注视点偏移（{dx,dy,dz} 世界轴 / {fwd,up,right} 基准坐标系）：叠加在来源取点之后
-        kfs.put("look_at_offset", new FieldDef("map", null));
-        // 注视点时态：只对 look_at=entity 生效（其余形态恒定）
-        kfs.put("look_at_time", new FieldDef("enum", "live", false, List.of("live", "snapshot")));
-        // 选择器目标锁定策略：通用字段 = 该关键帧所有调用点的缺省回落（语义见 selector/SelectorPolicy）。
-        // 调用点专属字段名 = <字段>_<调用点>（调用点名见 SelectorSchema.CALLPOINTS），
-        // 缺省 null = 回落通用字段；不写任何调用点字段 = 旧行为（只用通用字段）。
-        kfs.put("selector_refresh", new FieldDef("float", 1.0f));
-        kfs.put("selector_switch_while_alive", new FieldDef("bool", true));
-        // 切换间隔：两次真实切换之间的最小间隔（与扫描频率无关）；缺省 = selector_refresh
-        kfs.put("selector_switch_interval", new FieldDef("float", 1.0f));
-        kfs.put("selector_switch_smooth", new FieldDef("float", 0.0f));
-        // 选择器锚点：就近排序（sort=nearest）的参考点，也是服务端解析请求的原点。
-        // camera（缺省）= 相机位置（旧行为）；player = 玩家脚底；target = 该调用点已解析锁的实体脚底
-        // （未解析到目标时回落 camera）；origin = position 的位置侧点源坐标（形态见 camera/source/PointSource；
-        // position 缺失或点源解析失败回落 camera）。取值与回落链见 EntityTargetResolver.selectorAnchor。
-        kfs.put("selector_anchor", new FieldDef("string", "camera"));
-        // 候选择一策略：first（缺省）= 现状行为（本地 @e 就近取首个可用，服务端按回传序取首个可用）；
-        // nearest 取客户端可用候选内距锚点最近者；alive 按候选返回序取首个存活。
-        // 取值与回落链见 EntityTargetResolver.selectorPick。
-        kfs.put("selector_pick", new FieldDef("string", "first"));
-        // 调用点专属覆盖（7 个调用点 × 6 个选择器字段）；名单与字段名模式见 SelectorSchema
-        for (String callpoint : SelectorSchema.CALLPOINTS) {
-            kfs.put(SelectorSchema.callpointField("selector_refresh", callpoint), new FieldDef("float", null));
-            kfs.put(SelectorSchema.callpointField("selector_switch_while_alive", callpoint),
-                    new FieldDef("bool", null));
-            kfs.put(SelectorSchema.callpointField("selector_switch_interval", callpoint),
-                    new FieldDef("float", null));
-            kfs.put(SelectorSchema.callpointField("selector_switch_smooth", callpoint),
-                    new FieldDef("float", null));
-            kfs.put(SelectorSchema.callpointField("selector_anchor", callpoint), new FieldDef("string", null));
-            kfs.put(SelectorSchema.callpointField("selector_pick", callpoint), new FieldDef("string", null));
-        }
-        // 朝向基准来源（措辞口径：身体朝向 = 实体身体水平角 yBodyRot；视线 = 实体 yRot + xRot）。
-        // yaw_base 取 entity 的「实体身体朝向」水平角；pitch_base 取「实体视线」俯仰。
-        kfs.put("yaw_base", new FieldDef("enum", "world", false, List.of("world", "entity", "line")));
-        kfs.put("pitch_base", new FieldDef("enum", "world", false, List.of("world", "entity", "line")));
-        // yaw_base/pitch_base = entity 时的实体选择器（yaw 取身体朝向水平角、pitch 取视线俯仰）
-        kfs.put("yaw_base_selector", new FieldDef("string", "@p"));
-        // line 基准的两个端点：各是完整点源（见 camera/source/PointSource；"coordinate" 形态的坐标取 <字段>_x/_y/_z，
-        // 偏移取 <字段>_offset）；退化连线（零长度 / 纯垂直）水平角未定义，运行时被拒（回退基准 0 = world）
-        kfs.put("yaw_base_from", new FieldDef("string", ""));
-        kfs.put("yaw_base_from_x", new FieldDef("float", null));
-        kfs.put("yaw_base_from_y", new FieldDef("float", null));
-        kfs.put("yaw_base_from_z", new FieldDef("float", null));
-        kfs.put("yaw_base_from_offset", new FieldDef("map", null));
-        kfs.put("yaw_base_from_time", new FieldDef("enum", "live", false, List.of("live", "snapshot")));
-        kfs.put("yaw_base_to", new FieldDef("string", ""));
-        kfs.put("yaw_base_to_x", new FieldDef("float", null));
-        kfs.put("yaw_base_to_y", new FieldDef("float", null));
-        kfs.put("yaw_base_to_z", new FieldDef("float", null));
-        kfs.put("yaw_base_to_offset", new FieldDef("map", null));
-        kfs.put("yaw_base_to_time", new FieldDef("enum", "live", false, List.of("live", "snapshot")));
-        kfs.put("yaw", new FieldDef("float", 0));
-        kfs.put("pitch", new FieldDef("float", 0));
-        // 方向锁（每轴一把，缺省 null = 不锁，跟 yaw_base / pitch_base 的方向源）：
-        // 锁值 = 该轴世界角绝对值（度），替换该轴基准；关键帧 yaw / pitch 偏移仍叠加；
-        // look_at != none 时静态侧整体不参与（锁与偏移都不生效）
-        kfs.put("yaw_lock", new FieldDef("float", null));
-        kfs.put("pitch_lock", new FieldDef("float", null));
-        kfs.put("roll", new FieldDef("float", 0));
-        kfs.put("fov", new FieldDef("float", 70));
-        kfs.put("zoom", new FieldDef("float", 1.0f));
-        // 合成参数：挂在本 CAMERA clip 的关键帧上，随关键帧插值
-        // （渲染侧由 client/lane/ScriptLaneDriver 逐帧消费）；此处登记字段，供编辑器表单与校验使用。
-        kfs.put("opacity", new FieldDef("float", 1.0f));
-        kfs.put("dest", new FieldDef("map", null));
-        kfs.put("source", new FieldDef("map", null));
-        // lane 合成遮罩几何（形状是 clip 级 mask_shape）：窗口比例中心 / 宽高 / 短边半径，
-        // 随关键帧线性插值，由 client/lane/LaneMask 逐帧采样（语义 = fade 局部几何，作用对象 = lane 整幅 RGB）。
-        // full 不消费这些通道；rect 读 x/y/width/height；circle 读 x/y/radius。
-        kfs.put("mask_x", new FieldDef("float", 0.5f));
-        kfs.put("mask_y", new FieldDef("float", 0.5f));
-        kfs.put("mask_width", new FieldDef("float", 1.0f));
-        kfs.put("mask_height", new FieldDef("float", 1.0f));
-        kfs.put("mask_radius", new FieldDef("float", 0.5f));
-
-        // 调色：每个相机片段自带调色，作用于该相机轨的 lane（渲染完、合成前）；下列 57 个字段与 ADJUST
-        // 同名同缺省（47 个标量通道缺省 0 + 10 个曲线强度缺省 1）。
-        // 基础校色（复合 RGB）
-        kfs.put("exposure", new FieldDef("float", 0f));       // -5 ~ 5（EV 档，×2^EV）
-        kfs.put("contrast", new FieldDef("float", 0f));       // -1 ~ 1（以中灰 0.5 为轴）
-        kfs.put("highlights", new FieldDef("float", 0f));     // -1 ~ 1（亮部）
-        kfs.put("shadows", new FieldDef("float", 0f));        // -1 ~ 1（暗部）
-        kfs.put("whites", new FieldDef("float", 0f));         // -1 ~ 1（白场端点）
-        kfs.put("blacks", new FieldDef("float", 0f));         // -1 ~ 1（黑场端点）
-        // 完整 HSL（H / S / L 三通道；操作栈顺序 = hue 旋转 → 饱和度 / 自然饱和度 → lightness）
-        kfs.put("hue", new FieldDef("float", 0f));            // -1 ~ 1（色相旋转：±1 = ±180°）
-        kfs.put("saturation", new FieldDef("float", 0f));     // -1 ~ 1（-1 = 全灰、1 = 双倍）
-        kfs.put("vibrance", new FieldDef("float", 0f));       // -1 ~ 1（自然饱和度）
-        kfs.put("lightness", new FieldDef("float", 0f));      // -1 ~ 1（HSL 的 L：正 = 向白推、负 = 向黑压）
-        // 白平衡
-        kfs.put("temperature", new FieldDef("float", 0f));    // -1 ~ 1（正 = 暖 / 偏红）
-        kfs.put("tint", new FieldDef("float", 0f));           // -1 ~ 1（正 = 品红、负 = 绿）
-        // RGBA 通道拆分（R/G/B 每通道系数；操作栈位置：色温/色调之后、钳制 [0,1] 之前）
-        kfs.put("red", new FieldDef("float", 0f));            // -1 ~ 1（红通道乘性系数：-1 = 归零、-0.5 = 减半、+1 = 双倍）
-        kfs.put("green", new FieldDef("float", 0f));          // -1 ~ 1（绿通道，同上）
-        kfs.put("blue", new FieldDef("float", 0f));           // -1 ~ 1（蓝通道，同上）
-        // RGB 通道混合器（PS 式 3×3 矩阵；矩阵 = 单位阵 + 参数矩阵，缺省全 0 = 单位阵 = 无效果）
-        kfs.put("mix_rr", new FieldDef("float", 0f));         // -1 ~ 1（输出 R ← 输入 R 的额外系数，叠加在单位阵上）
-        kfs.put("mix_rg", new FieldDef("float", 0f));         // -1 ~ 1（输出 R ← 输入 G）
-        kfs.put("mix_rb", new FieldDef("float", 0f));         // -1 ~ 1（输出 R ← 输入 B）
-        kfs.put("mix_gr", new FieldDef("float", 0f));         // -1 ~ 1（输出 G ← 输入 R）
-        kfs.put("mix_gg", new FieldDef("float", 0f));         // -1 ~ 1（输出 G ← 输入 G）
-        kfs.put("mix_gb", new FieldDef("float", 0f));         // -1 ~ 1（输出 G ← 输入 B）
-        kfs.put("mix_br", new FieldDef("float", 0f));         // -1 ~ 1（输出 B ← 输入 R）
-        kfs.put("mix_bg", new FieldDef("float", 0f));         // -1 ~ 1（输出 B ← 输入 G）
-        kfs.put("mix_bb", new FieldDef("float", 0f));         // -1 ~ 1（输出 B ← 输入 B）
-        // 曲线组（形态 b）：曲线混合强度（曲线本身是 clip 级字段 rgb_curve / r_curve / g_curve / b_curve）
-        kfs.put("curve_strength", new FieldDef("float", 1f));   // 0 ~ 1（缺省 1 = 曲线全量生效；无曲线时忽略）
-        kfs.put("r_curve_strength", new FieldDef("float", 1f)); // 0 ~ 1（R 每通道曲线，同上）
-        kfs.put("g_curve_strength", new FieldDef("float", 1f)); // 0 ~ 1（G 每通道曲线，同上）
-        kfs.put("b_curve_strength", new FieldDef("float", 1f)); // 0 ~ 1（B 每通道曲线，同上）
-        // Lift / Gamma / Gain 色轮（三组逐通道色轮；九个全 0 = 整步跳过）
-        kfs.put("lift_r", new FieldDef("float", 0f));         // -1 ~ 1（R 阴影：正 = 抬阴影、负 = 压黑）
-        kfs.put("lift_g", new FieldDef("float", 0f));         // -1 ~ 1（G 阴影，同上）
-        kfs.put("lift_b", new FieldDef("float", 0f));         // -1 ~ 1（B 阴影，同上）
-        kfs.put("gamma_r", new FieldDef("float", 0f));        // -1 ~ 1（R 中间调：正 = 提亮、负 = 压暗）
-        kfs.put("gamma_g", new FieldDef("float", 0f));        // -1 ~ 1（G 中间调，同上）
-        kfs.put("gamma_b", new FieldDef("float", 0f));        // -1 ~ 1（B 中间调，同上）
-        kfs.put("gain_r", new FieldDef("float", 0f));         // -1 ~ 1（R 高光：乘性增益 = 1 + 值）
-        kfs.put("gain_g", new FieldDef("float", 0f));         // -1 ~ 1（G 高光，同上）
-        kfs.put("gain_b", new FieldDef("float", 0f));         // -1 ~ 1（B 高光，同上）
-        // 六条 hue 曲线的混合强度（曲线本身是 clip 级字段 hv_h_curve / hv_s_curve / ... / sv_l_curve）
-        kfs.put("hv_h_strength", new FieldDef("float", 1f));    // 0 ~ 1（HvH：hue → hue，缺省 1；无曲线时忽略）
-        kfs.put("hv_s_strength", new FieldDef("float", 1f));    // 0 ~ 1（HvS：hue → 饱和度）
-        kfs.put("hv_l_strength", new FieldDef("float", 1f));    // 0 ~ 1（HvL：hue → 亮度）
-        kfs.put("lv_s_strength", new FieldDef("float", 1f));    // 0 ~ 1（LvS：亮度 → 饱和度）
-        kfs.put("sv_s_strength", new FieldDef("float", 1f));    // 0 ~ 1（SvS：饱和度 → 饱和度）
-        kfs.put("sv_l_strength", new FieldDef("float", 1f));    // 0 ~ 1（SvL：饱和度 → 亮度）
-        // PS 式六色带微调（六条固定色带各撑 ±30°、升余弦权重；十二个全 0 = 整步跳过；栈位 = HSL 块之后、灰度之前）
-        kfs.put("hue_red", new FieldDef("float", 0f));        // -1 ~ 1（红带色相旋转，缺省 0 = 无效果）
-        kfs.put("sat_red", new FieldDef("float", 0f));        // -1 ~ 1（红带饱和度增量：sat *= (1 + 值)）
-        kfs.put("hue_yellow", new FieldDef("float", 0f));     // -1 ~ 1（黄带色相旋转）
-        kfs.put("sat_yellow", new FieldDef("float", 0f));     // -1 ~ 1（黄带饱和度增量）
-        kfs.put("hue_green", new FieldDef("float", 0f));      // -1 ~ 1（绿带色相旋转）
-        kfs.put("sat_green", new FieldDef("float", 0f));      // -1 ~ 1（绿带饱和度增量）
-        kfs.put("hue_cyan", new FieldDef("float", 0f));       // -1 ~ 1（青带色相旋转）
-        kfs.put("sat_cyan", new FieldDef("float", 0f));       // -1 ~ 1（青带饱和度增量）
-        kfs.put("hue_blue", new FieldDef("float", 0f));       // -1 ~ 1（蓝带色相旋转）
-        kfs.put("sat_blue", new FieldDef("float", 0f));       // -1 ~ 1（蓝带饱和度增量）
-        kfs.put("hue_magenta", new FieldDef("float", 0f));    // -1 ~ 1（品红带色相旋转）
-        kfs.put("sat_magenta", new FieldDef("float", 0f));    // -1 ~ 1（品红带饱和度增量）
-        // 风格化（本身即强度）
-        kfs.put("grayscale", new FieldDef("float", 0f));      // 0 ~ 1（灰度混合量）
-        kfs.put("invert", new FieldDef("float", 0f));         // 0 ~ 1（反相混合量）
-
-        return new TrackTypeSchema(clips, kfs, cameraObjects(), PLAY_CONTROL);
+        return new TrackTypeSchema(cameraObjects(), PLAY_CONTROL);
     }
 
     private static TrackTypeSchema letterbox() {
-        Map<String, FieldDef> clips = new LinkedHashMap<>();
-        putCommonClipFields(clips);
-        Map<String, FieldDef> kfs = new LinkedHashMap<>();
-        kfs.put("aspect_ratio", new FieldDef("float", 2.35f));
-        // 黑边不透明度（0~1，缺省 1 = 纯黑边）：与覆盖层同名通道同口径（LetterboxLayer#setOpacity），
-        // 随关键帧线性插值
-        kfs.put("opacity", new FieldDef("float", 1.0f));
-        return new TrackTypeSchema(clips, kfs, letterboxObjects(), PLAY_CONTROL);
+        return new TrackTypeSchema(letterboxObjects(), PLAY_CONTROL);
     }
 
     private static TrackTypeSchema audio() {
-        Map<String, FieldDef> clips = new LinkedHashMap<>();
-        putCommonClipFields(clips);
-        clips.put("sound", new FieldDef("string", null, true));
-        clips.put("source", new FieldDef("enum", "file", false, List.of("file", "minecraft")));
-        clips.put("volume", new FieldDef("float", 1.0f));
-        clips.put("pitch", new FieldDef("float", 1.0f));
-        clips.put("loop", new FieldDef("bool", false));
-        clips.put("fade_in", new FieldDef("float", 0));
-        clips.put("fade_out", new FieldDef("float", 0));
-        clips.put("attenuation", new FieldDef("enum", "linear", false, List.of("none", "linear")));
-        clips.put("position_mode", new FieldDef("enum", "relative", false, List.of("relative", "absolute")));
-        clips.put("category", new FieldDef("enum", "music", false, List.of("music", "ambient")));
-
-        Map<String, FieldDef> kfs = new LinkedHashMap<>();
-        kfs.put("volume", new FieldDef("float", 1.0f));
-        kfs.put("x", new FieldDef("float", 0));
-        kfs.put("y", new FieldDef("float", 0));
-        kfs.put("z", new FieldDef("float", 0));
-
-        return new TrackTypeSchema(clips, kfs, audioObjects(), PLAY_CONTROL);
+        return new TrackTypeSchema(audioObjects(), PLAY_CONTROL);
     }
 
     private static TrackTypeSchema event() {
-        Map<String, FieldDef> clips = new LinkedHashMap<>();
-        putCommonClipFields(clips);
-        clips.put("event_type", new FieldDef("string", "command"));
-
-        Map<String, FieldDef> kfs = new LinkedHashMap<>();
-        kfs.put("event_type", new FieldDef("string", "command"));
-        kfs.put("command", new FieldDef("string", ""));
-        kfs.put("position", new FieldDef("map", null));
-
-        return new TrackTypeSchema(clips, kfs, eventObjects(), PLAY_CONTROL);
+        return new TrackTypeSchema(eventObjects(), PLAY_CONTROL);
     }
 
     private static TrackTypeSchema modEvent() {
-        Map<String, FieldDef> clips = new LinkedHashMap<>();
-        putCommonClipFields(clips);
-        clips.put("event_type", new FieldDef("string", null, true));
-        clips.put("data", new FieldDef("map", null));
-
-        Map<String, FieldDef> kfs = new LinkedHashMap<>();
-        kfs.put("event_type", new FieldDef("string", "mod_event"));
-        kfs.put("data", new FieldDef("map", null));
-
-        return new TrackTypeSchema(clips, kfs, modEventObjects(), PLAY_CONTROL);
+        return new TrackTypeSchema(modEventObjects(), PLAY_CONTROL);
     }
 
     private static TrackTypeSchema overlay() {
-        Map<String, FieldDef> clips = new LinkedHashMap<>();
-        putCommonClipFields(clips);
-        clips.put("layer_type", new FieldDef("enum", "fade", true, List.of("fade", "image", "subtitle")));
-        clips.put("color", new FieldDef("string", "#000000"));
-        // fade 高级颜色遮罩：只属于 layer_type=fade；image / subtitle 上写会被
-        // ScriptParser / ScriptValidator 明确拒绝（不扩规则动作字段，也不影响旧 fade 默认表现）
-        // gradient 形如 {type: linear|radial, stops: [{offset, color}, ...]}（结构数据，解析期一次校验）
-        clips.put("gradient", new FieldDef("map", null));
-        clips.put("mask_shape", new FieldDef("enum", "full", false, List.of("full", "rect", "circle")));
-        clips.put("blend_mode", new FieldDef("enum", "normal", false,
-                List.of("normal", "multiply", "screen", "soft_light", "overlay")));
-        clips.put("path", new FieldDef("string", ""));
-        clips.put("text", new FieldDef("string", ""));
-        // 顺序：统一默认 10（letterbox 的 z = 0 是内置常量，不在脚本口径内）
-        clips.put("z_index", new FieldDef("int", 10));
-
-        // 统一参数字段表——全部是关键帧字段
-        Map<String, FieldDef> kfs = new LinkedHashMap<>();
-        // 位置：窗口归一化（0~1，元素中心；不钳制，可越界）
-        kfs.put("x", new FieldDef("float", 0.5f));
-        kfs.put("y", new FieldDef("float", 0.5f));
-        // 锚点：元素自身归一化（0 = 左/上缘，1 = 右/下缘），缩放绕点
-        kfs.put("anchor_x", new FieldDef("float", 0.5f));
-        kfs.put("anchor_y", new FieldDef("float", 0.5f));
-        // 缩放：相对素材原始像素尺寸的倍数（1 = 素材 1:1 像素）
-        kfs.put("scale_x", new FieldDef("float", 1.0f));
-        kfs.put("scale_y", new FieldDef("float", 1.0f));
-        // 取材：素材归一化 {x,y,w,h}（原点 = 素材左上角），缺省整幅（仅 image 消费）
-        kfs.put("source", new FieldDef("map", null));
-        // 不透明度：缺省 1.0 = 不透明（fade/letterbox 也有效）
-        kfs.put("opacity", new FieldDef("float", 1.0f));
-        // fade 高级颜色遮罩关键帧通道：只属于 layer_type=fade；image / subtitle 上写会被
-        // ScriptParser / ScriptValidator 明确拒绝。几何通道缺省 = 旧 fade 的全窗口覆盖。
-        // color 缺省 null = 回落 clip 级 color（不是固定黑色）
-        kfs.put("color", new FieldDef("string", null));
-        // 覆盖区域中心（窗口比例，可越界）
-        kfs.put("mask_x", new FieldDef("float", 0.5f));
-        kfs.put("mask_y", new FieldDef("float", 0.5f));
-        // rect 宽高 / 窗口比例（非负，不设人为上限；零面积不绘制）
-        kfs.put("mask_width", new FieldDef("float", 1.0f));
-        kfs.put("mask_height", new FieldDef("float", 1.0f));
-        // circle 半径 / 窗口较短边（非负；0 不绘制）
-        kfs.put("mask_radius", new FieldDef("float", 0.5f));
-        // linear 方向角（0 = 向右，90 = 向下）；radial 中心（窗口比例，可越界）与半径（短边比例，必须 > 0）
-        kfs.put("gradient_angle", new FieldDef("float", 0f));
-        kfs.put("gradient_center_x", new FieldDef("float", 0.5f));
-        kfs.put("gradient_center_y", new FieldDef("float", 0.5f));
-        kfs.put("gradient_radius", new FieldDef("float", 0.5f));
-        // 字幕专用：字号倍数（1 = 原版 9px），改变文字块基准尺寸，与 scale_x/y 叠加
-        kfs.put("font_scale", new FieldDef("float", 1));
-
-        return new TrackTypeSchema(clips, kfs, overlayObjects(), PLAY_CONTROL);
+        return new TrackTypeSchema(overlayObjects(), PLAY_CONTROL);
     }
 
     /**
@@ -414,107 +73,7 @@ public final class TrackSchemas {
      * blend_mode（缺省 normal = 直替换）+ blend_amount（0~1，缺省 1）在全部步骤之后做层级混合，只动 RGB、alpha 直通。
      */
     private static TrackTypeSchema adjust() {
-        Map<String, FieldDef> clips = new LinkedHashMap<>();
-        putCommonClipFields(clips);
-        // 曲线组（形态 b）：曲线定义一次（clip 级结构字段），关键帧只控各自强度
-        clips.put("rgb_curve", new FieldDef("color_curve", null));
-        clips.put("r_curve", new FieldDef("color_curve", null));
-        clips.put("g_curve", new FieldDef("color_curve", null));
-        clips.put("b_curve", new FieldDef("color_curve", null));
-        // 六条 hue 曲线（DaVinci 曲线页；键 = hue 或 sat / lum，在 HSL 块内生效）
-        clips.put("hv_h_curve", new FieldDef("color_curve", null));   // hue → hue
-        clips.put("hv_s_curve", new FieldDef("color_curve", null));   // hue → saturation
-        clips.put("hv_l_curve", new FieldDef("color_curve", null));   // hue → luminance
-        clips.put("lv_s_curve", new FieldDef("color_curve", null));   // luminance → saturation
-        clips.put("sv_s_curve", new FieldDef("color_curve", null));   // saturation → saturation
-        clips.put("sv_l_curve", new FieldDef("color_curve", null));   // saturation → luminance
-        // LUT（clip 级文件名，resource/ 目录下的 .cube；缺省 null = 本片段不做 LUT）；
-        // 关键帧只控 lut_strength，栈位 = LGG 之后、HSL 块之前
-        clips.put("lut", new FieldDef("string", null));
-        // LUT 输入域适配（clip 级幂指数，缺省 1 = 不变换，必须 > 0）：查表前
-        // 先取 v = pow(clamp(c, 0, 1), lut_input_gamma)，以 v 为四面体查表坐标——现成 .cube 按特定素材 /
-        // 色彩空间调成时，用它把游戏画面（sRGB）映射回表假设的输入域；无 LUT 时忽略
-        clips.put("lut_input_gamma", new FieldDef("float", 1f));
-        // 混合模式（clip 级枚举，缺省 "normal" = 直替换）：c = mix(c_base, blend(c_base, c_adj, mode), blend_amount)，
-        // 全部 19 步算完后整体施加；只有 ADJUST 轨（master）带该字段（相机片段上写会被 validator 拦下）
-        clips.put("blend_mode", new FieldDef("enum", "normal", false,
-                List.of("normal", "multiply", "screen", "soft_light", "overlay")));
-
-        Map<String, FieldDef> kfs = new LinkedHashMap<>();
-        // 基础校色（复合 RGB）
-        kfs.put("exposure", new FieldDef("float", 0f));       // -5 ~ 5（EV 档，×2^EV）
-        kfs.put("contrast", new FieldDef("float", 0f));       // -1 ~ 1（以中灰 0.5 为轴）
-        kfs.put("highlights", new FieldDef("float", 0f));     // -1 ~ 1（亮部）
-        kfs.put("shadows", new FieldDef("float", 0f));        // -1 ~ 1（暗部）
-        kfs.put("whites", new FieldDef("float", 0f));         // -1 ~ 1（白场端点）
-        kfs.put("blacks", new FieldDef("float", 0f));         // -1 ~ 1（黑场端点）
-        // 完整 HSL（H / S / L 三通道；操作栈顺序 = hue 旋转 → 饱和度 / 自然饱和度 → lightness）
-        kfs.put("hue", new FieldDef("float", 0f));            // -1 ~ 1（色相旋转：±1 = ±180°）
-        kfs.put("saturation", new FieldDef("float", 0f));     // -1 ~ 1（-1 = 全灰、1 = 双倍）
-        kfs.put("vibrance", new FieldDef("float", 0f));       // -1 ~ 1（自然饱和度）
-        kfs.put("lightness", new FieldDef("float", 0f));      // -1 ~ 1（HSL 的 L：正 = 向白推、负 = 向黑压）
-        // 白平衡
-        kfs.put("temperature", new FieldDef("float", 0f));    // -1 ~ 1（正 = 暖 / 偏红）
-        kfs.put("tint", new FieldDef("float", 0f));           // -1 ~ 1（正 = 品红、负 = 绿）
-        // RGBA 通道拆分（R/G/B 每通道系数；操作栈位置：色温/色调之后、钳制 [0,1] 之前）
-        kfs.put("red", new FieldDef("float", 0f));            // -1 ~ 1（红通道乘性系数：-1 = 归零、-0.5 = 减半、+1 = 双倍）
-        kfs.put("green", new FieldDef("float", 0f));          // -1 ~ 1（绿通道，同上）
-        kfs.put("blue", new FieldDef("float", 0f));           // -1 ~ 1（蓝通道，同上）
-        // RGB 通道混合器（单位阵 + 参数矩阵，九个全 0 = 逐位恒等；行 = 输出、列 = 输入；栈位 = R/G/B 系数之后、复合曲线之前）
-        kfs.put("mix_rr", new FieldDef("float", 0f));         // -1 ~ 1（输出 R ← 输入 R 的额外系数，叠加在单位阵上）
-        kfs.put("mix_rg", new FieldDef("float", 0f));         // -1 ~ 1（输出 R ← 输入 G）
-        kfs.put("mix_rb", new FieldDef("float", 0f));         // -1 ~ 1（输出 R ← 输入 B）
-        kfs.put("mix_gr", new FieldDef("float", 0f));         // -1 ~ 1（输出 G ← 输入 R）
-        kfs.put("mix_gg", new FieldDef("float", 0f));         // -1 ~ 1（输出 G ← 输入 G）
-        kfs.put("mix_gb", new FieldDef("float", 0f));         // -1 ~ 1（输出 G ← 输入 B）
-        kfs.put("mix_br", new FieldDef("float", 0f));         // -1 ~ 1（输出 B ← 输入 R）
-        kfs.put("mix_bg", new FieldDef("float", 0f));         // -1 ~ 1（输出 B ← 输入 G）
-        kfs.put("mix_bb", new FieldDef("float", 0f));         // -1 ~ 1（输出 B ← 输入 B）
-        // 曲线组（形态 b）：曲线混合强度（曲线本身是 clip 级字段 rgb_curve / r_curve / g_curve / b_curve）
-        kfs.put("curve_strength", new FieldDef("float", 1f));   // 0 ~ 1（缺省 1 = 曲线全量生效；无曲线时忽略）
-        kfs.put("r_curve_strength", new FieldDef("float", 1f)); // 0 ~ 1（R 每通道曲线，同上）
-        kfs.put("g_curve_strength", new FieldDef("float", 1f)); // 0 ~ 1（G 每通道曲线，同上）
-        kfs.put("b_curve_strength", new FieldDef("float", 1f)); // 0 ~ 1（B 每通道曲线，同上）
-        // Lift / Gamma / Gain 色轮（c' = c + lift·(1-c) / pow(max(c,0), exp2(-gamma)) / c·(1+gain)；
-        // 九个全 0 = 整步跳过；栈位 = 每通道曲线之后、钳制 [0,1] 之前）
-        kfs.put("lift_r", new FieldDef("float", 0f));         // -1 ~ 1（R 阴影：正 = 抬阴影、负 = 压黑）
-        kfs.put("lift_g", new FieldDef("float", 0f));         // -1 ~ 1（G 阴影，同上）
-        kfs.put("lift_b", new FieldDef("float", 0f));         // -1 ~ 1（B 阴影，同上）
-        kfs.put("gamma_r", new FieldDef("float", 0f));        // -1 ~ 1（R 中间调：正 = 提亮、负 = 压暗）
-        kfs.put("gamma_g", new FieldDef("float", 0f));        // -1 ~ 1（G 中间调，同上）
-        kfs.put("gamma_b", new FieldDef("float", 0f));        // -1 ~ 1（B 中间调，同上）
-        kfs.put("gain_r", new FieldDef("float", 0f));         // -1 ~ 1（R 高光：乘性增益 = 1 + 值）
-        kfs.put("gain_g", new FieldDef("float", 0f));         // -1 ~ 1（G 高光，同上）
-        kfs.put("gain_b", new FieldDef("float", 0f));         // -1 ~ 1（B 高光，同上）
-        // LUT 混合强度（LUT 本身是 clip 级字段 lut，第 11 步；缺省 1 = 全量生效、写回 0 = 淡出）
-        kfs.put("lut_strength", new FieldDef("float", 1f));   // 0 ~ 1（无 LUT 时忽略）
-        // 六条 hue 曲线的混合强度（曲线本身是 clip 级字段 hv_h_curve / hv_s_curve / ... / sv_l_curve）
-        kfs.put("hv_h_strength", new FieldDef("float", 1f));    // 0 ~ 1（HvH：hue → hue，缺省 1；无曲线时忽略）
-        kfs.put("hv_s_strength", new FieldDef("float", 1f));    // 0 ~ 1（HvS：hue → 饱和度）
-        kfs.put("hv_l_strength", new FieldDef("float", 1f));    // 0 ~ 1（HvL：hue → 亮度）
-        kfs.put("lv_s_strength", new FieldDef("float", 1f));    // 0 ~ 1（LvS：亮度 → 饱和度）
-        kfs.put("sv_s_strength", new FieldDef("float", 1f));    // 0 ~ 1（SvS：饱和度 → 饱和度）
-        kfs.put("sv_l_strength", new FieldDef("float", 1f));    // 0 ~ 1（SvL：饱和度 → 亮度）
-        // PS 式六色带微调（六条固定色带各撑 ±30°、升余弦权重；十二个全 0 = 整步跳过；栈位 = HSL 块之后、灰度之前）
-        kfs.put("hue_red", new FieldDef("float", 0f));        // -1 ~ 1（红带色相旋转，缺省 0 = 无效果）
-        kfs.put("sat_red", new FieldDef("float", 0f));        // -1 ~ 1（红带饱和度增量：sat *= (1 + 值)）
-        kfs.put("hue_yellow", new FieldDef("float", 0f));     // -1 ~ 1（黄带色相旋转）
-        kfs.put("sat_yellow", new FieldDef("float", 0f));     // -1 ~ 1（黄带饱和度增量）
-        kfs.put("hue_green", new FieldDef("float", 0f));      // -1 ~ 1（绿带色相旋转）
-        kfs.put("sat_green", new FieldDef("float", 0f));      // -1 ~ 1（绿带饱和度增量）
-        kfs.put("hue_cyan", new FieldDef("float", 0f));       // -1 ~ 1（青带色相旋转）
-        kfs.put("sat_cyan", new FieldDef("float", 0f));       // -1 ~ 1（青带饱和度增量）
-        kfs.put("hue_blue", new FieldDef("float", 0f));       // -1 ~ 1（蓝带色相旋转）
-        kfs.put("sat_blue", new FieldDef("float", 0f));       // -1 ~ 1（蓝带饱和度增量）
-        kfs.put("hue_magenta", new FieldDef("float", 0f));    // -1 ~ 1（品红带色相旋转）
-        kfs.put("sat_magenta", new FieldDef("float", 0f));    // -1 ~ 1（品红带饱和度增量）
-        // 风格化（本身即强度）
-        kfs.put("grayscale", new FieldDef("float", 0f));      // 0 ~ 1（灰度混合量）
-        kfs.put("invert", new FieldDef("float", 0f));         // 0 ~ 1（反相混合量）
-        // 层级混合强度（第 20 步 = 全部步骤之后整体施加）：0 ~ 1，缺省 1 = 全量生效，写回 0 = 输出 = 基画面
-        kfs.put("blend_amount", new FieldDef("float", 1f));
-
-        return new TrackTypeSchema(clips, kfs, adjustObjects(), PLAY_CONTROL);
+        return new TrackTypeSchema(adjustObjects(), PLAY_CONTROL);
     }
 
     // ------------------------------------------------------------------

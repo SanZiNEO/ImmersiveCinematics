@@ -24,7 +24,7 @@ import java.util.Objects;
  *
  * <p>采样器不读 {@code loop}/{@code loop_mode}：执行层负责把时间归一化到
  * {@code [0, duration]}（无限执行只要求 {@code >= 0}）。{@code executionIndex} 由播放控制写入
- * {@link SampledClip}，采样器不碰。旧格式片段（无 {@code objects}）也能构造，此时没有通道，
+ * {@link SampledClip}，采样器不碰。空 {@code objects}（程序化构造）也能构造，此时没有通道，
  * {@code sample} 只写 {@code executionLocalTime}。</p>
  */
 public final class ClipSampler {
@@ -128,7 +128,7 @@ public final class ClipSampler {
         return layout.slotOf(path);
     }
 
-    /** 是否没有任何通道（旧格式片段或空 {@code objects}）。 */
+    /** 是否没有任何通道（空 {@code objects}，程序化构造）。 */
     public boolean isEmpty() {
         return channels.length == 0;
     }

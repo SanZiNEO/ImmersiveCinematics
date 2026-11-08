@@ -60,6 +60,5 @@ public class C2SScriptSeekPacket implements CinematicC2SPacket {
 
     public String getScriptId() { return scriptId; }
     public String getInstanceId() { return instanceId; }
-    public double getTargetSeconds() { return targetSeconds; }
     public String getRefId() { return refId; }
 }

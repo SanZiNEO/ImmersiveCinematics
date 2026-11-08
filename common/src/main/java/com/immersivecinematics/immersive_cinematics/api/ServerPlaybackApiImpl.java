@@ -5,7 +5,6 @@ import com.immersivecinematics.immersive_cinematics.script.ScriptManager;
 import com.immersivecinematics.immersive_cinematics.trigger.network.S2CPlayScriptPacket;
 import com.immersivecinematics.immersive_cinematics.trigger.network.S2CStopScriptPacket;
 import com.immersivecinematics.immersive_cinematics.trigger.server.ScriptEventManager;
-import com.immersivecinematics.immersive_cinematics.util.ScriptStructureResolver;
 import com.mojang.logging.LogUtils;
 import net.minecraft.server.level.ServerPlayer;
 import org.slf4j.Logger;
@@ -14,7 +13,7 @@ import java.util.List;
 
 /**
  * {@link ServerPlaybackApi} 的唯一实现：无状态，只转发到既有的服务端播放链
- * （脚本表 → 结构来源替换 → 规则命令表 → 观看者授权 → 下发播放包）。
+ * （脚本表 → 规则命令表 → 观看者授权 → 下发播放包）。
  *
  * <p>线程：仅服务端主线程（调用方负责 marshal）。
  *
@@ -38,9 +37,8 @@ final class ServerPlaybackApiImpl implements ServerPlaybackApi {
                     scriptId, script, script != null ? "present" : "null");
             return false;
         }
-        // 结构 / 方块来源替换：与触发器动作和 /icinematics play 一致，按目标玩家位置定位后下发。
-        String json = ScriptStructureResolver.resolveTargets(
-                script.getRawJson(), player.serverLevel(), player.position());
+        // 直接下发脚本原始 JSON：结构 / 方块来源由客户端按本地世界解析。
+        String json = script.getRawJson();
         String iid = instanceId == null ? "" : instanceId;
         // 规则命令信任边界：动作表按即将下发的脚本编译；观看者授权 = 本次实际收包的目标玩家。
         ScriptEventManager.INSTANCE.primeCommandTable(script);

@@ -1022,17 +1022,6 @@ public final class LaneRenderer {
         return views;
     }
 
-    /** 本帧活跃 lane 的 captureId（调试捕获文件名口径，跨维度 lane 也不带维度后缀）。 */
-    public List<String> captureIds() {
-        List<String> ids = new ArrayList<>(activeCount);
-        for (Lane lane : lanes) {
-            if (lane.state != null && lane.captureId != null) {
-                ids.add(lane.captureId);
-            }
-        }
-        return ids;
-    }
-
     /**
      * 调试用只读签名：本帧活跃 lane 的 {@code captureId=viewKey}，按 lane 序号空格分隔。
      * 有租约时 viewKey 取 {@link CameraLease#viewKey()}；链输出回退 lane 为 {@code chain=chain}。

@@ -6,8 +6,8 @@ import com.google.gson.JsonObject;
  * 触发器前置条件（可扩展）：每个条件由 {@code type} + 参数 {@code data} 组成。
  *
  * 内置类型由 {@code PrerequisiteRegistry} 注册，其他模组也可注册自己的类型。
- * 旧脚本的 {@code requires: ["script_a"]} 在解析时转换为
- * {@code type="script_played", data={"script":"script_a"}}。
+ * {@code requires} 元素两种写法：字符串 = 前置脚本 id（等价于
+ * {@code type="script_played", data={"script":"<id>"}}）；对象 = {@code type} + 参数 {@code data}。
  */
 public final class TriggerRequirement {
 
@@ -39,13 +39,6 @@ public final class TriggerRequirement {
         JsonObject data = new JsonObject();
         data.addProperty("script", scriptId);
         return new TriggerRequirement("script_started", data);
-    }
-
-    /** 内置便捷构造：只要求脚本结束播放 */
-    public static TriggerRequirement scriptCompleted(String scriptId) {
-        JsonObject data = new JsonObject();
-        data.addProperty("script", scriptId);
-        return new TriggerRequirement("script_completed", data);
     }
 
     @Override

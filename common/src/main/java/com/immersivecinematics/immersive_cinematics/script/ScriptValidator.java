@@ -6,7 +6,6 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.immersivecinematics.immersive_cinematics.camera.cover.CameraChannels;
 import com.immersivecinematics.immersive_cinematics.camera.rule.RuleActions;
-import com.immersivecinematics.immersive_cinematics.camera.source.PointSource;
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionMode;
 import com.immersivecinematics.immersive_cinematics.client.rule.ClientConditions;
 import com.immersivecinematics.immersive_cinematics.math.ValueDomain;
@@ -110,6 +109,7 @@ public final class ScriptValidator {
             issues.add("meta 缺失或不是对象（需要 id/name/author）");
         } else {
             JsonObject meta = root.getAsJsonObject("meta");
+            rejectUnknownFields(meta, "meta", ScriptParser.META_KEYS, issues);
             requireString(meta, "meta", "id", issues);
             requireString(meta, "meta", "name", issues);
             requireString(meta, "meta", "author", issues);
@@ -122,25 +122,6 @@ public final class ScriptValidator {
             }
             checkMaxLength(meta, "meta", "name", 50, issues);
             checkMaxLength(meta, "meta", "author", 30, issues);
-            // 旧字段：0.3.6 起已移除，出现即报错（不保留双读 / 兼容分支）
-            if (meta.has("version")) {
-                issues.add("meta.version 已移除：0.3.6 起不再有格式版本号");
-            }
-            if (meta.has("hud_layers")) {
-                issues.add("meta.hud_layers 已移除：用 meta.screen_layers（true = 显示）");
-            }
-            if (meta.has("hard_hide_hud")) {
-                issues.add("meta.hard_hide_hud 已移除：用 meta.screen_layer_mode（allowlist / normal）");
-            }
-        }
-
-        // ===== meta 已移除字段：出现即报错（不留静默失效的写法）=====
-        if (root.has("meta") && root.get("meta").isJsonObject()) {
-            JsonObject meta = root.getAsJsonObject("meta");
-            if (meta.has("exit_on_duration_overrun")) {
-                issues.add("meta.exit_on_duration_overrun 已移除：②族「内容播完」按实际执行内容判定"
-                        + "（片段消费状态 + 剩余内容计数），total_duration 不再是结束判据，也不需要兜底上限——请删掉该字段");
-            }
         }
 
         // ===== meta 宏观循环（macro_loop）=====
@@ -218,7 +199,7 @@ public final class ScriptValidator {
             checkBaseResolution(root.getAsJsonObject("meta"), issues);
         }
 
-        // ===== meta.screen_layers / screen_layer_mode：画面层统一入口 =====
+        // ===== meta.screen_layers：画面层唯一入口 =====
         if (root.has("meta") && root.get("meta").isJsonObject()) {
             checkScreenLayers(root, issues);
         }
@@ -236,13 +217,13 @@ public final class ScriptValidator {
         // 放在 timeline 检查之前：timeline 缺失时也能报出独立片段表的问题。
         checkClipIdentities(root, issues);
 
-        // ===== 脚本级规则集合：rules[] / rule_bindings[]（与旧 clip.rules 互斥）=====
+        // ===== 脚本级规则集合：rules[] / rule_bindings[] =====
         checkScriptRuleCollection(root, issues);
 
         // ===== 脚本级路径集合：paths[]（与解析器同一套结构 / 端点规则）=====
         checkPathCollection(root, issues);
 
-        // ===== 片段级 exit：新格式结构校验；旧格式片段不读 exit（写了即报错）=====
+        // ===== 片段级 exit：结构校验 =====
         checkClipExits(root, issues);
 
         // ===== timeline =====
@@ -251,10 +232,7 @@ public final class ScriptValidator {
             return issues;
         }
         JsonObject timeline = root.getAsJsonObject("timeline");
-        // 旧字段：0.3.6 起已移除（有限末端 / 显示范围由片段窗口派生）
-        if (timeline.has("total_duration")) {
-            issues.add("timeline.total_duration 已移除：有限末端/显示范围由片段窗口派生");
-        }
+        rejectUnknownFields(timeline, "timeline", ScriptParser.TIMELINE_KEYS, issues);
         if (!timeline.has("tracks") || !timeline.get("tracks").isJsonArray()) {
             issues.add("timeline.tracks 缺失或不是数组");
             return issues;
@@ -318,55 +296,10 @@ public final class ScriptValidator {
                     } catch (Exception e) { issues.add(cp + ".duration 不是数字"); }
                 }
 
-                // 旧格式字段：0.3.6 起已移除，出现即报错
-                rejectRemovedClipFields(clip, cp, issues);
                 ObjectValidator.validate(type == null ? null : trackTypeOf(type), clip, cp, issues);
             }
         }
         return issues;
-    }
-
-    /**
-     * 旧片段字段：0.3.6 起已移除，出现即报错（不保留双读 / 兼容分支；文案统一含「已移除」）。
-     */
-    private static void rejectRemovedClipFields(JsonObject clip, String cp, List<String> issues) {
-        for (String field : clip.keySet()) {
-            String message = removedClipFieldMessage(field);
-            if (message != null) {
-                issues.add(cp + "." + field + " " + message);
-            }
-        }
-    }
-
-    /** 旧片段字段的「已移除」文案；{@code null} = 不是旧字段。 */
-    private static String removedClipFieldMessage(String field) {
-        switch (field) {
-            case "keyframes":
-                return "已移除：用 objects（每个可调项一个采样属性）";
-            case "curve":
-                return "已移除：clip 级 curve；用脚本级 paths（每条引用目标片段与两个相邻位置关键帧）";
-            case "rules":
-                return "已移除：clip 级 rules；用脚本级 rules + rule_bindings";
-            case "interpolation":
-                return "已移除：clip.interpolation；缓动由编辑器烘焙成关键帧";
-            case "follow":
-            case "follow_selector":
-                return "已移除：用 objects 的 position_origin / position_origin_freeze";
-            case "orient":
-            case "yaw_offset":
-            case "pitch_offset":
-                return "已移除：clip 级字段；写进 objects";
-            default:
-                break;
-        }
-        if (field.startsWith("facing_origin")) {
-            return "已移除：用 objects 的 position_origin / position_origin_freeze";
-        }
-        if (field.startsWith("selector_")
-                && (field.endsWith("_follow") || field.endsWith("_facing_origin"))) {
-            return "已移除：用 selector_*_position_origin";
-        }
-        return null;
     }
 
     // ======================================================================
@@ -383,7 +316,7 @@ public final class ScriptValidator {
      * </ul>
      *
      * <p>缺 {@code id} 不报错：未被任何宿主引用的片段可以匿名。「被引用却无 id」属于引用检查，
-     * 由规则 / 路径 / 出口的后续轮次加入。解析期不报重复（交给本校验器），避免旧解析基线漂移。</p>
+     * 由规则 / 路径 / 出口的后续轮次加入。解析期不报重复（交给本校验器），避免解析基线漂移。</p>
      */
     private static void checkClipIdentities(JsonObject root, List<String> issues) {
         Map<String, String> firstSeen = new LinkedHashMap<>();
@@ -437,11 +370,7 @@ public final class ScriptValidator {
         }
     }
 
-    /**
-     * 片段级 {@code exit}（片段默认出口）：新格式片段按 {@link #checkExitStructure} 校验；
-     * 旧格式片段（无 {@code objects}）不读 {@code exit}，写了即报错——与解析器同口径，
-     * 保持旧格式纯净（出口声明只属于新格式 objects 片段）。
-     */
+    /** 片段级 {@code exit}（片段默认出口）：按 {@link #checkExitStructure} 校验结构。 */
     private static void checkClipExits(JsonObject root, List<String> issues) {
         Set<String> clipIds = new LinkedHashSet<>();
         Map<String, Float> durations = new LinkedHashMap<>();
@@ -478,13 +407,13 @@ public final class ScriptValidator {
         }
     }
 
-    /** 单个片段的 {@code exit} 字段：旧格式拒绝；新格式必须是对象并通过结构校验。 */
+    /** 单个片段的 {@code exit} 字段：必须是对象并通过结构校验。 */
     private static void checkClipExitField(JsonObject clip, String cp, Set<String> clipIds,
                                            List<String> issues) {
         JsonElement exit = clip.get("exit");
         if (exit == null) return;
         if (!clip.has("objects")) {
-            issues.add(cp + ".exit 不支持（旧格式片段不读 exit；出口声明只属于新格式 objects 片段）");
+            issues.add(cp + ".exit 缺少 objects（新格式片段必须声明对象）");
             return;
         }
         if (!exit.isJsonObject()) {
@@ -572,7 +501,6 @@ public final class ScriptValidator {
      *
      * <p>口径（{@code ROUND-I-4-MAP} §1.2–§1.5、§1.7）：
      * <ul>
-     *   <li>新旧互斥：任一 timeline 内联片段带 {@code rules} 时不得出现脚本级集合；</li>
      *   <li>定义：id 唯一 / 合法、{@code condition} 对象、{@code actions} 非空数组、{@code policy} 键白名单；</li>
      *   <li>条件树：v1 判定源 + 组合器 + 事实叶子（{@code clip_fact} / {@code rule_fact}），引用须可解析；</li>
      *   <li>绑定：id 唯一、{@code rule} / {@code clip} 可解析、{@code gate.at} 数值且在片段时长范围内、
@@ -587,11 +515,6 @@ public final class ScriptValidator {
         boolean hasRules = root.has("rules");
         boolean hasBindings = root.has("rule_bindings");
         if (!hasRules && !hasBindings) return;
-
-        if (hasLegacyClipRules(root)) {
-            issues.add("rules 脚本级规则集合与片段级 clip.rules 不能同时出现"
-                    + "（旧 clip.rules 仅用于旧格式脚本；两种脚本各自独立可读可播）");
-        }
 
         Set<String> clipIds = new LinkedHashSet<>();
         Map<String, Float> clipDurations = new LinkedHashMap<>();
@@ -687,23 +610,6 @@ public final class ScriptValidator {
         for (int i = 0; i < pendingActions.size(); i++) {
             checkActionArray(pendingActions.get(i), pendingActionPaths.get(i), true, issues, clipIds);
         }
-    }
-
-    /** 新旧规则互斥：任一 timeline 内联片段带 {@code rules}。 */
-    private static boolean hasLegacyClipRules(JsonObject root) {
-        JsonElement timelineElement = root.get("timeline");
-        if (timelineElement == null || !timelineElement.isJsonObject()) return false;
-        JsonElement tracksElement = timelineElement.getAsJsonObject().get("tracks");
-        if (tracksElement == null || !tracksElement.isJsonArray()) return false;
-        for (JsonElement trackElement : tracksElement.getAsJsonArray()) {
-            if (!trackElement.isJsonObject()) continue;
-            JsonElement clipsElement = trackElement.getAsJsonObject().get("clips");
-            if (clipsElement == null || !clipsElement.isJsonArray()) continue;
-            for (JsonElement clipElement : clipsElement.getAsJsonArray()) {
-                if (clipElement.isJsonObject() && clipElement.getAsJsonObject().has("rules")) return true;
-            }
-        }
-        return false;
     }
 
     /** 片段 id 表 + 时长表（内联 + 顶层 {@code clips[]}；非法 id / 时长由 {@link #checkClipIdentities} 报）。 */
@@ -1356,6 +1262,20 @@ public final class ScriptValidator {
         }
     }
 
+    /**
+     * 字段白名单（未知键报「未知字段」，不抛）。白名单是 TreeSet → 文案顺序稳定。
+     *
+     * @param path 路径前缀（{@code meta} / {@code timeline}）
+     */
+    private static void rejectUnknownFields(JsonObject obj, String path, Set<String> allowed,
+                                            List<String> issues) {
+        for (String key : obj.keySet()) {
+            if (!allowed.contains(key)) {
+                issues.add(path + "." + key + " 未知字段（可用: " + String.join(" / ", allowed) + "）");
+            }
+        }
+    }
+
     /** 条件树里的事实引用上下文（{@code null} = 旧 v1 口径，事实类型按未知判定源报错）。 */
     private record FactRefs(Set<String> bindingIds, Set<String> clipIds) {}
 
@@ -1660,8 +1580,7 @@ public final class ScriptValidator {
         for (String key : action.keySet()) {
             if ("type".equals(key) || "clip".equals(key) || "entry_time".equals(key)) continue;
             if ("track".equals(key) || "at".equals(key)) {
-                issues.add(ip + "." + key + " 旧形态字段（新规则 goto_clip 用 clip + entry_time；"
-                        + "track / at 只属于旧 clip.rules 的时间寻址）");
+                issues.add(ip + "." + key + " 属旧字段，用 clip / entry_time");
             } else {
                 issues.add(ip + "." + key + " 未知键（新规则 goto_clip 可用: clip / entry_time）");
             }
@@ -1957,16 +1876,16 @@ public final class ScriptValidator {
     }
 
     /**
-     * 校验 {@code meta.screen_layers} / {@code meta.screen_layer_mode}。
+     * 校验 {@code meta.screen_layers}。
      *
-     * <p>与 {@code ScriptParser#parseScreenLayers} / {@code ScriptParser#resolveScreenLayerMode}
-     * 同一口径：{@code screen_layers} 的值 = 显示（true 显示 / false 隐藏）；未知名按动态层名处理。</p>
+     * <p>与 {@code ScriptParser#parseScreenLayers} 同一口径：{@code screen_layers} 的值 = 显示
+     * （true 显示 / false 隐藏）；未知名按动态层名处理。</p>
      */
     private static void checkScreenLayers(JsonObject root, List<String> issues) {
         if (!root.has("meta") || !root.get("meta").isJsonObject()) return;
         JsonObject meta = root.getAsJsonObject("meta");
 
-        // screen_layers：对象 + 布尔值 + 键域（15 个规范层名 / 已知别名 / 动态层名）
+        // screen_layers：对象 + 布尔值 + 键域（15 个规范层名 / 动态层名）
         JsonElement layersEl = meta.get("screen_layers");
         if (layersEl != null && !layersEl.isJsonNull()) {
             if (!layersEl.isJsonObject()) {
@@ -1978,27 +1897,11 @@ public final class ScriptValidator {
                         issues.add("meta.screen_layers 存在空字符串键（层名不能为空）");
                         continue;
                     }
-                    if (ScreenLayer.byId(key) == null) {
-                        issues.add(WARNING_PREFIX + "meta.screen_layers 键 '" + key
-                                + "' 不是 15 个规范层名或已知别名，将按动态层名处理"
-                                + "（只匹配同名的注册分类 / 未注册 overlay 资源 ID）");
-                    }
                     JsonElement v = entry.getValue();
                     if (!v.isJsonPrimitive() || !v.getAsJsonPrimitive().isBoolean()) {
                         issues.add("meta.screen_layers['" + key + "'] 需要布尔值（true = 显示，false = 隐藏），实际: " + v);
                     }
                 }
-            }
-        }
-
-        // screen_layer_mode：字符串 + 取值域
-        JsonElement declaredEl = meta.get("screen_layer_mode");
-        if (declaredEl != null && !declaredEl.isJsonNull()) {
-            if (!isString(declaredEl)) {
-                issues.add("meta.screen_layer_mode 需要字符串（normal / allowlist），实际: " + declaredEl);
-            } else if (!ScreenLayerMode.isKnown(declaredEl.getAsString())) {
-                issues.add("meta.screen_layer_mode 未知值: " + declaredEl.getAsString()
-                        + "（可选: normal / allowlist），运行时按未声明处理");
             }
         }
     }

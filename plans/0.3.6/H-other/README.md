@@ -38,7 +38,7 @@ H7 / H8 之间没有强绑定：H8 的**最小版本**（位置扫掠 / 朝向�
 | 触发器独立身份 | `TriggerDefinition.id`（可选）+ 缺省 `type#声明下标`；232 条既有声明本就带合法 id，此前被解析层忽略 |
 | 播放生命周期事实 | `PLAYBACK_STARTED` / `PLAYBACK_FINISHED(script, instance, result)`；跳过 / 打断 / 自然结束可区分 |
 | 五份记录 | ①持久布尔 → 事实（类已删）；②八个 tracker → 事实，`InventoryTracker` 留作采样基线；③账本只留当前态，起止与投票进事实；④区域进入态 → `TriggerEdge` + 区域事实；⑤客户端镜像删除 |
-| 持久性 / 旧档 | 按事实类型声明；v1 一次性转换（旧触发器键仅在唯一匹配时映射，歧义丢弃） |
+| 持久性 / 旧档 | 按事实类型声明；v1 一次性转换已移除，0.3.6 不再兼容旧触发状态（非 v2 版本按空处理并 WARN） |
 | 跳过票空指针 | `ScriptPlayback.server` 由构造器赋值，缺陷已修 |
 
 ### 2.2 H8（P3-impl）：已实现（`observation` 扫掠除外）
@@ -111,10 +111,10 @@ N1–N9 的现状：N1/N2/N3（位置 / 朝向 / 边沿）在开启 `sweep` 后�
 | [`trigger-continuity.md`](trigger-continuity.md) | 判定层计划（P3-impl）= H8 |
 | ~~`region-sync.md`~~ | H1，**已取消**（2026-11-04 用户决定暂不做；文档已删除，git 历史可查） |
 | [`skip-vote-and-hud.md`](skip-vote-and-hud.md) | H9，跳过投票判定 + HUD 布局/位置配置 |
-| [`screen-layers.md`](screen-layers.md) | 画面层：15 个规范层名、`screen_layers`/`screen_layer_mode`、普通/白名单模式、接管与重画、注册接口 —— ✅ 已实现（H-5，2026-11-04） |
+| [`screen-layers.md`](screen-layers.md) | 画面层：15 个规范层名、`screen_layers`、唯一接管模式（强制清除 + 白名单放行）、接管与重画、注册接口 —— ✅ 已实现（H-5，2026-11-04） |
 | [`../C-trigger/trigger-conditions.md`](../C-trigger/trigger-conditions.md) | 条件怎么写、怎么组合；H7/H8 只提供它脚下的查询原语与时间语义，不改它的字段 |
 | [`../C-trigger/condition-system.md`](../C-trigger/condition-system.md) | 判定规则（**脚本级规则定义/绑定**；I 轮迁移前的载体是片段级 `clip.rules`），与触发器判定是不同层 |
 | [`../F-playback/parallel-playback.md`](../F-playback/parallel-playback.md) | 实例账本的上游；H7 阶段 2 与之对齐 |
 | [`entity-liveness.md`](entity-liveness.md) | H10，F8 相机视图实体活性的下一项设计 |
-| [`hud-layer-api.md`](hud-layer-api.md) | H11，HUD 层正式注册入口（`hud_layers` / 固定分类 / hard 白名单的平台边界） |
+| [`hud-layer-api.md`](hud-layer-api.md) | H11，HUD 层正式注册入口（`hud_layers` / 固定分类 / 接管重画的平台边界） |
 | [`public-api.md`](public-api.md) | H12，对外接口总纲：播放链路、相机只读面、轨道 / 触发器 / 模型 / 曲线 / 前置条件注册、注册时机与失败隔离 |

@@ -13,6 +13,7 @@
     "key.categories.immersive_cinematics":  "沉浸式过场动画",
     "hud.immersive_cinematics.skip_hold":  "长按 %s 跳过动画",
     "config.immersive_cinematics.title":  "沉浸式过场动画 配置",
+    "config.immersive_cinematics.open":  "打开 Immersive Cinematics 配置",
     "config.immersive_cinematics.showSkipHud":  "显示跳过提示: %s",
     "config.immersive_cinematics.showSkipHud.tooltip":  "过场动画播放时显示跳过提示",
     "config.immersive_cinematics.skipHoldThresholdMs":  "长按跳过时间: %s",

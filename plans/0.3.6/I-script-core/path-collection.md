@@ -1,7 +1,7 @@
 # 路径集合：脚本级路径条目
 
 > 状态：已实现（I4-8 关闭）
-> 能力清单：顶层 `paths[]`；`PathEntry(id, target, from, to, axes, geometry, timing)`；端点按目标片段 `position` 节点时间引用并要求相邻；`geometry` 复用 `PathCurveRegistry`（`line` / `bezier` 及注册表其余类型）；`timing` 线性 / 关键帧；`PathCollectionSource` 经 `CameraKeyframeEvaluator#setPathBindingSource` 接入相机
+> 能力清单：顶层 `paths[]`；`PathEntry(id, target, from, to, axes, geometry, timing)`；端点按目标片段 `position` 节点时间引用并要求相邻；`geometry` 复用 `PathCurveRegistry`（`line` / `bezier` 及注册表其余类型）；`timing` 线性 / 关键帧；`PathCollectionSource` 经 `CameraFrameEvaluator#setPathBindingSource` 接入相机
 > 范围：脚本级路径集合的归属、条目形态（目标片段 + 相邻端点对）、geometry（形状）、timing（时间映射）、多条目、时间基准、求值顺序、与采样属性的边界
 > 关联：`rule-system.md`、`rule-time-gate.md`、`object-model.md`、`schema-and-types.md`、`track-camera.md`、`runtime-evaluation.md`、`migration.md`、`rule-implementation.md`
 
@@ -106,6 +106,6 @@
   - `geometry` 必填，`line` 只接受 `type`，其余类型按 `PathCurveRegistry` 透传；
   - `timing` 缺省线性，`keyframes` 校验单调与端点 0/1；
   - 同一片段端点对完全相同 → 错误；部分重叠合法。
-- **相机接线**：`CameraTrackPlayer` 按脚本切换 `evaluator.setPathBindingSource(new PathCollectionSource(script.getPathCollection()))`（无集合时 `PathBindingSource.NONE`）；`CameraKeyframeEvaluator#setPathBindingSource` 转发到 `ObjectCameraEvaluator`。路径与未选轴采样属性的合成归 `track-camera.md`。
+- **相机接线**：`CameraTrackPlayer` 按脚本切换 `evaluator.setPathBindingSource(new PathCollectionSource(script.getPathCollection()))`（无集合时 `PathBindingSource.NONE`）；`CameraFrameEvaluator#setPathBindingSource` 转发到 `ObjectCameraEvaluator`。路径与未选轴采样属性的合成归 `track-camera.md`。
 - **使用边**：解析期 `UsageIndex.reference(PATH_ENTRY, ...)`，路径条目计入片段的 `PATH_ENTRY` 使用边。
 - **未实现（I-5）**：旧 `Clip.curve` → 路径条目的迁移器（`migration.md`）；旧 `clip.curve` 读取链路仍在旧格式脚本里生效。

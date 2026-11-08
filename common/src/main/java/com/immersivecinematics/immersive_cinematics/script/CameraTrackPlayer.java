@@ -2,7 +2,7 @@ package com.immersivecinematics.immersive_cinematics.script;
 
 import com.immersivecinematics.immersive_cinematics.api.CameraState;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
-import com.immersivecinematics.immersive_cinematics.camera.source.CameraKeyframeEvaluator;
+import com.immersivecinematics.immersive_cinematics.camera.source.CameraFrameEvaluator;
 import com.immersivecinematics.immersive_cinematics.camera.source.EntityTargetResolver;
 import com.immersivecinematics.immersive_cinematics.camera.source.LaneSnapshotCollector;
 import com.immersivecinematics.immersive_cinematics.camera.source.WorldPointLocator;
@@ -19,7 +19,7 @@ import java.util.List;
  * CAMERA 轨道播放器：逐帧编排数据源 / 时间推进 / 片段选取 / 写入分发 / 生命周期。
  * 写入契约：本轨顶层六参数经 {@link CameraManager#setScriptState} 进全局写入缓冲
  * （导演 Base 层的当前值来源）；重叠窗口里层级在下的 clip 只产 lane 快照、不写全局。
- * 求值与过渡合成归 {@link CameraKeyframeEvaluator}，lane 捕获归 {@link LaneSnapshotCollector}；
+ * 求值与过渡合成归 {@link CameraFrameEvaluator}，lane 捕获归 {@link LaneSnapshotCollector}；
  * 仅客户端主线程逐渲染帧调用，帧内路径不新建集合。
  */
 public class CameraTrackPlayer implements TrackDriver {
@@ -31,7 +31,7 @@ public class CameraTrackPlayer implements TrackDriver {
     /** 目标解析与锁定：selector → 实体 + 按 {@code role + selector} 维护的锁与切换平滑状态 */
     private final EntityTargetResolver entityResolver = new EntityTargetResolver();
     /** 关键帧求值（六参数 / 插值 / 过渡合成） */
-    private final CameraKeyframeEvaluator evaluator;
+    private final CameraFrameEvaluator evaluator;
     /** 本轨本帧的 lane 快照捕获与持有 */
     private final LaneSnapshotCollector laneCollector;
 
@@ -52,7 +52,7 @@ public class CameraTrackPlayer implements TrackDriver {
         this.trackIndex = trackIndex;
         this.cameraManager = cameraManager;
         WorldPointLocator pointLocator = new WorldPointLocator();
-        this.evaluator = new CameraKeyframeEvaluator(entityResolver, pointLocator, originPos, scriptPlayer);
+        this.evaluator = new CameraFrameEvaluator(entityResolver, pointLocator, originPos, scriptPlayer);
         this.laneCollector = new LaneSnapshotCollector(entityResolver, evaluator, scriptPlayer);
     }
 
@@ -127,10 +127,9 @@ public class CameraTrackPlayer implements TrackDriver {
             if (morphState != null) {
                 // 转场两侧任一声明 suppress = 本帧跳过 Modifier 链（两侧都活跃）
                 writeGlobal(morphState, prev.getSuppressModifiers() || next.getSuppressModifiers());
-                // 新格式 morph 的合成参数取自 next 侧本帧求值
+                // 新格式 morph 的采样结果 / 合成参数取自 next 侧本帧求值
                 laneCollector.add(new CameraLane(morphState, next,
-                        scriptPlayer.executionLocalTime(next, globalTime),
-                        evaluator.morphComposite()));
+                        evaluator.morphSample(), evaluator.morphComposite()));
                 transitionPair = pair;
                 return;
             }
@@ -153,7 +152,7 @@ public class CameraTrackPlayer implements TrackDriver {
         // 全局状态供听者 / 预览等消费方使用，不是「主相机」——各 lane 仍用各自片段的快照）
         CameraLane topLane = evaluator.renderSingle(globalTime, topClip,
                 scriptPlayer.executionLocalTime(topClip, globalTime),
-                false, CameraKeyframeEvaluator.TOP_LANE);
+                false, CameraFrameEvaluator.TOP_LANE);
         if (topLane != null) writeGlobal(topLane.state(), topClip.getSuppressModifiers());
         // 重叠窗口内层级在下的活跃 clip：先捕获（列表顺序 = 绘制顺序，后面的在上）
         laneCollector.captureLowerLanes(globalTime, active, topClip);

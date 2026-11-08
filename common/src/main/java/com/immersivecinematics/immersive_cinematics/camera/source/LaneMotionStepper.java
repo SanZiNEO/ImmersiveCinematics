@@ -2,6 +2,7 @@ package com.immersivecinematics.immersive_cinematics.camera.source;
 
 import com.immersivecinematics.immersive_cinematics.math.MathModelInstance;
 import com.immersivecinematics.immersive_cinematics.script.Clip;
+import com.immersivecinematics.immersive_cinematics.script.object.ClipValueView;
 import com.immersivecinematics.immersive_cinematics.spi.MathModel;
 
 /**
@@ -79,8 +80,9 @@ final class LaneMotionStepper {
      * 缺省关（无定义）= 取值逐位不变 + 零分配，但并非零工作——每帧仍有这 6 次查表，调用方另有 8 次缓冲写入。
      */
     private static boolean hasDefinition(Clip clip) {
+        ClipValueView values = new ClipValueView(clip);
         for (String field : FIELDS) {
-            if (clip.<MathModel>getObject(field) != null) {
+            if (values.o(field) != null) {
                 return true;
             }
         }
@@ -116,8 +118,9 @@ final class LaneMotionStepper {
          */
         private void redefine(Clip clip) {
             this.clip = clip;
+            ClipValueView values = new ClipValueView(clip);
             for (int i = 0; i < CHANNELS; i++) {
-                MathModel definition = clip.getObject(FIELDS[i]);
+                MathModel definition = (MathModel) values.o(FIELDS[i]);
                 Slot slot = slots[i];
                 if (slot.definition != definition) {
                     slot.definition = definition;

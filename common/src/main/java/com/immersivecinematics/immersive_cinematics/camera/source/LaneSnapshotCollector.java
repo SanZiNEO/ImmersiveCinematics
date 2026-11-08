@@ -14,7 +14,7 @@ import java.util.List;
  *
  * 列表契约：按轨道内 clip 顺序排列——后面的在上（与 lane 合成的绘制顺序一致：先画的在下，后画的盖在上面）；
  * 最后一个元素 = 顶层相机（写入全局的那一份状态）。空列表 = 本轨本帧不产出画面
- * （片段间隙 / 目标不可用 / 编辑器直控）。morph 过渡窗口是旧模型（两 clip 混合成一份相机状态），
+ * （片段间隙 / 目标不可用 / 编辑器直控）。morph 过渡窗口（两 clip 混合成一份相机状态），
  * 本轨本帧仍只产出一份 lane（合成参数取进入的片段 next）。
  * 捕获隔离：捕获前经 {@link EntityTargetResolver#snapshotLockState()} 留底，逐 clip
  * {@link EntityTargetResolver#restoreLockState()} 回写——每个 clip 都从同一份目标锁状态出发
@@ -25,13 +25,13 @@ import java.util.List;
 public final class LaneSnapshotCollector {
 
     private final EntityTargetResolver entityResolver;
-    private final CameraKeyframeEvaluator evaluator;
+    private final CameraFrameEvaluator evaluator;
     private final ClipTimeSource timeSource;
 
     private final List<CameraLane> laneSnapshots = new ArrayList<>(2);
     private final List<CameraLane> laneSnapshotsView = Collections.unmodifiableList(laneSnapshots);
 
-    public LaneSnapshotCollector(EntityTargetResolver entityResolver, CameraKeyframeEvaluator evaluator,
+    public LaneSnapshotCollector(EntityTargetResolver entityResolver, CameraFrameEvaluator evaluator,
                                  ClipTimeSource timeSource) {
         this.entityResolver = entityResolver;
         this.evaluator = evaluator;

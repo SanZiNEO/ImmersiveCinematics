@@ -41,7 +41,7 @@ public final class ClientConditions {
 
     /**
      * 新规则条件树的事实类型（{@code clip_fact} / {@code rule_fact}）：与 {@link #V1_TYPES} 分列——
-     * {@code V1_TYPES} 是旧 {@code clip.rules} 的判定源白名单（不含事实），旧引擎 / 校验器行为不变。
+     * {@code V1_TYPES} 是 {@code clip.rules} 的判定源白名单（不含事实）。
      */
     public static final List<String> FACT_TYPES = List.of("clip_fact", "rule_fact");
 
@@ -51,19 +51,7 @@ public final class ClientConditions {
     private ClientConditions() {}
 
     /**
-     * 求值一条条件（旧 3 参入口）：不存在事实源，{@code clip_fact} / {@code rule_fact} 恒 false。
-     * 行为与 I-4 之前逐位一致。
-     *
-     * @param condition     条件原文（{@code ClipRule} 存的那份）
-     * @param ctx           本帧世界状态（玩家 / 相机）
-     * @param clipLocalTime 片段本地时钟（秒）= timelineTime − clip.startTime
-     */
-    public static boolean evaluate(JsonObject condition, Context ctx, double clipLocalTime) {
-        return evaluate(condition, ctx, clipLocalTime, FactSource.NONE);
-    }
-
-    /**
-     * 求值一条条件（4 参入口）：支持 {@code clip_fact} / {@code rule_fact} 两类事实叶子。
+     * 求值一条条件：支持 {@code clip_fact} / {@code rule_fact} 两类事实叶子。
      *
      * @param condition     条件原文
      * @param ctx           本帧世界状态

@@ -19,19 +19,19 @@ import java.util.List;
  * <p>分工：
  * <ul>
  *   <li>共享动作（{@code camera_set} / {@code overlay_set} / {@code adjust_set} / {@code play_sound}
- *       / {@code exit}）→ {@link RuleActions#executeShared}，实现与旧 {@code clip.rules} 逐位相同。</li>
+ *       / {@code exit}）→ {@link RuleActions#executeShared}。</li>
  *   <li>{@code pause} / {@code resume} → 本实例的 {@link RuleRuntime#onActionPause()} /
  *       {@link RuleRuntime#onActionResume()}：进 {@link SuspensionLedger} 多来源账本
- *       （{@link SuspensionLedger#ACTION_PAUSE}），<b>不再</b>转调旧 {@code RuleEngine}。</li>
+ *       （{@link SuspensionLedger#ACTION_PAUSE}）。</li>
  *   <li>{@code emit_command} → {@link RuleActions#emitCommandForBinding}（只发动作引用，命令原文由服务端
  *       按脚本解析；授权、权限上限与限频都在服务端）。</li>
- *   <li>{@code goto_clip} 新形态（{@code clip} + 可选 {@code entry_time}）= 分支启动：经
+ *   <li>{@code goto_clip}（{@code clip} + 可选 {@code entry_time}）= 分支启动：经
  *       {@link PlaybackInstance#branch()} 调 {@code ClipBranchController.launch}，入口覆盖取绑定
- *       {@code exit}（无则片段默认）。旧形态（{@code track}/{@code at}）在新规则解析期已被拒绝，
- *       本执行器不做兼容。</li>
+ *       {@code exit}（无则片段默认）。只接受 {@code clip} + 可选 {@code entry_time} 形态；
+ *       {@code track}/{@code at} 在解析期已被拒绝，本执行器不做兼容。</li>
  * </ul>
  *
- * <p>失败不中断播放：参数非法 / 未知类型 / 执行异常一律限频日志后继续（与旧动作族同一约定）。
+ * <p>失败不中断播放：参数非法 / 未知类型 / 执行异常一律限频日志后继续（与动作族同一约定）。
  * 分配契约：只在判定成功 / 超时帧调用（非稳态路径）。线程契约：仅客户端主线程。</p>
  */
 public final class RuleActionRunner {

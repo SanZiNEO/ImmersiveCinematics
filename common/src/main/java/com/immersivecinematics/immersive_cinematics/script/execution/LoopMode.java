@@ -11,6 +11,11 @@ public enum LoopMode {
     REPEAT,
     PINGPONG;
 
+    /** 脚本字段名（{@code repeat} / {@code pingpong}）。 */
+    public String id() {
+        return this == PINGPONG ? "pingpong" : "repeat";
+    }
+
     /**
      * 按名称取枚举（大小写不敏感）。
      *

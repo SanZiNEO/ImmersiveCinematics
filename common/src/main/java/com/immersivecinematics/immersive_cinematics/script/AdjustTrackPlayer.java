@@ -27,7 +27,7 @@ public class AdjustTrackPlayer implements TrackDriver {
 
     private final ScriptPlayer scriptPlayer;
     private final int trackIndex;
-    /** 新格式片段的采样缓存（旧格式片段不走这里，仍由 {@link ColorAdjustSampler#sample} 扫关键帧）。 */
+    /** 片段采样缓存（对象模型取值，见 {@link ClipRuntimeCache}）。 */
     private final ClipRuntimeCache runtime = new ClipRuntimeCache(TrackTypeId.ADJUST);
     /** 曲线解析缓存：曲线是 value-only 结构，按 clip 只解析一次。 */
     private final ColorAdjustSampler.CurveCache curves = new ColorAdjustSampler.CurveCache();
@@ -58,7 +58,7 @@ public class AdjustTrackPlayer implements TrackDriver {
         // 恒等参数由 publish 归一化为「无调整」（渲染侧一次 GL 调用都不做）。
         // 实例标识 = 本轨所属的 ScriptPlayer：同实例多条 ADJUST 轨互相覆盖，不同实例各占一层。
         double localTime = scriptPlayer.executionLocalTime(clip, globalTime);
-        // 59 通道来自对象模型（旧格式关键帧扫描已随格式删除）。
+        // 59 通道来自对象模型（片段级关键帧扫描已随格式删除）。
         ColorAdjustParams params = ColorAdjustSampler.sampleObjects(clip, runtime.sample(clip, localTime),
                 runtime.values(clip), curves);
         MasterColorAdjust.INSTANCE.publish(scriptPlayer, params);

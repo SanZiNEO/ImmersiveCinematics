@@ -45,16 +45,6 @@ public final class FatalErrors {
         throw new RuntimeException(t);
     }
 
-    /** GL 错误码转换：显存耗尽 → {@link OutOfMemoryError}，上下文丢失 → {@link IllegalStateException}。 */
-    public static void rethrowIfFatalGlError(int code) {
-        if (code == 0x0505) {
-            throw new OutOfMemoryError("OpenGL GL_OUT_OF_MEMORY (0x0505)");
-        }
-        if (code == 0x0507) {
-            throw new IllegalStateException("OpenGL GL_CONTEXT_LOST (0x0507)");
-        }
-    }
-
     private static boolean hasFatalMessage(Throwable t) {
         String message = t.getMessage();
         if (message == null) return false;

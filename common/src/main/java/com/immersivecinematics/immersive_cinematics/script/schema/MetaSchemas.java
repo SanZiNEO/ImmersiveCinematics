@@ -28,20 +28,6 @@ public final class MetaSchemas {
         map.put("block_keyboard", new FieldDef("bool", true, false, java.util.Collections.emptyList(), "runtime"));
         map.put("block_mouse", new FieldDef("bool", true, false, java.util.Collections.emptyList(), "runtime"));
         map.put("block_mob_ai", new FieldDef("bool", false, false, java.util.Collections.emptyList(), "runtime"));
-        map.put("hide_hud", new FieldDef("bool", true, false, java.util.Collections.emptyList(), "runtime"));
-        map.put("hide_arm", new FieldDef("bool", null, false, java.util.Collections.emptyList(), "runtime"));
-        map.put("suppress_bob", new FieldDef("bool", null, false, java.util.Collections.emptyList(), "runtime"));
-        map.put("suppress_distortion", new FieldDef("bool", null, false, java.util.Collections.emptyList(), "runtime"));
-        map.put("hide_chat", new FieldDef("bool", null, false, java.util.Collections.emptyList(), "runtime"));
-        map.put("hide_scoreboard", new FieldDef("bool", null, false, java.util.Collections.emptyList(), "runtime"));
-        map.put("hide_action_bar", new FieldDef("bool", null, false, java.util.Collections.emptyList(), "runtime"));
-        map.put("hide_title", new FieldDef("bool", null, false, java.util.Collections.emptyList(), "runtime"));
-        map.put("hide_subtitles", new FieldDef("bool", null, false, java.util.Collections.emptyList(), "runtime"));
-        map.put("hide_hotbar", new FieldDef("bool", null, false, java.util.Collections.emptyList(), "runtime"));
-        map.put("hide_crosshair", new FieldDef("bool", null, false, java.util.Collections.emptyList(), "runtime"));
-        map.put("hide_bossbar", new FieldDef("bool", null, false, java.util.Collections.emptyList(), "runtime"));
-        map.put("hide_skip_hud", new FieldDef("bool", null, false, java.util.Collections.emptyList(), "runtime"));
-        map.put("render_player_model", new FieldDef("bool", true, false, java.util.Collections.emptyList(), "runtime"));
         map.put("pause_when_game_paused", new FieldDef("bool", true, false, java.util.Collections.emptyList(), "runtime"));
         map.put("interruptible", new FieldDef("bool", true, false, java.util.Collections.emptyList(), "runtime"));
         // 跨脚本播放关系（三态，缺省 parallel = 现状）；同脚本再触发的替换语义仍看上面的 interruptible
@@ -52,14 +38,8 @@ public final class MetaSchemas {
         map.put("macro_loop", new FieldDef("bool", false, false, java.util.Collections.emptyList(), "runtime"));
         map.put("macro_loop_count", new FieldDef("int", -1, false, java.util.Collections.emptyList(), "runtime"));
         map.put("macro_loop_mode", new FieldDef("enum", "repeat", false, java.util.List.of("repeat", "pingpong"), "runtime"));
-        // 画面层统一入口（H-5）：15 个规范层名 + 已知别名 + 动态层名；值 = 显示（true 显示 / false 隐藏）
+        // 画面层唯一入口（H-5）：15 个规范层名 + 动态层名（注册分类名 / 未注册 overlay 资源 ID）；值 = 显示（true 显示 / false 隐藏）
         map.put("screen_layers", new FieldDef("object", null, false, java.util.Collections.emptyList(), "runtime"));
-        // 接管模式：normal / allowlist；缺省由 ScriptParser#resolveScreenLayerMode 归一（新字段路径 → allowlist）
-        map.put("screen_layer_mode", new FieldDef("enum", null, false,
-                java.util.List.of("normal", "allowlist"), "runtime"));
-        // 以下两项为 deprecated 兼容入口：hud_layers 解析期归一到 screen_layers（极性翻转），hard_hide_hud 归一为模式别名
-        map.put("hud_layers", new FieldDef("object", null, false, java.util.Collections.emptyList(), "runtime"));
-        map.put("hard_hide_hud", new FieldDef("bool", null, false, java.util.Collections.emptyList(), "runtime"));
         map.put("priority", new FieldDef("int", 0, false, java.util.Collections.emptyList(), "runtime"));
         // 跳过投票比例：整数百分比 10~100，非法值解析期报错（不允许 0）
         map.put("skip_vote_ratio", new FieldDef("int", null, false, java.util.Collections.emptyList(), "runtime"));

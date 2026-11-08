@@ -71,23 +71,6 @@ public final class BezierPathSpec implements PathSpec {
         return controlPoints;
     }
 
-    /**
-     * 二次 Bézier 升阶为三次：{@code Q1 = P0 + (2/3)(P1-P0)}、{@code Q2 = P2 + (2/3)(P1-P2)}。
-     * 返回内部点存为绝对坐标的定义；以 {@code p0} / {@code p2} 绑定时与二次曲线逐点等价。
-     */
-    public static PathSpec quadratic(Vec3 p0, Vec3 p1, Vec3 p2) {
-        if (p0 == null || p1 == null || p2 == null) {
-            throw new IllegalArgumentException(
-                    "二次 Bézier 控制点不能为 null: p0=" + p0 + ", p1=" + p1 + ", p2=" + p2);
-        }
-        double k = 2.0 / 3.0;
-        Vec3 q1 = p0.add(p1.subtract(p0).scale(k));
-        Vec3 q2 = p2.add(p1.subtract(p2).scale(k));
-        return new BezierPathSpec(List.of(
-                PathPoint.absolute(q1.x, q1.y, q1.z),
-                PathPoint.absolute(q2.x, q2.y, q2.z)));
-    }
-
     private static final class CubicBezierExpression implements PathExpression {
 
         private final Vec3 p0;

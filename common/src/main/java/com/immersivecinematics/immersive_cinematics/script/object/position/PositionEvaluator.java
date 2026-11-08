@@ -1,6 +1,5 @@
 package com.immersivecinematics.immersive_cinematics.script.object.position;
 
-import com.immersivecinematics.immersive_cinematics.camera.source.PointSource;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.Objects;
@@ -76,7 +75,7 @@ public final class PositionEvaluator {
             return new PositionResult(world, null);
         }
 
-        PointSource.Frame frame = frame(origin, facing, originSpec, ctx, freezes, clipKey);
+        PointFrame frame = frame(origin, facing, originSpec, ctx, freezes, clipKey);
         if (frame == null) {
             return null;
         }
@@ -86,7 +85,7 @@ public final class PositionEvaluator {
         if (originSpec != null && originSpec.freeze()) {
             world = freezes.getOrCapture(FreezeStore.key(clipKey, PATH_POSITION_ORIGIN, originSpec.signature()),
                     true, world);
-            frame = new PointSource.Frame(world, frame.fwd(), frame.right(), frame.up());
+            frame = new PointFrame(world, frame.fwd(), frame.right(), frame.up());
         }
         return new PositionResult(world, frame);
     }
@@ -111,8 +110,8 @@ public final class PositionEvaluator {
      * @param clipKey    片段身份
      * @return 参考系；原点为空 / 方向源不可用 = {@code null}
      */
-    public static PointSource.Frame frame(Vec3 origin, FacingSpec facing, PointSourceSpec originSpec,
-                                          WorldContext ctx, FreezeStore freezes, String clipKey) {
+    public static PointFrame frame(Vec3 origin, FacingSpec facing, PointSourceSpec originSpec,
+                                   WorldContext ctx, FreezeStore freezes, String clipKey) {
         if (origin == null) {
             return null;
         }
@@ -122,7 +121,7 @@ public final class PositionEvaluator {
             resolved = autoSource(source, originSpec);
         }
         return switch (resolved) {
-            case WORLD -> new PointSource.Frame(origin, WORLD_FWD, WORLD_RIGHT, UP);
+            case WORLD -> new PointFrame(origin, WORLD_FWD, WORLD_RIGHT, UP);
             case ENTITY -> entityFrame(origin, source, originSpec, ctx);
             case LINE -> lineFrame(origin, source, ctx, freezes, clipKey);
             case AUTO -> throw new IllegalStateException("方向源未解析");
@@ -152,11 +151,11 @@ public final class PositionEvaluator {
     }
 
     /** 实体方向：只取身体水平朝向；选择器缺省回落原点选择器。 */
-    private static PointSource.Frame entityFrame(Vec3 origin, FacingSpec facing, PointSourceSpec originSpec,
-                                                 WorldContext ctx) {
+    private static PointFrame entityFrame(Vec3 origin, FacingSpec facing, PointSourceSpec originSpec,
+                                          WorldContext ctx) {
         String selector = facing.entity();
         if (selector == null || selector.isEmpty()) {
-            if (originSpec == null || originSpec.kind() != PointSource.Kind.SELECTOR) {
+            if (originSpec == null || originSpec.kind() != PointKind.SELECTOR) {
                 throw new IllegalArgumentException("facing_source=entity 需要 facing_entity 或实体选择器原点");
             }
             selector = originSpec.selector();
@@ -170,12 +169,12 @@ public final class PositionEvaluator {
         }
         double radians = Math.toRadians(yaw);
         Vec3 forward = new Vec3(-Math.sin(radians), 0.0, Math.cos(radians));
-        return new PointSource.Frame(origin, forward, forward.cross(UP), UP);
+        return new PointFrame(origin, forward, forward.cross(UP), UP);
     }
 
     /** 连线方向：原点 → 目标点的水平方向；退化 = {@code null}。 */
-    private static PointSource.Frame lineFrame(Vec3 origin, FacingSpec facing, WorldContext ctx,
-                                               FreezeStore freezes, String clipKey) {
+    private static PointFrame lineFrame(Vec3 origin, FacingSpec facing, WorldContext ctx,
+                                        FreezeStore freezes, String clipKey) {
         PointSourceSpec target = facing.target();
         if (target == null) {
             throw new IllegalArgumentException("facing_source=line 需要 facing_target");
@@ -191,7 +190,7 @@ public final class PositionEvaluator {
             return null;
         }
         Vec3 forward = new Vec3(dx / horizontal, 0.0, dz / horizontal);
-        return new PointSource.Frame(origin, forward, forward.cross(UP), UP);
+        return new PointFrame(origin, forward, forward.cross(UP), UP);
     }
 
     /**
@@ -229,13 +228,13 @@ public final class PositionEvaluator {
      * @param path         对象路径（冻结桶键的一段，同时作为选择器调用点）
      * @return 含偏移（含冻结）的世界点；不可解析 = {@code null}
      */
-    static Vec3 resolvePoint(PointSourceSpec source, PointSource.Frame frameForBase, WorldContext ctx,
+    static Vec3 resolvePoint(PointSourceSpec source, PointFrame frameForBase, WorldContext ctx,
                              FreezeStore freezes, String clipKey, String path) {
         Vec3 point = resolveSource(source, ctx, path);
         if (point == null) {
             return null;
         }
-        PointSource.Offset offset = source.offset();
+        PointOffset offset = source.offset();
         if (offset != null) {
             point = offset.apply(point, frameForBase);
         }

@@ -15,7 +15,7 @@ import java.util.Objects;
  *
  * <p>{@link #declared(String)} 只看作者是否显式写了该路径（{@link ClipObjects#contains(String)}），
  * 不把 schema 缺省值算作声明；因此「未声明」与「声明为缺省值」可区分。构造期不预解析属性：
- * 旧格式片段的空集合不产生任何无意义工作，方法内的 {@code Map} 查找就是全部开销。</p>
+ * 空 {@code objects}（程序化构造）不产生任何无意义工作，方法内的 {@code Map} 查找就是全部开销。</p>
  *
  * <p>非线程安全；只在客户端主线程使用（与 {@link ClipRuntimeCache} 同一约束）。</p>
  */
@@ -92,6 +92,17 @@ public final class ClipValueView {
         }
         Object value = property.value();
         return value instanceof String string ? string : fallback;
+    }
+
+    /**
+     * 读取任意 value-only 属性的静态值（不限类型）。
+     *
+     * <p>路径未声明或属性非 {@code value} 形态返回 {@code null}；与 {@link #struct(String)} 的区别是
+     * 不限定 {@link PropertyType#STRUCT}。</p>
+     */
+    public Object o(String path) {
+        SampledProperty property = valueProperty(path);
+        return property != null ? property.value() : null;
     }
 
     /**

@@ -5,8 +5,8 @@ import com.immersivecinematics.immersive_cinematics.script.Clip;
 /**
  * 按片段 id 解析片段：规则绑定 / 路径端点 / 分支目标 / 出口目标的统一引用入口。
  *
- * <p>实现方为本轮及后续轮次的索引（{@link UsageIndex}、规则集合、路径集合）。
- * {@link #require(String, String)} 把「未知引用」统一成带宿主路径的加载期错误文案。</p>
+ * <p>实现方是 {@code CinematicScript}（{@code script::findClip}）：内联片段与独立片段共用同一个
+ * id 命名空间。{@link #require(String, String)} 把「未知引用」统一成带宿主路径的加载期错误文案。</p>
  */
 public interface ClipResolver {
 

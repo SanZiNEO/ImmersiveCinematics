@@ -114,8 +114,7 @@ public final class TrackRegistry {
             throw new IllegalArgumentException("轨道类型已登记: " + id
                     + (existing.builtin() ? "（内置轨道 id 受保护）" : ""));
         }
-        TrackTypeSchema trackTypeSchema = new TrackTypeSchema(Collections.emptyMap(), Collections.emptyMap(),
-                schema.objects(), Collections.emptyMap());
+        TrackTypeSchema trackTypeSchema = new TrackTypeSchema(schema.objects(), Collections.emptyMap());
         List<String> issues = ObjectSchemaValidator.validateEntry(id, trackTypeSchema);
         if (!issues.isEmpty()) {
             throw new IllegalArgumentException("轨道 schema 自检失败: " + id + "\n" + String.join("\n", issues));

@@ -13,7 +13,7 @@ import org.slf4j.Logger;
  * 否则发送方的 {@code AckTracker.expect} 会超时重发 play 包，客户端会重复入队。
  *
  * 播放账本：{@link TriggerEngine#onPlaybackStarted} —— 只有脚本真正开始播放时才记账，
- * 由 {@link #isStarted()} 控制。排队等待 / 被拒绝 / 编辑器预览都必须带 {@code started=false}，
+ * 由 {@code started} 控制。排队等待 / 被拒绝 / 编辑器预览都必须带 {@code started=false}，
  * 否则服务端 {@code ScriptEventManager} 的观看者集合与触发去重（{@code shouldSkip}）会与实际播放状态错位。
  *
  * {@code instanceId} 为 {@link S2CPlayScriptPacket#getInstanceId()} 的原样回传（账本按实例键）；
@@ -71,5 +71,4 @@ public class C2SPlaybackStartedPacket implements CinematicC2SPacket {
     public String getScriptId() { return scriptId; }
     public String getInstanceId() { return instanceId; }
     public String getRefId() { return refId; }
-    public boolean isStarted() { return started; }
 }

@@ -276,16 +276,6 @@ public class AudioTrackPlayer implements TrackDriver {
         oneShots.clear();
     }
 
-    /** 本实例当前在播的一次性声音条数（诊断 / 探针读数）。 */
-    public int oneShotCount() {
-        return oneShots.size();
-    }
-
-    /** 注入声音引擎出口（探针用；生产不调，默认 = 原版 SoundEngine）。 */
-    public void setSoundSink(SoundSink sink) {
-        if (sink != null) this.sink = sink;
-    }
-
     private void startClipInstance(Clip clip, double localTime) {
         ClipValueView values = runtime.values(clip);
         String sound = values.s("sound", "");

@@ -1,6 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.camera.source;
 
-import com.immersivecinematics.immersive_cinematics.script.PositionData;
+import com.immersivecinematics.immersive_cinematics.script.object.position.PointKinds;
 import com.immersivecinematics.immersive_cinematics.util.BlockLocator;
 import com.immersivecinematics.immersive_cinematics.util.StructureLocator;
 import net.minecraft.client.Minecraft;
@@ -117,7 +117,7 @@ public final class WorldPointLocator {
                     result = BlockLocator.findNearest(
                             serverLevel, blockId,
                             BlockPos.containing(mc.player.getX(), mc.player.getY(), mc.player.getZ()),
-                            Math.max(PositionData.DEFAULT_BLOCK_RADIUS, radius));
+                            Math.max(PointKinds.DEFAULT_BLOCK_RADIUS, radius));
                 }
             }
         } catch (Exception e) {

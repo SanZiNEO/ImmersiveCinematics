@@ -7,17 +7,14 @@
   "refmap": "immersive_cinematics.refmap.json",
   "client": [
     "BiomeAmbientSoundsHandlerMixin",
-    "BossHealthOverlayMixin",
     "BubbleColumnAmbientSoundHandlerMixin",
     "CameraAccessor",
     "CameraMixin",
-    "ChatComponentMixin",
     "ClientChunkCacheMixin",
     "ClientLevelAccessor",
     "ClientPacketListenerAccessor",
     "GameRendererAccessor",
     "GameRendererMixin",
-    "GuiMixin",
     "KeyboardHandlerMixin",
     "IrisCameraTrackerCaptureMixin",
     "IrisPreviousCaptureMixin",
@@ -32,10 +29,8 @@
     "MouseHandlerAccessor",
     "MouseHandlerMixin",
     "ParticleEngineMixin",
-    "PlayerTabOverlayMixin",
     "SoundEngineMixin",
     "SoundManagerMixin",
-    "SubtitleOverlayMixin",
     "UnderwaterAmbientSoundHandlerMixin"
   ],
   "mixins": [

@@ -44,33 +44,6 @@ public final class PathEvaluator {
         return expressions[index].derivative(table.uAt(s));
     }
 
-    /**
-     * 动态路径求值：调用方为每条会变的路径持有一个 {@link DynamicArcLengthTable}。
-     * 小变化复用旧表、大变化重建、连续抖动降级为数值积分（见该类）。
-     *
-     * @param spec  路径定义（控制点/权重/节点每帧可不同）
-     * @param from  段起点
-     * @param to    段终点
-     * @param s     归一化弧长 [0,1]
-     * @param cache 该动态路径专属的表缓存（非 null）
-     */
-    public Vec3 positionDynamic(PathSpec spec, Vec3 from, Vec3 to, double s, DynamicArcLengthTable cache) {
-        if (spec == null || cache == null) {
-            throw new IllegalArgumentException("spec / cache 不能为 null");
-        }
-        cache.update(spec.bind(from, to));
-        return cache.position(s);
-    }
-
-    /** 动态路径在归一化弧长 {@code s} 处的一阶导（未归一化，单位 / u）。 */
-    public Vec3 tangentDynamic(PathSpec spec, Vec3 from, Vec3 to, double s, DynamicArcLengthTable cache) {
-        if (spec == null || cache == null) {
-            throw new IllegalArgumentException("spec / cache 不能为 null");
-        }
-        cache.update(spec.bind(from, to));
-        return cache.tangent(s);
-    }
-
     /** 清空全部绑定。 */
     public void clear() {
         Arrays.fill(specs, null);

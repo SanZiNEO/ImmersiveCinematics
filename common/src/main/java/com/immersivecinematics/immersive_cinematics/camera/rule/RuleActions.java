@@ -324,7 +324,7 @@ public final class RuleActions {
     /**
      * {@code emit_command}（脚本级规则 {@code rules} + {@code rule_bindings}）：只把动作引用发给服务端。
      *
-     * <p>动作引用 = 绑定 id + 动作列表下标（脚本级规则的片段 / 规则维度传 -1）。
+     * <p>动作引用 = 绑定 id + 动作列表下标。
      * 客户端先做命令非空白校验，避免把作者写错的空命令变成服务端拒绝日志。</p>
      */
     public static void emitCommandForBinding(PlaybackInstance instance, RuleBinding binding,
@@ -343,7 +343,7 @@ public final class RuleActions {
         if (!canEmitCommand(instance)) return;
         NetworkGuard.sendToServer("C2SRuleCommand", () -> NetworkHandler.sendToServer(
                 new C2SRuleCommandPacket(instance.scriptId(), instance.instanceId(), binding.id(),
-                        -1, -1, actionIndex)));
+                        actionIndex)));
     }
 
     /**

@@ -28,9 +28,8 @@ import java.util.List;
  * 脚本级规则运行态引擎：每播放实例一份，按「片段执行进入 → 建激活 → 时间门 → 条件树 → 成功事实
  * → 提交动作」驱动（{@code ROUND-I-4-MAP} §0.2-4 / §2.3）。
  *
- * <p>与旧 {@code clip.rules} 引擎（{@code camera.rule.RuleEngine}）并存、互不影响：旧引擎继续按
- * 片段活跃窗判定片段内的 {@code rules}，本引擎只看脚本级 {@code rules} + {@code rule_bindings}。
- * 同一脚本同时出现两者由解析期拒绝（§0.2-1），因此正常播放时只有一侧有活。</p>
+ * <p>脚本级 {@code rules} + {@code rule_bindings} 由本引擎驱动；同一脚本同时声明两者由解析期拒绝
+ * （§0.2-1），因此正常播放时只有一侧有活。</p>
  *
  * <p>帧内语义（严格按任务契约）：
  * <ol>
@@ -148,7 +147,7 @@ public final class RuleRuntime {
     /** 事实查询适配器（复用实例，帧内不新建）。 */
     private final FactSource factSource = new RuntimeFactSource();
 
-    /** 本引擎是否造成了当前挂起（只解除自己造成的挂起，不碰旧 until / pause）。 */
+    /** 本引擎是否造成了当前挂起（只解除自己造成的挂起，不碰其它来源）。 */
     private boolean frozenByRules;
 
     /** 上一帧播放时钟（{@code dwell} 用；首帧 / 回退按 0）。 */
@@ -259,7 +258,7 @@ public final class RuleRuntime {
     // ===== 帧驱动 =====
 
     /**
-     * 每帧判定一次（调用点 = {@code FrameDriver} 里旧 {@code RuleEngine.evaluate} 之后）。
+     * 每帧判定一次（调用点 = {@code FrameDriver} 的每帧驱动）。
      *
      * @param player 本实例播放器（时间轴读数 / 执行账本 / 挂起开关都作用于它）
      */
@@ -546,7 +545,7 @@ public final class RuleRuntime {
         return DROPPED;
     }
 
-    /** 清空待执行队列（{@code sync} / {@code reset}：旧承诺随旧脚本 / 旧实例失效）。 */
+    /** 清空待执行队列（{@code sync} / {@code reset}：承诺随脚本 / 实例切换失效）。 */
     private void clearPending() {
         for (int i = 0; i < pendingCount; i++) {
             pending[i] = null;
@@ -623,8 +622,7 @@ public final class RuleRuntime {
      * {@code pause} 在本执行内已无仍可触发的 {@code resume} → 告警并自动释放该来源。
      *
      * <p>判据不是「规则集合里写没写 {@code resume}」：写了但绑定已 {@code finished}
-     * （含超时终结）或 {@code once} 已成功，就再也触发不了。与旧 {@code clip.rules}
-     * 的同片段口径一致：防卡死。</p>
+     * （含超时终结）或 {@code once} 已成功，就再也触发不了。防卡死。</p>
      */
     private void releasePauseWithoutReleaser(ClipExecutionLedger ledger) {
         if (!holds.has(SuspensionLedger.ACTION_PAUSE)) return;

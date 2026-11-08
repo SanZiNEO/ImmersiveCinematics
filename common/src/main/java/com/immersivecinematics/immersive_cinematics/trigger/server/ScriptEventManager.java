@@ -416,8 +416,8 @@ public class ScriptEventManager {
             return false;
         }
 
-        for (int clipIndex = 0; clipIndex < pb.eventClips.size(); clipIndex++) {
-            Clip clip = pb.eventClips.get(clipIndex);
+        for (int clipPos = 0; clipPos < pb.eventClips.size(); clipPos++) {
+            Clip clip = pb.eventClips.get(clipPos);
             float clipStart = clip.getStartTime();
             float clipDuration = clip.getDuration();
             float clipEnd = clipDuration < 0 ? Float.POSITIVE_INFINITY : clipStart + clipDuration;
@@ -431,7 +431,7 @@ public class ScriptEventManager {
                 continue;
             }
 
-            EventClipRuntime runtime = pb.eventRuntimes.get(clipIndex);
+            EventClipRuntime runtime = pb.eventRuntimes.get(clipPos);
             int start = runtime.cursor();
             int end = runtime.advance(to - clipStart);
             for (int i = start; i < end; i++) {
@@ -563,40 +563,40 @@ public class ScriptEventManager {
      * 两者不共用命令源。审计见 {@link RuleCommandAudit}（不记命令原文）。
      */
     public void handleRuleCommand(ServerPlayer player, String scriptId, String instanceId,
-                                  String bindingId, int clipIndex, int ruleIndex, int actionIndex) {
+                                  String bindingId, int actionIndex) {
         String sid = scriptId == null ? "" : scriptId;
         String iid = instanceId == null ? "" : instanceId;
         if (player == null) {
-            RuleCommandAudit.reject(null, sid, iid, bindingId, clipIndex, ruleIndex, actionIndex, "无发送玩家");
+            RuleCommandAudit.reject(null, sid, iid, bindingId, actionIndex, "无发送玩家");
             return;
         }
         UUID uuid = player.getUUID();
         if (!isGranted(sid, iid, uuid)) {
-            RuleCommandAudit.reject(player, sid, iid, bindingId, clipIndex, ruleIndex, actionIndex, "无播放授权");
+            RuleCommandAudit.reject(player, sid, iid, bindingId, actionIndex, "无播放授权");
             return;
         }
         ScriptPlayback pb = playback(sid, iid);
         if (pb == null || !pb.viewers.contains(uuid)) {
-            RuleCommandAudit.reject(player, sid, iid, bindingId, clipIndex, ruleIndex, actionIndex,
+            RuleCommandAudit.reject(player, sid, iid, bindingId, actionIndex,
                     "不在播放账本");
             return;
         }
         RuleCommandTable table = commandTable(sid);
         RuleCommandTable.CommandEntry entry = table == null
-                ? null : table.resolve(bindingId, clipIndex, ruleIndex, actionIndex);
+                ? null : table.resolve(bindingId, actionIndex);
         if (entry == null || entry.command().isBlank()) {
-            RuleCommandAudit.reject(player, sid, iid, bindingId, clipIndex, ruleIndex, actionIndex,
+            RuleCommandAudit.reject(player, sid, iid, bindingId, actionIndex,
                     "未知动作引用");
             return;
         }
         if (!RuleCommandRateLimiter.INSTANCE.tryAcquire(uuid, iid)) {
-            RuleCommandAudit.reject(player, sid, iid, bindingId, clipIndex, ruleIndex, actionIndex,
+            RuleCommandAudit.reject(player, sid, iid, bindingId, actionIndex,
                     "超过频率上限");
             return;
         }
         int[] stats = executeRuleCommand(player, entry.command());
-        RuleCommandAudit.executed(player, sid, iid, entry.bindingId(), entry.clipIndex(),
-                entry.ruleIndex(), entry.actionIndex(), stats[0], stats[1]);
+        RuleCommandAudit.executed(player, sid, iid, entry.bindingId(),
+                entry.actionIndex(), stats[0], stats[1]);
     }
 
     /**

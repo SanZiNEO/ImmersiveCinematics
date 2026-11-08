@@ -38,7 +38,7 @@
 | 条件事实 | `ClientConditions.evaluate(..., double localTime, FactSource)`；`FactSource` 由 `RuleRuntime.RuntimeFactSource` 适配 |
 | 出口 / 分支 | `ClipExitPolicy` / `ClipExitResolver` / `ClipExitPolicyParser`；`PlaybackInstance implements ClipBranchHost`；`ClipBranchController.launch` / `poll` / `fail`；`ClipTimeSource.windowStart(Clip)` + `ClipModifierGate` |
 | 命令 | `trigger/network/C2SRuleCommandPacket`；`trigger/server/PlaybackGrant` / `RuleCommandTable` / `RuleCommandRateLimiter` / `RuleCommandAudit`；`util/RuleCommandSource`；`Config.ruleCommandPermissionLevel` |
-| 路径 | `script/path/`：`PathEntry`、`PathCollection`、`PathCollectionParser`、`PathCollectionSource`；`CameraTrackPlayer` → `CameraKeyframeEvaluator#setPathBindingSource` |
+| 路径 | `script/path/`：`PathEntry`、`PathCollection`、`PathCollectionParser`、`PathCollectionSource`；`CameraTrackPlayer` → `CameraFrameEvaluator#setPathBindingSource` |
 | EVENT seek | `C2SScriptSeekPacket` / `S2CScriptSeekAckPacket`、`ScriptEventManager.handleSeek`、`EventSeekPlan`、`PlaybackInstance.seekTo` |
 | 结构 schema | `SchemaExporter.scriptStructure()` |
 

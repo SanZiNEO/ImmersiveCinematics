@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.immersivecinematics.immersive_cinematics.script.schema.SchemaRegistry;
 import com.immersivecinematics.immersive_cinematics.script.track.TrackRegistry;
 import com.immersivecinematics.immersive_cinematics.spi.FieldDef;
 import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
@@ -14,8 +15,8 @@ import java.util.Map;
 /**
  * 新建脚本的默认骨架（空脚本模板）。
  *
- * meta 默认值取自 {@link SchemaLoader#getMetaFields()}（tristate 字段无默认值则不写入，
- * 与运行时 {@code optNullableBool} 语义一致）；轨道列表跟随内置轨道（{@code TrackRegistry.builtinIds()}），
+ * meta 默认值取自 {@link SchemaRegistry#getMetaFields()}（无默认值的字段不写入）；
+ * 轨道列表跟随内置轨道（{@code TrackRegistry.builtinIds()}），
  * 每条轨道带唯一 id 与空 clips 数组。生成的 JSON 与手写脚本同构，
  * 经 {@link ScriptParser} / {@link ScriptValidator} 校验后可正常播放。
  */
@@ -35,7 +36,7 @@ public final class ScriptTemplate {
         JsonObject root = new JsonObject();
 
         JsonObject meta = new JsonObject();
-        for (Map.Entry<String, FieldDef> e : SchemaLoader.getMetaFields().entrySet()) {
+        for (Map.Entry<String, FieldDef> e : SchemaRegistry.getMetaFields().entrySet()) {
             Object def = e.getValue().defaultValue();
             if (def instanceof Boolean b) meta.addProperty(e.getKey(), b);
             else if (def instanceof Number n) meta.addProperty(e.getKey(), n.floatValue());

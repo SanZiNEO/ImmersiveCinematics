@@ -3,7 +3,6 @@ package com.immersivecinematics.immersive_cinematics.client.post;
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneCompositor;
 import com.immersivecinematics.immersive_cinematics.script.ColorCurve;
 import com.immersivecinematics.immersive_cinematics.script.CubeLut;
-import com.immersivecinematics.immersive_cinematics.script.CubeLutLoader;
 import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
 import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
 import com.mojang.blaze3d.pipeline.RenderTarget;

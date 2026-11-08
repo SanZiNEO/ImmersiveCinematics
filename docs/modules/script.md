@@ -19,18 +19,18 @@
 - ✅ `meta` 必填 `id`（`^[a-zA-Z0-9_]{1,32}$`）/ `name`（≤50）/ `author`（≤30）；**没有 `version`**。
 - ✅ `timeline` 只承载 `tracks` 与宏观循环区间（`loop_start` / `loop_end`）；**没有 `total_duration`**。
 - ✅ 片段白名单（`ObjectParser.CLIP_KEYS`）：`start_time` / `duration` / `objects` / `loop` / `loop_count` / `loop_mode` / `id` / `exit`；其余 clip 级键一律拒绝。
-- ✅ 旧字段出现即报「已移除」：`meta.version`、`timeline.total_duration`、clip 级 `keyframes` / `curve` / `rules` / `interpolation`、`follow` / `follow_selector`、`facing_origin*`、`selector_*_follow` / `selector_*_facing_origin`、clip 级 `orient` / `yaw_offset` / `pitch_offset`、AUDIO 文件循环旧名 `loop`、`meta.hud_layers` / `meta.hard_hide_hud`。
+- ✅ 旧字段出现即报错：统一走未知字段白名单（`meta` / 片段 / `objects` 各一份），不再有专属"已移除"文案。被拒键包括 `meta.version`、`timeline.total_duration`、clip 级 `keyframes` / `curve` / `rules` / `interpolation`、`follow` / `follow_selector`、`facing_origin*`、`selector_*_follow` / `selector_*_facing_origin`、clip 级 `orient` / `yaw_offset` / `pitch_offset`、AUDIO 文件循环旧名 `loop`、`meta.hide_hud` / `hide_*` / `suppress_*` / `render_player_model` / `hud_layers` / `hard_hide_hud` / `screen_layer_mode`。
 - ✅ 校验：`ScriptValidator.validate(json[, knownIds])` 收集多条 issue（parser 首错即抛，validator 汇总）。
 - ✅ 触发器定义解析：`triggers[]`（含 `id`、`continuity`、`poll_interval`）。
 
 ## 二、数据模型
 
 - ✅ `CinematicScript`：`meta` + `timeline` + `standaloneClips` + `ruleCollection` + `pathCollection` + 片段 id 索引；加载期派生 `isInfiniteContent()` / `hasFiniteContentEnd()` / `contentEnd()` / `hasFiniteDisplayEnd()` / `finiteDisplayEnd()`（只算 timeline 片段，独立片段只参与「是否无限」）。
-- ✅ `ScriptMeta`：id/name/author/description/dimension/triggers/priority/`play_mode`/`skip_vote_ratio`/`base_resolution`/`screen_layers`/`screen_layer_mode` + 运行时行为（`block_*`、`hide_*`、`suppress_*`、`render_player_model`、`pause_when_game_paused`、`interruptible`、`skippable`、`hold_at_end`、`listener`、宏观循环）。
+- ✅ `ScriptMeta`：id/name/author/description/dimension/triggers/priority/`play_mode`/`skip_vote_ratio`/`base_resolution`/`screen_layers` + 运行时行为（`block_*`、`pause_when_game_paused`、`interruptible`、`skippable`、`hold_at_end`、`listener`、宏观循环）。画面层只有 `screen_layers` 一个入口，没有 `hide_*` / `suppress_*` 字段。
 - ✅ `Timeline`：`tracks` + `loopStart` / `loopEnd`。
 - ✅ `TimelineTrack`：`type` + `clips`。
 - ✅ `Clip`：`startTime` / `duration` / `trackType` / `data` / `objects` / `clipId` / `exitPolicy`；`isEffectivelyInfinite()`（负时长或无限执行循环）、`getWindowEnd()`（无限时**抛异常**，调用方先判 `hasFiniteWindowEnd()`）。
-- ✅ 对象层（`script/object/`）：`ClipObjects`（路径 → `SampledProperty`）、`SampledProperty`（`VALUE` / `ANIMATED` / `EVENT` 三形态，`compile(duration, infinite)`）、`ObjectKeyframe`、`ObjectCodec`、`ObjectParser`、`ObjectValidator`、`PropertyPath`、`CompositePaths`。
+- ✅ 对象层（`script/object/`）：`ClipObjects`（路径 → `SampledProperty`）、`SampledProperty`（`VALUE` / `ANIMATED` / `EVENT` 三形态，`compile(duration, infinite)`）、`ObjectKeyframe`、`ObjectCodec`、`ObjectParser`、`ObjectValidator`、`PropertyPath`。
 - ✅ 采样层：`ClipSampler` / `SampledClip` / `ObjectSlotLayout`（路径 → 槽位）/ `ClipRuntimeCache`（按片段身份缓存）/ `ClipValueView`（只读 value-only）。
 - ✅ 位置与朝向（`script/object/position/`）：`PositionSpec`（mode `absolute`/`relative` + space `world`/`base`）、`PointSourceSpec`、`FacingSpec`、`FreezeStore`、`PositionEvaluator`、`OrientationSpec` / `OrientationEvaluator` / `LookAtSpec` / `PathTangent`。
 - ✅ 片段身份（`script/identity/`）：`ClipIdentity`、`ClipRef`、`ClipResolver`、`UsageIndex` / `UsageEdge` / `UsageKind`（放置 / 规则绑定 / 路径条目 / 分支目标 / 出口目标）。
@@ -38,7 +38,7 @@
 ## 三、Schema（唯一字段真源）
 
 - ✅ `TrackSchemas`（各轨对象路径 / 类型 / 插值 / 默认值 / 枚举 / `requires` / `appliesTo`）→ `TrackTypeSchema` → `ObjectDef`；`MetaSchemas`、`TriggerSchemas` 同理。
-- ✅ `SchemaRegistry` / `SchemaLoader` 提供查询；`SchemaExporter` 导出 JSON schema 给编辑器（Java 侧是唯一权威）。
+- ✅ `SchemaRegistry` 提供查询；`SchemaExporter` 导出 JSON schema 给编辑器（Java 侧是唯一权威）。
 - ✅ `TrackRegistry`：内置 7 轨 + 第三方注册（`TrackTypeId` / `TrackSchema` / `TrackPlayer`），首个脚本解析后冻结。
 
 ## 四、脚本级集合

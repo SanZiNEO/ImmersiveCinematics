@@ -45,9 +45,8 @@ public class SkipHudRenderer {
         if (mc.level == null) return;
 
         if (!CameraManager.INSTANCE.isScriptMode()) return;
-        // hide_skip_hud 三态：仅显式 true 隐藏；未设置（null）= 显示（不回落 hide_hud）
-        // 整块开关：长按块与票数一起消失
-        if (Boolean.TRUE.equals(CinematicController.INSTANCE.isHideSkipHud())) return;
+        // 整块开关：hud.skip_prompt 层判隐藏时，长按块与票数一起消失
+        if (CinematicController.INSTANCE.isLayerHidden("hud.skip_prompt")) return;
 
         // 长按块只对顶层实例绘制；已投票者不再显示（服务端已记票，再按也不会重复生效）
         PlaybackInstance top = CameraManager.INSTANCE.activeInstance();

@@ -51,8 +51,6 @@ public class ScriptMeta {
 
     public String getId() { return id; }
     public String getName() { return name; }
-    public String getAuthor() { return author; }
-    public String getDescription() { return description; }
     public RuntimeBehavior getBehavior() { return behavior; }
     /** 播放优先级：数值越大优先级越高，仅用于队列内排序（不可打断脚本永不被打断） */
     public int getPriority() { return priority; }
@@ -70,32 +68,11 @@ public class ScriptMeta {
     public int getBaseHeight() { return baseHeight; }
     public boolean isBlockKeyboard() { return behavior.blockKeyboard(); }
     public boolean isBlockMouse() { return behavior.blockMouse(); }
-    @Deprecated
-    public boolean isBlockMobAi() { return behavior.blockMobAi(); }
-    public boolean isHideHud() { return behavior.hideHud(); }
-    public Boolean isHideArm() { return behavior.hideArm(); }
-    public Boolean isSuppressBob() { return behavior.suppressBob(); }
-    public Boolean isSuppressDistortion() { return behavior.suppressDistortion(); }
-    public Boolean isHideChat() { return behavior.hideChat(); }
-    public Boolean isHideScoreboard() { return behavior.hideScoreboard(); }
-    public Boolean isHideActionBar() { return behavior.hideActionBar(); }
-    public Boolean isHideTitle() { return behavior.hideTitle(); }
-    public Boolean isHideSubtitles() { return behavior.hideSubtitles(); }
-    public Boolean isHideHotbar() { return behavior.hideHotbar(); }
-    public Boolean isHideCrosshair() { return behavior.hideCrosshair(); }
-    public Boolean isHideBossbar() { return behavior.hideBossbar(); }
-    public Boolean isHideSkipHud() { return behavior.hideSkipHud(); }
-    public boolean isRenderPlayerModel() { return behavior.renderPlayerModel(); }
-    public boolean isPauseWhenGamePaused() { return behavior.pauseWhenGamePaused(); }
-    public boolean isInterruptible() { return behavior.interruptible(); }
-    public boolean isSkippable() { return behavior.skippable(); }
     public boolean isHoldAtEnd() { return behavior.holdAtEnd(); }
     /** 宏观循环开关：整条时间轴（或 loop_start / loop_end 区间）从 a 到 b 重复执行。 */
     public boolean isMacroLoop() { return behavior.macroLoop(); }
     /** 宏观循环次数：-1 = 无限重复；正整数 N = 重复 N 圈后自然结束 */
     public int getMacroLoopCount() { return behavior.macroLoopCount(); }
-    /** 宏观循环模式：{@code repeat}（默认）/ {@code pingpong}（按 repeat 播放）。 */
-    public String getMacroLoopMode() { return behavior.macroLoopMode(); }
 
     /**
      * 跨脚本播放关系三态（{@code meta.play_mode}）：本脚本在播期间与其它脚本的关系。
@@ -142,21 +119,6 @@ public class ScriptMeta {
             boolean blockKeyboard,
             boolean blockMouse,
             boolean blockMobAi,
-            boolean hideHud,
-            Boolean hideArm,
-            Boolean suppressBob,
-            Boolean suppressDistortion,
-            Boolean hideChat,
-            Boolean hideScoreboard,
-            Boolean hideActionBar,
-            Boolean hideTitle,
-            Boolean hideSubtitles,
-            Boolean hideHotbar,
-            Boolean hideCrosshair,
-            Boolean hideBossbar,
-            Boolean hideSkipHud,
-            ScreenLayerMode screenLayerMode,
-            boolean renderPlayerModel,
             boolean pauseWhenGamePaused,
             boolean interruptible,
             boolean skippable,
@@ -167,10 +129,7 @@ public class ScriptMeta {
             java.util.Map<String, Boolean> screenLayers
     ) {
         public static final RuntimeBehavior DEFAULT = new RuntimeBehavior(
-                true, true, false, true,
-                null, null, null,
-                null, null, null, null, null, null, null, null, null, ScreenLayerMode.NORMAL,
-                true,
+                true, true, false,
                 true, true, true, false,
                 false, "repeat", -1,
                 java.util.Collections.emptyMap()
@@ -181,21 +140,6 @@ public class ScriptMeta {
             private boolean blockKeyboard = DEFAULT.blockKeyboard();
             private boolean blockMouse = DEFAULT.blockMouse();
             private boolean blockMobAi = DEFAULT.blockMobAi();
-            private boolean hideHud = DEFAULT.hideHud();
-            private Boolean hideArm = DEFAULT.hideArm();
-            private Boolean suppressBob = DEFAULT.suppressBob();
-            private Boolean suppressDistortion = DEFAULT.suppressDistortion();
-            private Boolean hideChat = null;
-            private Boolean hideScoreboard = null;
-            private Boolean hideActionBar = null;
-            private Boolean hideTitle = null;
-            private Boolean hideSubtitles = null;
-            private Boolean hideHotbar = null;
-            private Boolean hideCrosshair = null;
-            private Boolean hideBossbar = null;
-            private Boolean hideSkipHud = null;
-            private ScreenLayerMode screenLayerMode = ScreenLayerMode.NORMAL;
-            private boolean renderPlayerModel = DEFAULT.renderPlayerModel();
             private boolean pauseWhenGamePaused = DEFAULT.pauseWhenGamePaused();
             private boolean interruptible = DEFAULT.interruptible();
             private boolean skippable = DEFAULT.skippable();
@@ -208,21 +152,6 @@ public class ScriptMeta {
             public Builder blockKeyboard(boolean v) { this.blockKeyboard = v; return this; }
             public Builder blockMouse(boolean v) { this.blockMouse = v; return this; }
             public Builder blockMobAi(boolean v) { this.blockMobAi = v; return this; }
-            public Builder hideHud(boolean v) { this.hideHud = v; return this; }
-            public Builder hideArm(Boolean v) { this.hideArm = v; return this; }
-            public Builder suppressBob(Boolean v) { this.suppressBob = v; return this; }
-            public Builder suppressDistortion(Boolean v) { this.suppressDistortion = v; return this; }
-            public Builder hideChat(Boolean v) { this.hideChat = v; return this; }
-            public Builder hideScoreboard(Boolean v) { this.hideScoreboard = v; return this; }
-            public Builder hideActionBar(Boolean v) { this.hideActionBar = v; return this; }
-            public Builder hideTitle(Boolean v) { this.hideTitle = v; return this; }
-            public Builder hideSubtitles(Boolean v) { this.hideSubtitles = v; return this; }
-            public Builder hideHotbar(Boolean v) { this.hideHotbar = v; return this; }
-            public Builder hideCrosshair(Boolean v) { this.hideCrosshair = v; return this; }
-            public Builder hideBossbar(Boolean v) { this.hideBossbar = v; return this; }
-            public Builder hideSkipHud(Boolean v) { this.hideSkipHud = v; return this; }
-            public Builder screenLayerMode(ScreenLayerMode v) { this.screenLayerMode = v; return this; }
-            public Builder renderPlayerModel(boolean v) { this.renderPlayerModel = v; return this; }
             public Builder pauseWhenGamePaused(boolean v) { this.pauseWhenGamePaused = v; return this; }
             public Builder interruptible(boolean v) { this.interruptible = v; return this; }
             public Builder skippable(boolean v) { this.skippable = v; return this; }
@@ -235,12 +164,6 @@ public class ScriptMeta {
             public RuntimeBehavior build() {
                 return new RuntimeBehavior(
                         blockKeyboard, blockMouse, blockMobAi,
-                        hideHud, hideArm, suppressBob, suppressDistortion,
-                        hideChat, hideScoreboard, hideActionBar,
-                        hideTitle, hideSubtitles, hideHotbar, hideCrosshair,
-                        hideBossbar, hideSkipHud,
-                        screenLayerMode,
-                        renderPlayerModel,
                         pauseWhenGamePaused, interruptible, skippable, holdAtEnd,
                         macroLoop, macroLoopMode, macroLoopCount,
                         screenLayers

@@ -10,6 +10,8 @@ import com.immersivecinematics.immersive_cinematics.script.CameraLaneComposite;
 import com.immersivecinematics.immersive_cinematics.script.Clip;
 import com.immersivecinematics.immersive_cinematics.script.execution.ClipTimeSource;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipRuntimeCache;
+import com.immersivecinematics.immersive_cinematics.script.object.ClipValueView;
+import com.immersivecinematics.immersive_cinematics.script.object.SampledClip;
 import com.immersivecinematics.immersive_cinematics.script.path.PathBindingSource;
 import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 import net.minecraft.world.phys.Vec3;
@@ -31,9 +33,9 @@ import java.util.List;
  * 过渡状态由 {@link CameraTransitionLayer} 持有（本轨一份）。
  * 分配 / 线程契约：仅客户端主线程，位于每帧求值路径；帧内路径不新建集合、不装箱。
  */
-public final class CameraKeyframeEvaluator {
+public final class CameraFrameEvaluator {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/CameraKeyframeEvaluator");
+    private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/CameraFrameEvaluator");
 
     /**
      * 顶层 lane 的层号：本轨本帧写入全局相机状态的那条 lane（{@link #renderSingle} / {@link #renderMorph} 的
@@ -58,6 +60,9 @@ public final class CameraKeyframeEvaluator {
     /** morph 本帧 next 侧的合成参数（{@code null} = 本帧无产出）；供 lane 快照读取。 */
     private CameraLaneComposite morphComposite;
 
+    /** morph 本帧 next 侧的采样结果（{@code null} = 本帧无产出）；供 lane 快照读取。 */
+    private SampledClip morphSample;
+
     /** 本轨的过渡层实例（过渡流的唯一持有者：进度 / 曲线 / 分参数 / 打断状态只属于本轨）。 */
     private final CameraTransitionLayer transitionLayer = new CameraTransitionLayer();
 
@@ -79,8 +84,8 @@ public final class CameraKeyframeEvaluator {
     private final ClipRuntimeCache objectCache = new ClipRuntimeCache(TrackTypeId.CAMERA);
     private final ObjectCameraEvaluator objectEvaluator;
 
-    public CameraKeyframeEvaluator(EntityTargetResolver entityResolver, WorldPointLocator pointLocator,
-                                   Vec3 originPos, ClipTimeSource timeSource) {
+    public CameraFrameEvaluator(EntityTargetResolver entityResolver, WorldPointLocator pointLocator,
+                                Vec3 originPos, ClipTimeSource timeSource) {
         this.lastWorldPos = originPos;
         this.timeSource = timeSource;
         // 世界上下文共用同一实例：位置侧点源（结构 / 方块 / 玩家激活位置）由 EntityTargetResolver 解析
@@ -139,12 +144,12 @@ public final class CameraKeyframeEvaluator {
     public CameraLane renderSingle(double globalTime, Clip clip, double clipLocalTime, boolean capture,
                                    int laneRank) {
         // 同一 SampledClip 装配六参数 + 合成参数，再叠本片段自己的 motion / breath
-        CameraState base = objectEvaluator.evaluate(clip, clipLocalTime, capture, laneRank);
+        CameraState base = objectEvaluator.evaluate(clip, clipLocalTime, capture);
         if (base == null) return null;
         CameraState state = applyClipEffects(clip, clipLocalTime, globalTime, laneRank, motion, base);
         // 跨帧求值状态 = 本帧最终位置（含运动模型输出）
         if (!capture) lastWorldPos = state.position();
-        return new CameraLane(state, clip, clipLocalTime, objectEvaluator.composite());
+        return new CameraLane(state, clip, objectEvaluator.sample(), objectEvaluator.composite());
     }
 
     /**
@@ -176,10 +181,12 @@ public final class CameraKeyframeEvaluator {
                                              double prevLocal, double nextLocal) {
         CameraState prevState = sideState(prevClip, prevLocal, globalTime, motionA);
         CameraState nextState = sideState(nextClip, nextLocal, globalTime, motionB);
-        // lane 合成参数取 next 侧本帧求值结果
+        // lane 合成参数 / 采样结果取 next 侧本帧求值结果
         CameraLaneComposite nextComposite = objectEvaluator.composite();
+        SampledClip nextSample = objectEvaluator.sample();
         if (prevState == null && nextState == null) {
             morphComposite = null;
+            morphSample = null;
             return null;
         }
         writeFrame(morphFrom, prevState);
@@ -189,11 +196,13 @@ public final class CameraKeyframeEvaluator {
         if (!transitionLayer.blendInto(globalTime, timeSource.finiteWindowEnd(prevClip),
                 prevClip.getTransitionSpec(), morphFrom, morphTo, morphOut)) {
             morphComposite = null;
+            morphSample = null;
             return null;
         }
         Vec3 pos = new Vec3(morphOut.px, morphOut.py, morphOut.pz);
         lastWorldPos = pos;
         morphComposite = nextComposite;
+        morphSample = nextSample;
         // 画面 lane 快照：混合后的六参数（全局相机写入由编排层执行）
         return new CameraState(pos, morphOut.yaw, morphOut.pitch, morphOut.roll, morphOut.fov, morphOut.zoom);
     }
@@ -206,7 +215,7 @@ public final class CameraKeyframeEvaluator {
      * @return {@code null} = 该侧本帧无结果
      */
     private CameraState sideState(Clip clip, double localTime, double globalTime, LaneMotionStepper stepper) {
-        CameraState base = objectEvaluator.evaluate(clip, localTime, true, TOP_LANE);
+        CameraState base = objectEvaluator.evaluate(clip, localTime, true);
         return base != null
                 ? applyClipEffects(clip, localTime, globalTime, TOP_LANE, stepper, base)
                 : null;
@@ -264,7 +273,7 @@ public final class CameraKeyframeEvaluator {
             zoom = (float) motionValues[7];
         }
 
-        if (clip.getBool("cam_breath_enabled", false)) {
+        if (new ClipValueView(clip).b("cam_breath_enabled", false)) {
             float[] jitter = BreathDisturbance.fromClip(clip).compute(breathTime(localTime));
             yaw += jitter[0];
             pitch += jitter[1];
@@ -283,6 +292,11 @@ public final class CameraKeyframeEvaluator {
     /** morph 本帧 next 侧的合成参数（{@code null} = 本帧无产出）。 */
     public CameraLaneComposite morphComposite() {
         return morphComposite;
+    }
+
+    /** morph 本帧 next 侧的采样结果（{@code null} = 本帧无产出）。 */
+    public SampledClip morphSample() {
+        return morphSample;
     }
 
     /**

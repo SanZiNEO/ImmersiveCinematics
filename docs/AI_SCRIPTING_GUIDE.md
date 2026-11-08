@@ -8,7 +8,7 @@
 
 1. **一个片段 = 一个 `objects` 容器**。片段里除了播放控制字段，其余全部写成 `objects.<路径>`；`objects` 的键是 schema 声明的稳定路径（`position.x`、`opacity`、`z_index`……）。
 2. **没有格式版本号，也没有总时长**。`meta.version` 与 `timeline.total_duration` 已删除，出现即报错；内容末端由片段窗口派生。
-3. **旧写法一律不兼容**。`keyframes`（clip 级）、`curve`、`rules`（clip 级）、`follow`、`facing_origin*`、`hud_layers`、`hard_hide_hud`、AUDIO 文件循环旧名 `loop` 全部「已移除」，见 §六。
+3. **旧写法一律不兼容**。clip 级 `keyframes` / `curve` / `rules`、`follow`、`facing_origin*`、HUD 旧字段、AUDIO 文件循环旧名 `loop` 等旧写法全部按未知字段报错（统一白名单，无专属文案），清单见 §六。
 
 ## 二、脚本骨架
 
@@ -141,7 +141,7 @@
 
 优先级：**入口显式覆盖 > 片段默认 > `continue`**。失败 fallback 是独立策略，不走这张表。
 
-## 六、已移除字段（出现即报错）
+## 六、已移除字段（出现即报错：未知字段）
 
 | 旧写法 | 新写法 |
 |---|---|
@@ -157,7 +157,8 @@
 | clip 级 `orient` / `yaw_offset` / `pitch_offset` | 写进 `objects` |
 | AUDIO 文件循环 `loop` | `objects.file_loop`（`loop` 只作执行循环） |
 | `meta.hud_layers` | `meta.screen_layers`（极性翻转：新 `true` = 显示） |
-| `meta.hard_hide_hud` | `meta.screen_layer_mode`（`true`→`allowlist`、`false`→`normal`） |
+| `meta.hard_hide_hud` | 删除；画面层由 `screen_layers` 控制，有隐藏层即整帧接管 |
+| `meta.screen_layer_mode` | 删除；接管恒生效，无模式字段 |
 
 ## 七、最容易写错的十件事
 

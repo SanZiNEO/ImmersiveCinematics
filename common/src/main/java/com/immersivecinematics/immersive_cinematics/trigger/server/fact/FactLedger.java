@@ -1,9 +1,5 @@
 package com.immersivecinematics.immersive_cinematics.trigger.server.fact;
 
-import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
-import com.immersivecinematics.immersive_cinematics.script.ScriptManager;
-import com.immersivecinematics.immersive_cinematics.script.TriggerDefinition;
-import com.immersivecinematics.immersive_cinematics.trigger.server.fact.LegacyStateMigration.LegacyTrigger;
 import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
 import com.mojang.logging.LogUtils;
 import net.minecraft.nbt.CompoundTag;
@@ -19,10 +15,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -33,14 +27,12 @@ import java.util.UUID;
  * <p>线程契约：仅服务端主线程。时间不取全局 tick：{@link #record} / {@link #recordVote} 的调用方
  * 显式传入服务端 tick。只依赖 {@link MinecraftServer} 与 {@link UUID}，不依赖 {@code ServerPlayer}。
  *
- * <p>持久化：每个玩家一份 {@code immersive_cinematics/trigger_state/<uuid>.snbt}（与 v1 同路径），
+ * <p>持久化：每个玩家一份 {@code immersive_cinematics/trigger_state/<uuid>.snbt}（沿用旧版路径），
  * 根结构 {@code {version:2, facts:[...]}}，只写 {@link FactType.Durability#PERSISTENT} 事实；
  * 写入走临时文件 + {@code ATOMIC_MOVE}，失败只记日志、不抛出。
  *
- * <p>v1 一次性转换：{@link #loadForPlayer(UUID)} 读到 {@code version:1} 时调用
- * {@link LegacyStateMigration}，触发器身份按脚本声明生成
- * {@code legacyKey = type + "_" + scriptId}、{@code identity = TriggerDefinition#getIdentity()}
- * （显式 {@code id} 优先，缺省为 {@code type + "#" + 声明下标}）。
+ * <p>读取只认当前版本：{@link #loadForPlayer(UUID)} 仅在 {@code version:2} 时解码，
+ * 其它版本（含旧的 {@code version:1}）一律按空事实处理并 WARN。
  */
 public final class FactLedger {
 
@@ -96,7 +88,7 @@ public final class FactLedger {
 
     /**
      * 从磁盘载入玩家事实：文件缺失 → 空；{@code version:2} → 解码持久事实；
-     * {@code version:1} → 一次性转换并置脏；其他版本 → WARN 后按空处理。坏档不阻塞进服。
+     * 其它版本 → WARN 后按空处理。坏档不阻塞进服。
      */
     public void loadForPlayer(UUID player) {
         if (storeRoot == null) {
@@ -114,9 +106,6 @@ public final class FactLedger {
             if (version == VERSION) {
                 decodeV2(root, facts);
                 facts.markClean();
-            } else if (version == 1) {
-                LegacyStateMigration.migrate(root, facts, FactLedger::legacyTriggers);
-                facts.markDirty();
             } else {
                 LOGGER.warn("Unknown trigger state version {} for player {}; treating as empty", version, player);
             }
@@ -272,21 +261,6 @@ public final class FactLedger {
     public void clearAll() {
         playerFacts.clear();
         votes.clear();
-    }
-
-    // ===== v1 lookup =====
-
-    private static List<LegacyTrigger> legacyTriggers(String scriptId) {
-        CinematicScript script = ScriptManager.INSTANCE.getScript(scriptId);
-        if (script == null) {
-            return List.of();
-        }
-        List<TriggerDefinition> definitions = script.getMeta().getTriggers();
-        List<LegacyTrigger> result = new ArrayList<>(definitions.size());
-        for (TriggerDefinition definition : definitions) {
-            result.add(new LegacyTrigger(definition.getType() + "_" + scriptId, definition.getIdentity()));
-        }
-        return result;
     }
 
     private static String normalize(String value) {

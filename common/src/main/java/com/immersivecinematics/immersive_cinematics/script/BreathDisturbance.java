@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
+import com.immersivecinematics.immersive_cinematics.script.object.ClipValueView;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.levelgen.synth.PerlinNoise;
 
@@ -39,13 +40,14 @@ public final class BreathDisturbance {
 
     /** 从 clip 的 cam_breath_* 字段构造（缺省字段 → 设计默认值；类型缺省 perlin） */
     public static BreathDisturbance fromClip(Clip clip) {
+        ClipValueView values = new ClipValueView(clip);
         BreathDisturbance b = new BreathDisturbance();
-        b.intensity = clip.getFloat("cam_breath_intensity", b.intensity);
-        b.seed = clip.getInt("cam_breath_seed", b.seed);
-        b.type = clip.getString("cam_breath_type", TYPE_PERLIN);
-        b.speed = clip.getFloat("cam_breath_speed", b.speed);
-        b.trauma = clip.getFloat("cam_breath_trauma", b.trauma);
-        b.decay = clip.getFloat("cam_breath_decay", b.decay);
+        b.intensity = values.f("cam_breath_intensity", b.intensity);
+        b.seed = values.i("cam_breath_seed", b.seed);
+        b.type = values.s("cam_breath_type", TYPE_PERLIN);
+        b.speed = values.f("cam_breath_speed", b.speed);
+        b.trauma = values.f("cam_breath_trauma", b.trauma);
+        b.decay = values.f("cam_breath_decay", b.decay);
         return b;
     }
 

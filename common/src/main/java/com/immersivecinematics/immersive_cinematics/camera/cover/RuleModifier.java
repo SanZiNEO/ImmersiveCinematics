@@ -4,7 +4,7 @@ package com.immersivecinematics.immersive_cinematics.camera.cover;
  * 规则动作 Modifier（{@code camera_set}）：与 {@link ClipModifier} 同值形态
  * （8 值槽 + 通道掩码 + 合成模式 + 应用序），区别只在建出时机与存活期——
  * 值形态由规则动作在触发那一刻建出，注册进覆盖链（{@code PlaybackInstance}），
- * 片段活跃窗末 / 规则引擎重建 / 停播时注销（注册与回收由 {@code RuleEngine} 的工件生命周期驱动）。
+ * 片段活跃窗末 / 规则引擎重建 / 停播时注销（注册与回收由 {@link RuleRuntime} 的工件生命周期驱动）。
  *
  * 语义 = 持续叠加，直到片段结束或被同类动作覆盖：注册期逐帧参与合成，
  * {@link #isActiveThisFrame()} 恒真——活跃窗由注册 / 注销驱动，不在本类内再判一次。

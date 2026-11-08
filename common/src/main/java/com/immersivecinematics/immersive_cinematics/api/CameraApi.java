@@ -31,8 +31,6 @@ public interface CameraApi {
      *
      * <p>只读：复用本帧已有的 lane 快照（{@code CameraTrackPlayer.getLaneSnapshots()}），不重新求值相机、
      * 不新建集合；同一帧内与 {@link #getCameraState()} 来自同一批快照，结果一致。
-     * 旧格式片段该 lane 的合成参数为 {@code null}（渲染侧按旧插值器取值），此时返回值回落
-     * {@link CameraLaneComposite#DEFAULT}（= 旧链路缺省：全屏、不透明、full mask），因此本方法只在
      * 无活跃 lane 时返回 {@code null}。</p>
      *
      * <p>「最上层」= 跨轨拼接顺序的最后一个 lane（轨道注册顺序 + 轨道内 clip 顺序），与渲染叠放次序一致。</p>

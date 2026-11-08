@@ -17,7 +17,7 @@ import java.util.Objects;
  * @param instanceToken 播放实例令牌（按对象身份比较）
  * @param clip          片段（按对象身份比较）
  * @param objectPath    对象路径（{@code event} 或 {@code mod_event}）
- * @param eventIndex    对象内事件下标（加载时确定，旧格式 = keyframe 下标）
+ * @param eventIndex    对象内事件下标（加载时确定）
  */
 public record EventKey(Object instanceToken, Clip clip, String objectPath, int eventIndex) {
 

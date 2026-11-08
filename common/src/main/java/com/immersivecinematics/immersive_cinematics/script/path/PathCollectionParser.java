@@ -7,10 +7,7 @@ import com.immersivecinematics.immersive_cinematics.math.path.AxisConstraint;
 import com.immersivecinematics.immersive_cinematics.math.path.LinearPathSpec;
 import com.immersivecinematics.immersive_cinematics.script.Clip;
 import com.immersivecinematics.immersive_cinematics.script.ScriptParser.ScriptParseException;
-import com.immersivecinematics.immersive_cinematics.script.identity.ClipRef;
 import com.immersivecinematics.immersive_cinematics.script.identity.ClipResolver;
-import com.immersivecinematics.immersive_cinematics.script.identity.UsageIndex;
-import com.immersivecinematics.immersive_cinematics.script.identity.UsageKind;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipObjects;
 import com.immersivecinematics.immersive_cinematics.script.object.ObjectKeyframe;
 import com.immersivecinematics.immersive_cinematics.script.object.SampledProperty;
@@ -44,8 +41,6 @@ import java.util.regex.Pattern;
  *
  * <p>本类的 {@code parse*} / {@code positionNodeTimes} / {@code indexOfTime} 等静态方法同时是
  * {@code ScriptValidator#checkPathCollection} 的唯一规则来源：校验器调用它们并把异常收成 issue。</p>
- *
- * <p>使用边：每条条目登记 {@link UsageKind#PATH_ENTRY}，宿主路径 = {@code paths[i]}。</p>
  */
 public final class PathCollectionParser {
 
@@ -83,13 +78,12 @@ public final class PathCollectionParser {
      *
      * @param root     脚本根对象（{@code null} → {@link PathCollection#EMPTY}）
      * @param resolver 片段解析器（{@code null} → 任何 {@code clip} 都解析失败）
-     * @param usage    使用边构建器（{@code null} = 不登记）
      * @param basePath 宿主路径前缀（{@code null} / 空 / {@code "<root>"} = 不加前缀）
      * @return 不可变路径集合
      * @throws ScriptParseException 结构 / 引用 / 端点非法
      */
-    public static PathCollection parse(JsonObject root, ClipResolver resolver, UsageIndex.Builder usage,
-                                       String basePath) throws ScriptParseException {
+    public static PathCollection parse(JsonObject root, ClipResolver resolver, String basePath)
+            throws ScriptParseException {
         if (root == null) return PathCollection.EMPTY;
         String path = path(basePath, "paths");
         JsonElement element = root.get("paths");
@@ -109,7 +103,7 @@ public final class PathCollectionParser {
             if (entryElement == null || !entryElement.isJsonObject()) {
                 throw new ScriptParseException(entryPath, "需要对象（路径条目）");
             }
-            entries.add(parseEntry(entryElement.getAsJsonObject(), entryPath, resolver, usage,
+            entries.add(parseEntry(entryElement.getAsJsonObject(), entryPath, resolver,
                     ids, endpointPairs));
         }
         return PathCollection.of(entries);
@@ -118,7 +112,7 @@ public final class PathCollectionParser {
     // ========== 条目 ==========
 
     private static PathEntry parseEntry(JsonObject entry, String entryPath,
-                                        ClipResolver resolver, UsageIndex.Builder usage,
+                                        ClipResolver resolver,
                                         Set<String> ids, IdentityHashMap<Clip, List<float[]>> endpointPairs)
             throws ScriptParseException {
         rejectUnknownKeys(entry, entryPath, ENTRY_KEYS);
@@ -138,7 +132,7 @@ public final class PathCollectionParser {
             throw new ScriptParseException(entryPath + ".clip",
                     "未知片段引用: " + clipId + "（宿主 " + entryPath + "）");
         }
-        if (!target.hasObjects()) {
+        if (!target.hasObjectProperties()) {
             throw new ScriptParseException(entryPath + ".clip",
                     "路径集合只支持 objects 片段（目标片段 " + clipId + " 没有 objects）");
         }
@@ -191,9 +185,6 @@ public final class PathCollectionParser {
         }
         seen.add(new float[]{from, to});
 
-        if (usage != null) {
-            usage.reference(UsageKind.PATH_ENTRY, entryPath, ClipRef.of(target));
-        }
         return new PathEntry(id, target, from, to, axes, geometry, timing);
     }
 

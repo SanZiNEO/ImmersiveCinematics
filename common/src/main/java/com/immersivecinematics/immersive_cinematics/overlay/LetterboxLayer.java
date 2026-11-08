@@ -115,10 +115,6 @@ public class LetterboxLayer implements OverlayLayer {
         this.targetAspectRatio = ratio;
     }
 
-    public float getAspectRatio() {
-        return targetAspectRatio;
-    }
-
     /** 设置黑边不透明度（0~1，默认 1）：黑边整体（上下 / 左右）的 alpha */
     public void setOpacity(float opacity) {
         this.opacity = opacity;

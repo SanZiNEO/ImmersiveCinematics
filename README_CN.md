@@ -10,13 +10,13 @@
 
 ## 这是什么
 
-ImmersiveCinematics 是一个 Minecraft 1.20.1 模组，按 JSON 脚本播放过场动画。触发器在服务端运行：监听玩法事件与条件，命中后在适用玩家的客户端上播放。播放全程由数据驱动——脚本声明轨道、片段和关键帧，运行时只负责执行。
+ImmersiveCinematics 是一个 Minecraft 1.20.1 模组，按 JSON 脚本播放过场动画。触发器在服务端运行：监听玩法事件与条件，命中后在适用玩家的客户端上播放。播放全程由数据驱动——脚本声明轨道、片段和对象属性（`objects`），运行时只负责执行。
 
 典型用途：开场动画、Boss 战演出、固定机位解谜房间、开箱镜头特写、服务器公告、自动飞行巡览。
 
 ## 脚本
 
-一个脚本是一个 JSON 文件：`meta`（id、name、author、version、触发器、运行时行为）与 `timeline`（轨道 → 片段 → 关键帧）。脚本格式为 v3，`meta.version` 必须写 `3`。
+一个脚本是一个 JSON 文件：`meta`（id、name、author、触发器、运行时行为）与 `timeline`（轨道 → 片段 → `objects`）。没有格式版本号；旧写法出现即报未知字段。
 
 七种轨道：
 
@@ -30,7 +30,7 @@ ImmersiveCinematics 是一个 Minecraft 1.20.1 模组，按 JSON 脚本播放过
 | `MOD_EVENT` | 其它模组暴露的事件。 |
 | `ADJUST` | 对整幅合成画面调色。 |
 
-同一条轨道的片段可以重叠，后写的叠在上面。循环支持 `repeat` 与 `ping-pong`，脚本级宏循环只支持 `repeat`。脚本按**内容播完**结束——各轨片段播完、有限循环次数计满、没有挂起在跑的内容——而不是 `total_duration` 到点；`total_duration` 只作统计。
+同一条轨道的片段可以重叠，后写的叠在上面。循环支持 `repeat` 与 `pingpong`，脚本级宏循环只支持 `repeat`。脚本按**内容播完**结束——各轨片段播完、有限循环次数计满、没有挂起在跑的内容。没有总时长字段：显示范围由片段窗口派生，出现无限片段或无限宏观循环即内容无限。
 
 脚本从游戏目录下的 `immersive_cinematics/scripts/` 加载（子目录最多五层，路径用 `/` 分隔，`.json` 可省略）。图片、音频、`.cube` LUT 与译文从 `immersive_cinematics/resource/` 加载。
 
@@ -65,8 +65,8 @@ ImmersiveCinematics 是一个 Minecraft 1.20.1 模组，按 JSON 脚本播放过
 - `meta.play_mode`：`parallel`（缺省——不阻塞新来者，也不会被打断）、`exclusive`（我播时其它脚本排队）、`interruptible`（可被新来者顶掉）。
 - 播放队列不设上限，且跨实例存活。只有 `exclusive` 脚本会挡住新来者；排队的请求按 `priority` 再按先来先服务接播。
 - 长按 **C** 跳过当前演出，**Ctrl+P** 强制退出。多人跳过投票可按脚本或全局配置比例。
-- 键盘与鼠标屏蔽、生物 AI 屏蔽、按层隐藏 HUD（聊天、记分板、动作栏、标题、字幕、快捷栏、准星、Boss 条、跳过提示）、隐藏手臂、抑制视角摇晃与画面扭曲、渲染玩家模型、游戏暂停时暂停。`hard_hide_hud`（Forge）接管 GUI 渲染，连不走 overlay 注册表、自行绘制的第三方 HUD 也会一并隐藏。
-- 多个脚本可以同时播放：隐藏与屏蔽开关按实例取并集，暂停联动跟随任一要求暂停的实例。
+- 键盘与鼠标屏蔽、生物 AI 屏蔽、游戏暂停时暂停。画面层由 `meta.screen_layers`（15 个规范层名，值 = 显示）控制：只要有任一层判隐藏，就整帧接管 HUD，只重画白名单内的层。Forge 与 Fabric 行为一致。
+- 多个脚本可以同时播放：画面层与屏蔽开关按实例取并集，暂停联动跟随任一要求暂停的实例。
 
 ## 世界加载
 
@@ -89,24 +89,25 @@ ImmersiveCinematics 是一个 Minecraft 1.20.1 模组，按 JSON 脚本播放过
     "id": "welcome",
     "name": "Welcome",
     "author": "Your Name",
-    "version": 3,
     "triggers": [
       { "id": "on_login", "type": "login", "delay": 1.0, "conditions": {} }
     ]
   },
   "timeline": {
-    "total_duration": 6.0,
     "tracks": [
       {
-        "type": "camera",
+        "type": "CAMERA",
         "clips": [
           {
             "start_time": 0.0,
             "duration": 6.0,
-            "keyframes": [
-              { "time": 0.0, "position": { "dx": 5, "dy": 2, "dz": 3 }, "yaw": 90, "pitch": 5 },
-              { "time": 6.0, "position": { "dx": 0, "dy": 2, "dz": -5 }, "yaw": 0, "pitch": 10 }
-            ]
+            "objects": {
+              "position.x": { "keyframes": [ { "time": 0.0, "value": 5 }, { "time": 6.0, "value": 0 } ] },
+              "position.y": { "value": 2 },
+              "position.z": { "keyframes": [ { "time": 0.0, "value": 3 }, { "time": 6.0, "value": -5 } ] },
+              "yaw":       { "keyframes": [ { "time": 0.0, "value": 90 }, { "time": 6.0, "value": 0 } ] },
+              "pitch":     { "keyframes": [ { "time": 0.0, "value": 5 }, { "time": 6.0, "value": 10 } ] }
+            }
           }
         ]
       }
@@ -115,7 +116,7 @@ ImmersiveCinematics 是一个 Minecraft 1.20.1 模组，按 JSON 脚本播放过
 }
 ```
 
-`position` 里的 `dx` / `dy` / `dz` 是相对玩家激活位置的世界轴偏移，`yaw` 与 `pitch` 单位为度。存成 `immersive_cinematics/scripts/welcome.json`，执行 `/icinematics reload`，玩家登录 1 秒后就会播放。
+`position.x` / `y` / `z` 是相对玩家激活位置的世界轴偏移，`yaw` 与 `pitch` 单位为度。存成 `immersive_cinematics/scripts/welcome.json`，执行 `/icinematics reload`，玩家登录 1 秒后就会播放。
 
 ### 命令
 
@@ -125,8 +126,6 @@ ImmersiveCinematics 是一个 Minecraft 1.20.1 模组，按 JSON 脚本播放过
 | `/icinematics stop [脚本] [玩家]` | — | 停止播放；不写参数 = 全停 |
 | `/icinematics reload` | op 2 | 从磁盘重新读取脚本并重建触发器 |
 | `/icinematics validate <脚本>` | op 2 | 静态校验脚本，一次列出全部问题 |
-| `/icinematics template list` | op 2 | 列出内置片段模板及其参数 |
-| `/icinematics template <id> [键=值…]` | op 2 | 按模板展开生成脚本 |
 
 脚本路径相对 `immersive_cinematics/scripts/`，`.json` 可省略。
 
@@ -140,7 +139,7 @@ ImmersiveCinematics 是一个 Minecraft 1.20.1 模组，按 JSON 脚本播放过
 
 ## 兼容性
 
-- Forge 47.x+ 与 Fabric 1.20.1 共用同一份 common 实现；平台差异只在渲染与 HUD 适配（`hard_hide_hud` 仅 Forge）以及配置界面入口。
+- Forge 47.x+ 与 Fabric 1.20.1 共用同一份 common 实现；平台差异只剩渲染适配，`screen_layers` 两端行为一致。
 - 兼容 Sodium、Rubidium、Embeddium。
 - Iris / Oculus 光影：每条 lane 的光影状态相互隔离，跨维度 lane 同样适用；切换光影包不再需要重启。
 - 暂停感知：游戏暂停时脚本冻结。
@@ -151,7 +150,7 @@ ImmersiveCinematics 是一个 Minecraft 1.20.1 模组，按 JSON 脚本播放过
 |---|---|
 | Minecraft | 1.20.1 |
 | Java | 17+ |
-| 脚本格式 | v3 |
+| 脚本格式 | `objects`（无版本号） |
 | 已发布 | 0.3.5（2026-09-09） |
 | 开发中 | 0.3.6（未发布）——本 README 描述的是当前开发状态 |
 | 独立编辑器 | 0.1.0（测试中） |

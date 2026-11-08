@@ -83,8 +83,6 @@ public class TriggerDefinition {
     public String getType() { return type; }
     /** 声明处显式写出的 id；null = 未指定 */
     public String getId() { return id; }
-    /** 声明在 {@code meta.triggers[]} 中的下标；-1 = 未知 */
-    public int getDeclarationIndex() { return declarationIndex; }
     /** 脚本内唯一身份：显式 id 优先，否则 {@code type#声明下标}。 */
     public String getIdentity() { return id != null ? id : type + "#" + declarationIndex; }
     public Map<String, Object> getConditions() { return conditions; }

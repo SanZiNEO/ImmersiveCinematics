@@ -12,7 +12,8 @@
     "MinecraftServerMixin"
   ],
   "client": [
-    "SoundEngineMixin"
+    "SoundEngineMixin",
+    "FabricGuiTakeoverMixin"
   ],
   "injectors": {
     "defaultRequire": 1

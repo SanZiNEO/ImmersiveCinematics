@@ -39,12 +39,6 @@ ImmersiveCinematics 的脚本是一个 JSON 文件，用一条时间线描述镜
 |---|---|---|---|
 | `block_keyboard` / `block_mouse` | bool | `true` | 屏蔽键盘 / 鼠标 |
 | `block_mob_ai` | bool | `false` | 冻结生物 AI |
-| `hide_hud` | bool | `true` | 隐藏 HUD 总开关 |
-| `hide_arm` / `suppress_bob` / `suppress_distortion` | bool | `null` | 单项开关；`null` 跟随 `hide_hud` |
-| `hide_chat` / `hide_scoreboard` / `hide_action_bar` | bool | `null` | 同上 |
-| `hide_title` / `hide_subtitles` / `hide_hotbar` | bool | `null` | 同上 |
-| `hide_crosshair` / `hide_bossbar` / `hide_skip_hud` | bool | `null` | 同上 |
-| `render_player_model` | bool | `true` | 渲染玩家模型 |
 | `pause_when_game_paused` | bool | `true` | 游戏暂停时脚本暂停 |
 | `interruptible` | bool | `true` | 同脚本再次触发时是否替换当前实例 |
 | `play_mode` | enum | `parallel` | 跨脚本关系：`parallel` / `exclusive` / `interruptible` |
@@ -53,15 +47,25 @@ ImmersiveCinematics 的脚本是一个 JSON 文件，用一条时间线描述镜
 | `macro_loop_count` | int | `-1` | 循环次数；负数 = 无限 |
 | `macro_loop_mode` | enum | `repeat` | `repeat` / `pingpong` |
 | `skip_vote_ratio` | int | `null` | 整数百分比 10~100；非法值解析期报错 |
+| `trigger_poll_interval` | int | `null` | 轮询类触发器的脚本级缺省间隔（tick，1~600）；非法值告警并按未写处理 |
+
+画面层没有独立的 `hide_*` / `suppress_*` 开关，全部走 §2.3 的 `screen_layers`。
 
 ### 2.3 屏幕层
 
 | 字段 | 类型 | 默认 | 说明 |
 |---|---|---|---|
-| `screen_layers` | object | `null` | 层名 → bool；`true` 显示、`false` 隐藏 |
-| `screen_layer_mode` | enum | `null` | `normal` / `allowlist`；写了 `screen_layers` 而未写本字段时按 `allowlist` |
+| `screen_layers` | object | `null` | 层名 → bool，**值 = 显示**：`true` 显示、`false` 隐藏 |
 
-未列出的层在 `normal` 下保持原样，在 `allowlist` 下隐藏。
+`screen_layers` 是画面层的唯一入口。**接管是唯一模式且默认生效**：只要任一层判隐藏，就取消整帧 HUD 绘制并只重画白名单内的层；未声明的层不显示（allowlist 语义）。
+
+层名键域三类：15 个规范层名（`hud.hotbar` / `hud.crosshair` / `hud.health` / `hud.experience` / `hud.bossbar` / `hud.chat` / `hud.scoreboard` / `hud.action_bar` / `hud.title` / `hud.subtitle` / `hud.skip_prompt` / `viewmodel` / `view_bobbing` / `screen_effects` / `player_model`）、第三方注册的分类名、未注册 overlay 的完整资源 ID。
+
+**Fabric 与 Forge 行为一致**：
+
+- 两端都**整帧接管**：取消整帧 HUD / GUI 绘制，再按 `screen_layers` 白名单重画。
+- 第三方 HUD 在 Fabric 上要参与白名单，必须注册进层表（`FabricHudLayerRegistry.register(layerId, category, renderer)`：三参，`renderer` 接收 `GuiGraphics` 与 `partialTick`；或跨加载器门面 `HudLayerRegistry.register`），并在绘制前查询 `FabricHudVisibility.isHidden(layerId)`。`renderer` 只在接管重画的末尾调用。
+- 原生 `HudRenderCallback` 的绘制在接管时随整帧取消而不显示——不注册、也不查询可见性的第三方 HUD 不会被重画。
 
 ### 2.4 triggers[]
 
@@ -703,7 +707,7 @@ ImmersiveCinematics 的脚本是一个 JSON 文件，用一条时间线描述镜
 
 ## 7. 已移除字段
 
-下列写法**出现即报错**，错误文案含"已移除"：
+下列写法**出现即报错**——统一走未知字段白名单（`meta` / 片段 / `objects` 各有一份键白名单），不再有专属"已移除"文案：
 
 | 旧写法 | 新写法 |
 |---|---|
@@ -718,8 +722,10 @@ ImmersiveCinematics 的脚本是一个 JSON 文件，用一条时间线描述镜
 | `selector_*_follow` / `selector_*_facing_origin` | `selector_*_position_origin` |
 | 片段级 `orient` / `yaw_offset` / `pitch_offset` | 移入 `objects` |
 | AUDIO 文件循环旧名 `loop` | `file_loop` |
+| `meta.hide_hud` / `hide_*` / `suppress_*` / `render_player_model` | `meta.screen_layers`（值 = 显示） |
 | `meta.hud_layers` | `meta.screen_layers` |
-| `meta.hard_hide_hud` | `meta.screen_layer_mode` |
+| `meta.hard_hide_hud` | 删除；画面层由 `screen_layers` 控制 |
+| `meta.screen_layer_mode` | 删除；接管恒生效，无模式字段 |
 
 ## 8. 校验规则
 

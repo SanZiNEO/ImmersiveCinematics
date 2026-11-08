@@ -3,31 +3,24 @@ package com.immersivecinematics.immersive_cinematics.script;
 import com.google.gson.JsonObject;
 import com.immersivecinematics.immersive_cinematics.camera.cover.ClipModifier;
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionInterrupt;
+import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionParams;
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionSpec;
 import com.immersivecinematics.immersive_cinematics.script.execution.ClipExitPolicy;
 import com.immersivecinematics.immersive_cinematics.script.execution.LoopMode;
 import com.immersivecinematics.immersive_cinematics.script.identity.ClipIdentity;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipObjects;
-import com.immersivecinematics.immersive_cinematics.script.object.SampledProperty;
-import com.immersivecinematics.immersive_cinematics.spi.PathSpec;
-import com.immersivecinematics.immersive_cinematics.spi.PropertyMode;
+import com.immersivecinematics.immersive_cinematics.script.object.ClipValueView;
+import com.immersivecinematics.immersive_cinematics.spi.MathModel;
 import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
-import com.immersivecinematics.immersive_cinematics.util.MathUtil;
-
-import java.util.Collections;
-import java.util.Map;
 
 /**
- * 通用片段容器：所有轨道共享 {@code startTime} / {@code duration}；
- * 轨道特有字段存在 {@code data} map 中（由 {@link SchemaLoader} 定义），动画量走 {@code objects} 采样属性。
+ * 通用片段容器：所有轨道共享 {@code startTime} / {@code duration} 与循环三键
+ * （{@code loop} / {@code loop_count} / {@code loop_mode}）；轨道特有字段与动画量都走
+ * {@code objects} 采样属性。
  *
- * <p>新格式片段把片段级字段写成 {@code objects} 里的采样属性。为了让旧消费方（过渡 / 运动模型 / 呼吸 /
- * modifier / 曲线 / LUT / dimension / 音频）继续按字段名读取，{@link #getString(String, String)}、
- * {@link #getFloat(String, float)}、{@link #getInt(String, int)}、{@link #getBool(String, boolean)}、
- * {@link #getObject(String)} 在 {@code data} 没有该键时回落 {@code objects} 里的同名属性——
- * <b>只回落 {@link PropertyMode#VALUE}（value-only）属性</b>；{@code animated} / {@code event} 属性必须走
- * 采样器（{@code ClipSampler} / {@code SampledClip}），这里一律按「未提供」处理。旧格式片段的
- * {@code objects} 为空，回落路径恒不命中，行为与之前逐位一致。</p>
+ * <p>片段级字段（过渡 / 运动模型 / 呼吸 / modifier / 曲线 / LUT / dimension / 音频）由
+ * {@link ClipValueView} 读取 value-only 属性；动画量必须走采样器（{@code ClipSampler} /
+ * {@code SampledClip}）。本类不提供通用字段读取口。</p>
  */
 public class Clip {
 
@@ -36,8 +29,13 @@ public class Clip {
     /** 片段时长秒：float 存储（脚本 JSON 精度）；运行时读取后按 double 参与计算，写回时显式窄化。 */
     private final float duration;
     private final TrackTypeId trackType;
-    private final Map<String, Object> data;
-    /** 新对象模型的采样属性集合；旧格式片段为 {@link ClipObjects#EMPTY}。 */
+    /** 是否按次数重复执行（{@code loop}）。 */
+    private final boolean loop;
+    /** 执行次数（{@code loop_count}；{@code -1} = 无限循环；解析期 0 已修正为 1）。 */
+    private final int loopCount;
+    /** 循环时间映射模式（{@code loop_mode}；未声明归一为 {@link LoopMode#REPEAT}）。 */
+    private final LoopMode loopMode;
+    /** 片段声明的对象属性集合（采样属性 / value-only 字段 / 事件）。 */
     private final ClipObjects objects;
 
     /**
@@ -65,7 +63,10 @@ public class Clip {
     /**
      * 唯一构造器。
      *
-     * @param objects    新对象模型的采样属性集合（{@code null} → {@link ClipObjects#EMPTY}）
+     * @param loop       是否按次数重复执行（{@code loop}）
+     * @param loopCount  执行次数（{@code loop_count}；{@code -1} = 无限循环）
+     * @param loopMode   循环时间映射模式（{@code null} → {@link LoopMode#REPEAT}）
+     * @param objects    片段的对象属性集合（{@code null} → {@link ClipObjects#EMPTY}）
      * @param clipId     脚本内 id（{@code null} = 未命名片段）；非 {@code null} 时调用方须已按
      *                   {@link ClipIdentity#PATTERN} 校验（解析器负责），这里不重复校验以免把
      *                   程序化构造路径的分支埋进异常
@@ -73,11 +74,14 @@ public class Clip {
      *                   {@code ClipExitPolicyParser} 在脚本装配后填充，程序化构造路径可直接传
      */
     public Clip(float startTime, float duration, TrackTypeId trackType,
-                Map<String, Object> data, ClipObjects objects, String clipId, ClipExitPolicy exitPolicy) {
+                boolean loop, int loopCount, LoopMode loopMode,
+                ClipObjects objects, String clipId, ClipExitPolicy exitPolicy) {
         this.startTime = startTime;
         this.duration = duration;
         this.trackType = trackType;
-        this.data = data != null ? data : Collections.emptyMap();
+        this.loop = loop;
+        this.loopCount = loopCount;
+        this.loopMode = loopMode != null ? loopMode : LoopMode.REPEAT;
         this.objects = objects != null ? objects : ClipObjects.EMPTY;
         this.clipId = clipId;
         this.exitPolicy = exitPolicy;
@@ -88,96 +92,24 @@ public class Clip {
     public float getStartTime() { return startTime; }
     public float getDuration() { return duration; }
     public TrackTypeId getTrackType() { return trackType; }
-    public Map<String, Object> getData() { return data; }
 
-    /** 新对象模型的采样属性集合（旧格式片段为空集合）。 */
+    /** 片段声明的对象属性集合（只读）。 */
     public ClipObjects getObjects() { return objects; }
 
-    /** 是否携带新对象模型；空 {@code objects} 与旧格式片段同为 {@code false}。 */
-    public boolean hasObjects() { return !objects.isEmpty(); }
+    /** 是否声明了对象属性（{@code objects} 非空）。 */
+    public boolean hasObjectProperties() { return !objects.isEmpty(); }
 
     /** 是否为无限时长片段（负数即视为无限时长） */
     public boolean isInfinite() { return duration < 0f; }
 
-    // ── 泛型字段访问 ──
-
-    /**
-     * 该键的 value-only 回落属性：{@code data} 没有该键时，若 {@code objects} 里显式声明了同名属性且形态为
-     * {@link PropertyMode#VALUE}，返回该属性；否则 {@code null}。
-     *
-     * <p>返回属性而非值，是为了区分「没声明」与「声明为 {@code null}」。{@code animated} / {@code event}
-     * 属性不参与回落：动画量必须走采样器。</p>
-     */
-    private SampledProperty valueOnly(String key) {
-        SampledProperty property = objects.get(key);
-        return property != null && property.mode() == PropertyMode.VALUE ? property : null;
-    }
-
-    /** 读字符串：{@code data} 优先；否则取同名 value-only 属性的 {@link String} 值；否则缺省。 */
-    public String getString(String key, String defaultValue) {
-        Object v = data.get(key);
-        if (v instanceof String) return (String) v;
-        SampledProperty property = valueOnly(key);
-        Object fallback = property != null ? property.value() : null;
-        return fallback instanceof String ? (String) fallback : defaultValue;
-    }
-
-    /**
-     * 读浮点：{@code data} 优先；否则取同名 value-only 属性的 {@link Number} 值（同样过
-     * {@link MathUtil#sanitizeFloatLogged}）；否则缺省。
-     */
-    public float getFloat(String key, float defaultValue) {
-        Object v = data.get(key);
-        if (v instanceof Number) {
-            // 数据入口守卫：非有限值（NaN / ±Infinity）回落缺省——片段级字段（lut_input_gamma / volume /
-            // pitch / fade_* 等）同样不得直达采样器 / shader（clamp(NaN) 在主流驱动上取 0 = 整屏变黑）
-            return MathUtil.sanitizeFloatLogged(((Number) v).floatValue(), defaultValue, "clip." + key);
-        }
-        SampledProperty property = valueOnly(key);
-        Object fallback = property != null ? property.value() : null;
-        return fallback instanceof Number
-                ? MathUtil.sanitizeFloatLogged(((Number) fallback).floatValue(), defaultValue, "clip." + key)
-                : defaultValue;
-    }
-
-    /** 读整数：{@code data} 优先；否则取同名 value-only 属性的 {@link Number} 值；否则缺省。 */
-    public int getInt(String key, int defaultValue) {
-        Object v = data.get(key);
-        if (v instanceof Number) return ((Number) v).intValue();
-        SampledProperty property = valueOnly(key);
-        Object fallback = property != null ? property.value() : null;
-        return fallback instanceof Number ? ((Number) fallback).intValue() : defaultValue;
-    }
-
-    /** 读布尔：{@code data} 优先；否则取同名 value-only 属性的 {@link Boolean} 值；否则缺省。 */
-    public boolean getBool(String key, boolean defaultValue) {
-        Object v = data.get(key);
-        if (v instanceof Boolean) return (Boolean) v;
-        SampledProperty property = valueOnly(key);
-        Object fallback = property != null ? property.value() : null;
-        return fallback instanceof Boolean ? (Boolean) fallback : defaultValue;
-    }
-
-    /**
-     * 读任意对象：{@code data} 命中且非 {@code null} 优先；否则若同名 value-only 属性存在，返回其静态值
-     * （可能为 {@code null}）；否则 {@code null}。
-     */
-    @SuppressWarnings("unchecked")
-    public <T> T getObject(String key) {
-        Object v = data.get(key);
-        if (v != null) return (T) v;
-        SampledProperty property = valueOnly(key);
-        return property != null ? (T) property.value() : null;
-    }
-
     // ── Convenience: CAMERA ──
 
     public boolean isMorph() {
-        return "morph".equals(getString("transition", "cut"));
+        return "morph".equals(new ClipValueView(this).s("transition", "cut"));
     }
 
     public float getTransitionDuration() {
-        return getFloat("transition_duration", 0.5f);
+        return new ClipValueView(this).f("transition_duration", 0.5f);
     }
 
     /**
@@ -190,27 +122,25 @@ public class Clip {
      */
     public TransitionSpec getTransitionSpec() {
         if (transitionSpec == null && declaresTransition()) {
-            transitionSpec = TransitionSpec.resolve(getObject("transition_params"), getTransitionDuration(),
-                    getObject("transition_curve"),
-                    TransitionInterrupt.byName(getString("transition_interrupt", "blend")));
+            ClipValueView values = new ClipValueView(this);
+            transitionSpec = TransitionSpec.resolve((TransitionParams) values.o("transition_params"),
+                    getTransitionDuration(),
+                    (MathModel) values.o("transition_curve"),
+                    TransitionInterrupt.byName(values.s("transition_interrupt", "blend")));
         }
         return transitionSpec;
     }
 
-    /** 是否声明了任何过渡字段（{@link #getTransitionSpec()} 的建成判据）；{@code objects} 的 value-only 声明同样算。 */
+    /** 是否声明了任何过渡字段（{@link #getTransitionSpec()} 的建成判据）。 */
     private boolean declaresTransition() {
-        return declares("transition") || declares("transition_duration")
-                || declares("transition_params") || declares("transition_curve")
-                || declares("transition_interrupt");
-    }
-
-    /** {@code data} 显式写了该键，或 {@code objects} 里声明了同名 value-only 属性。 */
-    private boolean declares(String key) {
-        return data.containsKey(key) || valueOnly(key) != null;
+        ClipValueView values = new ClipValueView(this);
+        return values.declared("transition") || values.declared("transition_duration")
+                || values.declared("transition_params") || values.declared("transition_curve")
+                || values.declared("transition_interrupt");
     }
 
     public boolean isPositionModeRelative() {
-        return "relative".equals(getString("position_mode", "relative"));
+        return "relative".equals(new ClipValueView(this).s("position_mode", "relative"));
     }
 
     /**
@@ -218,21 +148,16 @@ public class Clip {
      * 空串 = 玩家当前维度（缺省）：客户端只把该 lane 的画面按此维度渲染，服务端不传送玩家。
      */
     public String getDimension() {
-        return getString("dimension", "");
+        return new ClipValueView(this).s("dimension", "");
     }
 
     /** 是否为执行循环（按次数重复执行）：{@code loop=true}。 */
     public boolean isExecutionLoop() {
-        return getBool("loop", false);
-    }
-
-    /** 旧调用名：执行循环。 */
-    public boolean isLoop() {
-        return isExecutionLoop();
+        return loop;
     }
 
     public int getLoopCount() {
-        return getInt("loop_count", -1);
+        return loopCount;
     }
 
     /**
@@ -240,12 +165,12 @@ public class Clip {
      * 仅 loop=true 时生效。
      */
     public String getLoopMode() {
-        return getString("loop_mode", "repeat");
+        return loopMode.id();
     }
 
     /** 归一后的循环模式（运行期不再比较字符串）。 */
     public LoopMode getLoopModeValue() {
-        return LoopMode.fromName(getLoopMode(), LoopMode.REPEAT);
+        return loopMode;
     }
 
     /**
@@ -286,15 +211,6 @@ public class Clip {
     }
 
     /**
-     * 本片段的路径定义（clip 级 {@code curve}，解析期由
-     * {@link com.immersivecinematics.immersive_cinematics.script.schema.PathCurveRegistry} 按 {@code type} 建成）。
-     * {@code null} = 未声明曲线（逐段线性）。
-     */
-    public PathSpec getPathSpec() {
-        return getObject("curve");
-    }
-
-    /**
      * 片段级静态 Modifier 声明（clip 级 {@code modifier} 对象，解析期归一为
      * {@link ClipModifier}）；{@code null} = 本片段不声明（缺省，链上零改动）。
      *
@@ -302,7 +218,7 @@ public class Clip {
      * （{@code PlaybackInstance}）。
      */
     public ClipModifier getModifier() {
-        return getObject("modifier");
+        return (ClipModifier) new ClipValueView(this).o("modifier");
     }
 
     /**
@@ -312,7 +228,7 @@ public class Clip {
      * 随六参数一起写进全局写入缓冲，胜出时链整条跳过 Modifier。
      */
     public boolean getSuppressModifiers() {
-        return getBool("suppress_modifiers", false);
+        return new ClipValueView(this).b("suppress_modifiers", false);
     }
 
     // ── Convenience: ADJUST ──
@@ -322,7 +238,7 @@ public class Clip {
      * {@code null} = 本片段无曲线（字段缺省），曲线值见 {@link ColorCurve}。
      */
     public ColorCurve getColorCurve() {
-        return getObject("rgb_curve");
+        return (ColorCurve) new ClipValueView(this).o("rgb_curve");
     }
 
     /**
@@ -330,17 +246,17 @@ public class Clip {
      * {@code null} = 本片段无该曲线。
      */
     public ColorCurve getRCurve() {
-        return getObject("r_curve");
+        return (ColorCurve) new ClipValueView(this).o("r_curve");
     }
 
     /** G 每通道曲线（同 {@link #getRCurve()}，关键帧控 {@code g_curve_strength}）。 */
     public ColorCurve getGCurve() {
-        return getObject("g_curve");
+        return (ColorCurve) new ClipValueView(this).o("g_curve");
     }
 
     /** B 每通道曲线（同 {@link #getRCurve()}，关键帧控 {@code b_curve_strength}）。 */
     public ColorCurve getBCurve() {
-        return getObject("b_curve");
+        return (ColorCurve) new ClipValueView(this).o("b_curve");
     }
 
     /**
@@ -351,26 +267,7 @@ public class Clip {
      * 按路径缓存、按 clip 记引用（键 = {@link #getClipId()}），同一文件跨片段共享同一不可变实例。
      */
     public String getLut() {
-        return TrackTypeId.ADJUST.equals(trackType) ? getString("lut", null) : null;
-    }
-
-    /**
-     * clip 级 LUT 输入域适配幂指数（缺省 {@code 1.0} = 不变换）：查表前对输入 RGB 逐通道
-     * {@code v = pow(clamp(c, 0, 1), gamma)}，以 {@code v} 为四面体查表坐标。
-     * 与 {@link #getLut()} 同款只对 ADJUST 轨生效（lane 路径恒得 1.0）；无 LUT 时该值被忽略（查表整步不生效）。
-     */
-    public float getLutInputGamma() {
-        return TrackTypeId.ADJUST.equals(trackType) ? getFloat("lut_input_gamma", 1.0F) : 1.0F;
-    }
-
-    /**
-     * clip 级混合模式（{@code normal} 缺省 / {@code multiply} / {@code screen} / {@code soft_light} /
-     * {@code overlay}）：调整层输出 {@code c_adj} 与基画面 {@code c_base} 按模式整体混合，
-     * {@code c = mix(c_base, blend(c_base, c_adj, mode), amount)}，强度 = 关键帧 {@code blend_amount}。
-     * 与 {@link #getLut()} 同款只对 ADJUST 轨生效：lane 路径恒得 {@code "normal"}（混合步骤恒等）。
-     */
-    public String getBlendMode() {
-        return TrackTypeId.ADJUST.equals(trackType) ? getString("blend_mode", "normal") : "normal";
+        return TrackTypeId.ADJUST.equals(trackType) ? new ClipValueView(this).s("lut", null) : null;
     }
 
     /**
@@ -385,11 +282,6 @@ public class Clip {
     /** 脚本内稳定 id（{@code null} = 未命名片段）；与 {@link #getClipId()} 的区别是不做对象键回落。 */
     public String scriptClipId() {
         return clipId;
-    }
-
-    /** 本片段是否有脚本内 id。 */
-    public boolean hasClipId() {
-        return clipId != null;
     }
 
     /** 片段身份（未命名片段 → {@code null}）。 */
@@ -447,85 +339,37 @@ public class Clip {
      * {@code null} = 本片段无该曲线。
      */
     public ColorCurve getHvHCurve() {
-        return getObject("hv_h_curve");
+        return (ColorCurve) new ClipValueView(this).o("hv_h_curve");
     }
 
     /** HvS 曲线：以 hue 为键、输出饱和度（关键帧控 {@code hv_s_strength}）。 */
     public ColorCurve getHvSCurve() {
-        return getObject("hv_s_curve");
+        return (ColorCurve) new ClipValueView(this).o("hv_s_curve");
     }
 
     /** HvL 曲线：以 hue 为键、输出亮度（关键帧控 {@code hv_l_strength}）。 */
     public ColorCurve getHvLCurve() {
-        return getObject("hv_l_curve");
+        return (ColorCurve) new ClipValueView(this).o("hv_l_curve");
     }
 
     /** LvS 曲线：以亮度为键、输出饱和度（关键帧控 {@code lv_s_strength}）。 */
     public ColorCurve getLvSCurve() {
-        return getObject("lv_s_curve");
+        return (ColorCurve) new ClipValueView(this).o("lv_s_curve");
     }
 
     /** SvS 曲线：以饱和度为键、输出饱和度（关键帧控 {@code sv_s_strength}）。 */
     public ColorCurve getSvSCurve() {
-        return getObject("sv_s_curve");
+        return (ColorCurve) new ClipValueView(this).o("sv_s_curve");
     }
 
     /** SvL 曲线：以饱和度为键、输出亮度（关键帧控 {@code sv_l_strength}）。 */
     public ColorCurve getSvLCurve() {
-        return getObject("sv_l_curve");
+        return (ColorCurve) new ClipValueView(this).o("sv_l_curve");
     }
-
-    // ── Convenience: AUDIO ──
-
-    public String getSound() {
-        return getString("sound", "");
-    }
-
-    public float getVolume() {
-        return getFloat("volume", 1.0f);
-    }
-
-    public float getAudioPitch() {
-        return getFloat("pitch", 1.0f);
-    }
-
-    public float getFadeIn() {
-        return getFloat("fade_in", 0f);
-    }
-
-    public float getFadeOut() {
-        return getFloat("fade_out", 0f);
-    }
-
-    public String getSource() {
-        return getString("source", "file");
-    }
-
-    public String getAttenuation() {
-        return getString("attenuation", "linear");
-    }
-
-    public String getAudioPositionMode() {
-        return getString("position_mode", "relative");
-    }
-
-
-    // ── Convenience: EVENT ──
-
-    public String getEventType() {
-        return getString("event_type", "");
-    }
-
-    public String getCommand() {
-        return getString("command", "");
-    }
-
-    /** 是否为瞬发事件（duration=0） */
-    public boolean isInstant() { return duration == 0f; }
 
     @Override
     public String toString() {
-        return String.format("Clip{type=%s, start=%.2f, dur=%.2f, data=%s, objects=%s}",
-                trackType, startTime, duration, data, objects);
+        return String.format("Clip{type=%s, start=%.2f, dur=%.2f, loop=%s, loopCount=%d, loopMode=%s, objects=%s}",
+                trackType, startTime, duration, loop, loopCount, loopMode, objects);
     }
 }

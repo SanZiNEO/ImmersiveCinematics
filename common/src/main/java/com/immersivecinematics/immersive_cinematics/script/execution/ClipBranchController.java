@@ -239,14 +239,4 @@ public final class ClipBranchController {
         host.onBranchFailed(target, reason);
         return true;
     }
-
-    /** 是否处于分支中（GOTO 链保持 true 直到链尾结束）。 */
-    public boolean isBranching() {
-        return branching;
-    }
-
-    /** 当前分支 target；不在分支中 → {@code null}。 */
-    public Clip currentTarget() {
-        return branching ? target : null;
-    }
 }

@@ -3,16 +3,14 @@ package com.immersivecinematics.immersive_cinematics.script.object;
 import java.util.List;
 
 /**
- * 新对象模型的选择器调用点名单与调用点专属字段名。
+ * 对象模型的选择器调用点名单与调用点专属字段名。
  *
- * <p>与旧 {@code selector/SelectorSchema.CALLPOINTS} 分开维护：旧名单含 {@code follow} /
- * {@code facing_origin} 等已移除字段名，新格式不得写出；{@code selector/SelectorSchema}
- * 本轮一行不改。字段名模式仍为 {@code <字段>_<调用点>}。</p>
+ * <p>本名单是调用点的唯一来源；字段名模式为 {@code <字段>_<调用点>}。</p>
  */
 public final class ObjectCallpoints {
 
     /**
-     * 新对象模型的调用点：{@code position_origin} / {@code look_at} / {@code yaw_base} /
+     * 对象模型的调用点：{@code position_origin} / {@code look_at} / {@code yaw_base} /
      * {@code yaw_base_from} / {@code yaw_base_to} / {@code facing_target} / {@code facing_entity}。
      * 顺序 = 字段登记顺序。
      */

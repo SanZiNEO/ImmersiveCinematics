@@ -48,8 +48,6 @@ public final class SchemaExporter {
         for (TrackTypeId type : TrackRegistry.registered()) {
             TrackTypeSchema schema = SchemaRegistry.get(type);
             JsonObject track = new JsonObject();
-            track.add("clips", exportFields(schema.clipFields()));
-            track.add("keyframes", exportFields(schema.kfFields()));
             track.add("playControl", exportFields(schema.playControl()));
             track.add("objects", exportObjects(schema.objects()));
             tracks.add(type.id(), track);

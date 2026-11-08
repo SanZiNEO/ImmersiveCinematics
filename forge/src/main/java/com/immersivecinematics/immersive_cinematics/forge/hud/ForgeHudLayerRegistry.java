@@ -11,7 +11,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
 
 /**
  * Forge HUD 层注册表：内置原版 overlay 的分类表、画面层名表与世界效果层豁免名单，
- * 供 normal / allowlist 两条消费链查询。
+ * 供接管重画（整帧清除 + 白名单放行）查询。
  *
  * <p>第三方注册请用 {@link HudLayerRegistry}（对外稳定面）：本类只保留「内置表 → 门面表 → overlay ID」
  * 的解析优先级与 {@link #isWorldOverlay}，不再作为注册入口。</p>

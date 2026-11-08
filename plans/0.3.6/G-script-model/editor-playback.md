@@ -35,7 +35,7 @@
 1. **同一播放引擎。** 编辑器播放与普通播放共用解析、采样、合成、HUD、音频；不另起渲染路径。
 2. **唯一差异是时钟来源。** 普通播放读游戏时钟；编辑器播放读编辑器播放头（play / pause / seek）。
 3. **画面来源是主画面。** 传输的是游戏当前渲染输出（含 HUD、覆盖层、调色）；脚本让它怎么放，游戏就怎么显示。
-4. **脚本行为全部生效。** `hide_hud` / `hud_layers` / 相机 / 音频 / 覆盖层按脚本执行，不因“编辑器”而豁免。
+4. **脚本行为全部生效。** `screen_layers` / `screen_layer_mode` / 相机 / 音频 / 覆盖层按脚本执行，不因“编辑器”而豁免。
 5. **游戏控制不生效。** 键鼠屏蔽、暂停联动、播放队列、网络账本、跳过投票属于游戏侧语义，编辑器播放不参与；这一条单独排除，不连带排除内容语义。
 6. **退出即恢复。** 停止编辑器播放后，HUD、输入、相机回到进入前的状态。
 
@@ -49,15 +49,15 @@
 | lane 合成 | 相机轨道产出的画面、多 lane 叠放 | 脚本轨道与合成参数 |
 | 覆盖层 | fade / image / subtitle、渐变、遮罩、z 序 | 脚本 OVERLAY / LETTERBOX 字段 |
 | 调色 | master 与 lane 级调色、LUT、混合模式 | 脚本调色字段 |
-| HUD | 热栏、血量、准星、经验、Boss 条、聊天、计分板、动作栏、标题、字幕、跳过提示 | 脚本 `hide_hud` + `hud_layers` + 各 `hide_*` 字段 |
-| 玩家模型 / 手臂 | 第一/第三人称玩家与手臂 | 脚本 `render_player_model` / `hide_arm` |
+| HUD | 热栏、血量、准星、经验、Boss 条、聊天、计分板、动作栏、标题、字幕、跳过提示 | 脚本 `meta.screen_layers` + `meta.screen_layer_mode` |
+| 玩家模型 / 手臂 | 第一/第三人称玩家与手臂 | 脚本 `screen_layers` 的 `player_model` / `viewmodel` 键 |
 
 规则：
 
 - **显隐唯一来源是脚本字段。** 编辑器不额外隐藏、不额外显示任何层；脚本写什么就是什么。
-- **固定分类优先 `hide_*`。** `hotbar` / `crosshair` / `chat` / `scoreboard` / `bossbar` / `subtitles` / `action_bar` / `title` / `arm` / `skip_hud` / `bob` 这些层只读各自的 `hide_*` 字段（未声明回落 `hide_hud`）；`hud_layers` **不覆盖**固定分类。
-- **`hud_layers` 只作用于未分类层名。** 例如 Forge overlay 的 `modid:overlay`（未注册分类时按 overlay id 字符串匹配），true = 隐藏、false = 显示，未声明回落 `hide_hud`。
-- **未声明的分层字段回落 `hide_hud`**，与普通播放同一套并集逻辑。
+- **层名键域**：15 个规范层名（`hud.hotbar` / `hud.crosshair` / `hud.health` / `hud.experience` / `hud.bossbar` / `hud.chat` / `hud.scoreboard` / `hud.action_bar` / `hud.title` / `hud.subtitle` / `hud.skip_prompt` / `viewmodel` / `view_bobbing` / `screen_effects` / `player_model`）、第三方注册的分类名、未注册 overlay 的资源 ID；值 = **显示**。
+- **`screen_layer_mode`**：`normal` 下只抑制命中层、其余照常绘制；`allowlist` 下整帧接管后按白名单重画，未列出的层隐藏。
+- **未声明的键按模式回落**：`normal` 保持原样，`allowlist` 隐藏；实例间键并集只含显式声明的键，值按显示极性 OR（任一实例要求隐藏即隐藏）。
 - **传输源是主画面**（窗口 framebuffer），含 HUD；不是合成 FBO，也不是空白画面。
 - **导出源不同**：成片导出取合成 FBO（不含 HUD），见 `../J-media/export.md`；两者不混用。
 - **尺寸按输出配置**，不由现有 720p 原始 RGBA 实现决定。
@@ -109,8 +109,8 @@
 ## 七、验收
 
 - 同一脚本、同一时间点：编辑器播放与普通播放的内容行为一致（HUD / 相机 / lane / 覆盖层；不做像素逐帧对照）。
-- 脚本 `hide_hud=true`：编辑器里 HUD 同样隐藏；`false`：同样显示。
-- `hud_layers` 分层控制生效。
+- 脚本 `screen_layers` 写 `hud.hotbar: false`：编辑器里热栏同样隐藏；写 `true`：同样显示。
+- `screen_layer_mode` 与动态键（分类名 / overlay 资源 ID）分层控制生效。
 - 编辑器播放时键鼠不被屏蔽；退出后恢复。
 - 传输画面含 HUD，不是空白或合成 FBO。
 - 停止后 HUD、相机、输入恢复。
@@ -128,7 +128,7 @@
 
 - `CinematicController` 新增 `BehaviorEntry(RuntimeBehavior, boolean editorDriven)`、`Union` 值对象、纯函数 `computeUnion` 与写入端 `applyUnion`。
 - `PlaybackRegistry.instanceBehaviors()` 返回**全部实例**（含编辑器实例）。
-- 分组：`block_keyboard` / `block_mouse` **只并游戏实例**；`hide_hud`、10 个 `hide_*`、`hud_layers`、`hard_hide_hud`、`suppress_bob` / `suppress_distortion`、`render_player_model`、`block_mob_ai` **并全部实例**。
+- 分组：`block_keyboard` / `block_mouse` **只并游戏实例**；`block_mob_ai`、`screen_layer_mode`、`screen_layers` **并全部实例**。
 
 **生命周期**
 

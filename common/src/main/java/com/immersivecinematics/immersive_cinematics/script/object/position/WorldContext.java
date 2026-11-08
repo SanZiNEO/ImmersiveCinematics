@@ -1,13 +1,12 @@
 package com.immersivecinematics.immersive_cinematics.script.object.position;
 
-import com.immersivecinematics.immersive_cinematics.camera.source.PointSource;
 import net.minecraft.world.phys.Vec3;
 
 /**
  * 求值层需要的世界查询接口（resolver 注入）：点源取点、实体朝向、方块 / 结构定位。
  *
  * <p>未解析统一用空值表达，不抛异常、不引入替代值：点 = {@code null}，角度 = {@link Double#NaN}
- * （与旧链路"找不到就找不到"同口径）。求值层负责把空值转成片段不可用 / 基准 0。</p>
+ * （找不到即空值）。求值层负责把空值转成片段不可用 / 基准 0。</p>
  *
  * <p>坐标系与单位：世界空间方块坐标；方块与结构取中心；实体取包围盒内百分比点。</p>
  */
@@ -16,8 +15,8 @@ public interface WorldContext {
     /** 玩家激活位置（脚本激活时玩家所在位置，整场不变）；不可用 = {@code null}。 */
     Vec3 playerActivation();
 
-    /** 实体包围盒内取点（每轴百分比见 {@link PointSource.EntityPoint}）；实体不存在 = {@code null}。 */
-    Vec3 entityPoint(String selector, PointSource.EntityPoint point);
+    /** 实体包围盒内取点（每轴百分比见 {@link EntityPoint}）；实体不存在 = {@code null}。 */
+    Vec3 entityPoint(String selector, EntityPoint point);
 
     /** 实体身体水平朝向（度，{@code yBodyRot}）；实体不存在 = {@link Double#NaN}。 */
     double entityBodyYaw(String selector);
@@ -38,7 +37,7 @@ public interface WorldContext {
      * {@code yaw_base_from} / {@code yaw_base_to} / {@code facing_target} / {@code facing_entity}
      * （见 {@code ObjectCallpoints.NEW_CALLPOINTS}）。缺省实现忽略调用点，保持旧实现可直接复用。
      */
-    default Vec3 entityPoint(String callpoint, String selector, PointSource.EntityPoint point) {
+    default Vec3 entityPoint(String callpoint, String selector, EntityPoint point) {
         return entityPoint(selector, point);
     }
 

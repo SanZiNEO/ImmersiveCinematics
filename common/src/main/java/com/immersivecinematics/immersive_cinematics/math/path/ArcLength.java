@@ -47,18 +47,6 @@ public final class ArcLength {
         return total;
     }
 
-    /** 从定义域起点到 u 的归一化弧长；总长为 0 返回 0。 */
-    public static double normalized(PathExpression expression, double u) {
-        if (expression == null) {
-            throw new IllegalArgumentException("expression 不能为 null");
-        }
-        double total = length(expression);
-        if (total <= 0.0) {
-            return 0.0;
-        }
-        return length(expression, expression.domain().min(), u) / total;
-    }
-
     private static double adaptive(PathExpression expression, double a, double b, int depth) {
         double mid = 0.5 * (a + b);
         double whole = PathMath.integrateSpeed(expression, a, b);

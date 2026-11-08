@@ -66,8 +66,8 @@
 
 ### 4.3 数据形态
 
-- 时态字段 = 点源字段名 + `_time`，取值 `live` / `snapshot`，缺省 `live`；未知值运行期按 `live` 处理，校验报错。
-- 五个字段：`facing_origin_time` / `facing_target_time` / `yaw_base_from_time` / `yaw_base_to_time` / `look_at_time`。
+- 时态字段 = 点源字段名 + `_freeze` 布尔（`true` 冻结 / `false` 实时，缺省 `false`）；未知类型校验报错。
+- 对应字段：`position_origin_freeze` / `facing_target_freeze` / `yaw_base_from_freeze` / `yaw_base_to_freeze` / `look_at_freeze`。
 - 快照值 = 已展开偏移的世界坐标；未捕获 = 无表项（不存空值）。
 - 槽位按点源调用点划分：位置基准、基准朝向目标、连线起点、连线终点、注视点、锚点原点。锚点原点单列一槽，因为同一位置点源在锚点调用点固定按相机锚点解析，与位置基准的配置锚点可以不同。
 
@@ -155,14 +155,14 @@
 
 #### 4. 范围限定（防复杂化）
 
-1. 开关只管**点源**（follow 位置 / look_at 系 / yaw_base_from·to 端点 / facing_origin·facing_target / 位置基准 / selector_anchor 的 origin）；
+1. 开关只管**点源**（follow 位置 / look_at 系 / yaw_base_from·to 端点 / position_origin·facing_target / 位置基准 / selector_anchor 的 origin）；
 2. **不扩到 motion 模型输入**（那是另一条线，混入即复杂化）；
 3. 现有字段**不迁移不改名**——本开关是给点源对象加一维，不是重构既有字段；
 4. 坐标/方块/结构类不需要写该值（写了也无效果，validator 可提示）。
 
 #### 5. 字段形态（已落地）
 
-- 点源字段配套 `<字段>_time` 枚举：`facing_origin_time` / `facing_target_time` / `yaw_base_from_time` / `yaw_base_to_time` / `look_at_time`，取值 `"live" | "snapshot"`，缺省 `"live"`（未知值回落 live + validator 报错）；
+- 点源字段配套 `<字段>_freeze` 布尔：`position_origin_freeze` / `facing_target_freeze` / `yaw_base_from_freeze` / `yaw_base_to_freeze` / `look_at_freeze`（`true` 冻结 / `false` 实时，缺省 `false`；未知类型 validator 报错）；
 - 仅对 SELECTOR 形态生效（§2 WORLD 行修正 + §4.4）；静态来源写时态 = 无效果 + validator 提示。
 
 #### 6. 验收（供 C 批任务书引用）
@@ -180,7 +180,7 @@
 
 #### 8. 落地记录（2026-10-14，C7）
 
-- **实现**：`PointSource` 加 `Time{LIVE,SNAPSHOT}` 分量 + `parseTime(<字段>_time)`；新 `camera/source/PointSourceSnapshots`（按「片段引用 + 槽位 6」分桶取点表，null 不入表，分配 ∝ 片段数）；`EntityTargetResolver.resolvePointSource` 快照门（SNAPSHOT×SELECTOR×已注入时：命中读回 / 未命中现算非 null 才存）；`attachClip` 仿 `attachFrame` 范式注入当前片段（morph 两侧各注入 `renderMorph:250/255`）；生命周期 = onSeek/onStop/onScriptReplaced 清表、onLoopRestart 不动（延续）。
+- **实现**（C7 当时）：旧点源类型加 `Time{LIVE,SNAPSHOT}` 分量 + `parseTime(<字段>_time)`；新 `PointSourceSnapshots`（按「片段引用 + 槽位 6」分桶取点表，null 不入表，分配 ∝ 片段数）；`EntityTargetResolver` 的快照门（SNAPSHOT×SELECTOR×已注入时：命中读回 / 未命中现算非 null 才存）；`attachClip` 仿 `attachFrame` 范式注入当前片段（morph 两侧各注入 `renderMorph:250/255`）；生命周期 = onSeek/onStop/onScriptReplaced 清表、onLoopRestart 不动（延续）。J-1 后这些符号已换代为 `PointKinds` / `PointKind` / `PointFrame` / `PointOffset` / `EntityPoint` + `PositionSpace` 与 `FreezeStore`。
 - **capture 语义 = lazy**（首次求值且解析非 null 那帧捕获；对「快照点源写在片段首段」的常规用法与「clip 开始取一次」逐位等价；fixture 把快照点源放首段）。
 - **WORLD 行修正**：设计稿 §2 表「玩家（WORLD）实时 = 跟着玩家走」与代码现状不符——`"player"` 形态取的是 `originPos`（`ScriptPlayer.start` 取一次玩家位置，此后永不变），已是快照语义；实时跟随玩家走的是选择器 `@p` 路径。按「缺省=现状、逐位零变化」铁律，时态字段仅对 SELECTOR 形态生效，WORLD/坐标/方块/结构写时态 = 无效果 + validator 提示；本文 §2 表已就地修正。
 - **验收证据**（详见 commit）：未改路径对拍 53 fixture 6247 帧六参数 raw-bits 逐字节一致；快照语义探针 32/32（冻结/seek 重取/loop 延续/morph 两侧/槽位隔离/静态无效果/null 不入表）；零分配稳态 2e5×4 轮 = 0 字节；icv 151 脚本基线 2 条不变 + 新 fixture ×2 [OK]；compileJava 全绿。
@@ -188,11 +188,11 @@
 
 #### 9. 补记：点源形态注册可扩展性（2026-10-14 用户口径）
 
-**点源形态要方便后续注册新增**。未来可能新增点源形态——例如「扫群系、读群系地表、出一套坐标组，根据坐标组自动运镜」这类来源；现在不做，但 PointSource 的形态定义/解析/判据/schema 写法必须让后面新增形态时**注册成本低**（不要每加一个形态就到处改）。
+**点源形态要方便后续注册新增**。未来可能新增点源形态——例如「扫群系、读群系地表、出一套坐标组，根据坐标组自动运镜」这类来源；现在不做，但点源的形态定义/解析/判据/schema 写法必须让后面新增形态时**注册成本低**（不要每加一个形态就到处改）。
 
 落地口径：
 
-1. 求值分发在 `EntityTargetResolver.resolvePointSource` 的 switch——新增形态难免动这里（求值逻辑所在），但**解析/判据/schema 侧**（`PointSource.parse` / `PositionData.originKindOf` / `PointSource.kindOf` / TrackSchemas 字段）应尽量收敛在少数注册点，加形态 = 加一处 case + schema 行，不动消费方。
+1. 求值分发在 `EntityTargetResolver` 的点源 switch——新增形态难免动这里（求值逻辑所在），但**解析/判据/schema 侧**（`PointKinds.kindOf` / `PointKinds.parseBlock` / `PointKind` / `PointSourceSpec` / TrackSchemas 字段）应尽量收敛在少数注册点，加形态 = 加一处 case + schema 行，不动消费方。
 2. C7 快照门是显式 `kind() == SELECTOR` 单点判定（v1 裁定范围）；槽位表/快照存储本身形态无关（按 clip+slot 分桶）。未来新形态若是「解析一次恒定」类型天然不需要快照；若是「实时扫描」类型想冻结，放开对应 Kind 即可——扩展点保持开放。
 
-此为**记录口径**，不改已提交代码（当前实现已满足：快照门单点、槽位表形态无关、解析集中在 PointSource.parse 一处）。真正实现「群系地表坐标组」点源时另立任务书。
+此为**记录口径**，不改已提交代码（当前实现已满足：快照门单点、槽位表形态无关、解析集中在 `PointKinds` 一处）。真正实现「群系地表坐标组」点源时另立任务书。

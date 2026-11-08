@@ -12,6 +12,7 @@ import com.immersivecinematics.immersive_cinematics.script.object.ObjectSlotLayo
 import com.immersivecinematics.immersive_cinematics.script.object.SampledClip;
 import com.immersivecinematics.immersive_cinematics.script.object.SampledProperty;
 import com.immersivecinematics.immersive_cinematics.script.object.position.BaseSource;
+import com.immersivecinematics.immersive_cinematics.script.object.position.EntityPoint;
 import com.immersivecinematics.immersive_cinematics.script.object.position.FacingSource;
 import com.immersivecinematics.immersive_cinematics.script.object.position.FacingSpec;
 import com.immersivecinematics.immersive_cinematics.script.object.position.FreezeStore;
@@ -22,6 +23,9 @@ import com.immersivecinematics.immersive_cinematics.script.object.position.Orien
 import com.immersivecinematics.immersive_cinematics.script.object.position.OrientationResult;
 import com.immersivecinematics.immersive_cinematics.script.object.position.OrientationSpec;
 import com.immersivecinematics.immersive_cinematics.script.object.position.PathTangent;
+import com.immersivecinematics.immersive_cinematics.script.object.position.PointFrame;
+import com.immersivecinematics.immersive_cinematics.script.object.position.PointKinds;
+import com.immersivecinematics.immersive_cinematics.script.object.position.PointOffset;
 import com.immersivecinematics.immersive_cinematics.script.object.position.PointSourceSpec;
 import com.immersivecinematics.immersive_cinematics.script.object.position.PositionEvaluator;
 import com.immersivecinematics.immersive_cinematics.script.object.position.PositionMode;
@@ -157,6 +161,9 @@ public final class ObjectCameraEvaluator {
     /** 本次 {@link #evaluate} 产出的合成参数；无位置结果时 = {@code null}。 */
     private CameraLaneComposite composite;
 
+    /** 最近一次 {@link #evaluate} 的采样结果（供 lane 快照直接复用）；尚无求值 = {@code null}。 */
+    private SampledClip lastSample;
+
     private int clipKeyCounter;
 
     /**
@@ -189,7 +196,7 @@ public final class ObjectCameraEvaluator {
             boolDefaults[path.ordinal()] = def instanceof Boolean bool && bool;
             stringDefaults[path.ordinal()] = def instanceof String string ? string : "";
         }
-        // 旧链路 look_at=coordinate 的 Y 缺省是 64（schema 无缺省值，这里显式承接）
+        // look_at=coordinate 的 Y 缺省是 64（schema 无缺省值，这里显式承接）
         floatDefaults[P.LOOK_TARGET_Y.ordinal()] = 64f;
     }
 
@@ -206,11 +213,11 @@ public final class ObjectCameraEvaluator {
      * 求值一个片段在 {@code executionLocalTime} 的相机状态，并产出合成参数（{@link #composite()}）。
      *
      * @param capture  {@code true} = 不推进跨帧求值状态（{@link #lastWorldPos} 不变）
-     * @param laneRank 该片段所在 lane 的层号（本轮无 motion / breath，保留给后续任务）
      * @return 六参数快照；位置点源 / 参考系不可解析 = {@code null}（片段本帧无画面）
      */
-    public CameraState evaluate(Clip clip, double executionLocalTime, boolean capture, int laneRank) {
+    public CameraState evaluate(Clip clip, double executionLocalTime, boolean capture) {
         SampledClip sample = cache.sample(clip, executionLocalTime);
+        lastSample = sample;
         ClipValueView values = cache.values(clip);
         PathBinding binding = pathBindings.bindingFor(clip, executionLocalTime);
         PositionSpec positionSpec = positionSpec(sample, clip, binding, executionLocalTime);
@@ -246,13 +253,18 @@ public final class ObjectCameraEvaluator {
         return composite;
     }
 
+    /** 最近一次 {@link #evaluate} 的采样结果；尚无求值 = {@code null}。 */
+    public SampledClip sample() {
+        return lastSample;
+    }
+
     /**
      * 片段可用性（新格式）：只检查 {@code [0,duration]} 内的对象。候选时刻 = 各对象编译后（超界关键帧
      * 已被过滤）的关键帧时刻；静态对象用 {@code t=0} 检查一次。任一候选时刻位置点源 / 参考系不可解析，
      * 或启用的 {@code look_at} 目标不可解析 → 不可用。超界关键帧不参与，也不让片段不可用。
      */
     public boolean isClipUsable(Clip clip) {
-        if (!clip.hasObjects()) {
+        if (!clip.hasObjectProperties()) {
             return true;
         }
         for (double time : usableTimes(clip)) {
@@ -290,6 +302,7 @@ public final class ObjectCameraEvaluator {
         usableTimes.clear();
         clipKeyCounter = 0;
         composite = null;
+        lastSample = null;
         lastWorldPos = originPos;
     }
 
@@ -333,7 +346,7 @@ public final class ObjectCameraEvaluator {
         };
         PointSourceSpec target = PointSourceSpec.point(str(sample, P.FACING_TARGET),
                 f(sample, P.FACING_TARGET_X), f(sample, P.FACING_TARGET_Y), f(sample, P.FACING_TARGET_Z),
-                b(sample, P.FACING_TARGET_FREEZE), PointSource.EntityPoint.CENTER,
+                b(sample, P.FACING_TARGET_FREEZE), EntityPoint.CENTER,
                 offset(sample, P.FACING_TARGET_OFFSET_X, P.FACING_TARGET_OFFSET_Y, P.FACING_TARGET_OFFSET_Z,
                         P.FACING_TARGET_OFFSET_SPACE));
         return new FacingSpec(source, target, str(sample, P.FACING_ENTITY));
@@ -364,17 +377,17 @@ public final class ObjectCameraEvaluator {
                 .build();
     }
 
-    /** 连线端点 / 方向源载荷的通用点源规格（实体取点 = 脚底中心，与旧链路一致）。 */
+    /** 连线端点 / 方向源载荷的通用点源规格（实体取点 = 脚底中心）。 */
     private PointSourceSpec pointSpec(SampledClip sample, P value, P x, P y, P z,
                                       P offsetX, P offsetY, P offsetZ, P offsetSpace, P freeze) {
         return PointSourceSpec.point(str(sample, value), f(sample, x), f(sample, y), f(sample, z),
-                b(sample, freeze), PointSource.EntityPoint.FOOT,
+                b(sample, freeze), EntityPoint.FOOT,
                 offset(sample, offsetX, offsetY, offsetZ, offsetSpace));
     }
 
     private LookAtSpec lookAtSpec(SampledClip sample) {
         String kind = str(sample, P.LOOK_AT);
-        PointSource.Offset offset = offset(sample, P.LOOK_OFFSET_X, P.LOOK_OFFSET_Y, P.LOOK_OFFSET_Z,
+        PointOffset offset = offset(sample, P.LOOK_OFFSET_X, P.LOOK_OFFSET_Y, P.LOOK_OFFSET_Z,
                 P.LOOK_OFFSET_SPACE);
         boolean freeze = b(sample, P.LOOK_FREEZE);
         return switch (kind) {
@@ -493,7 +506,7 @@ public final class ObjectCameraEvaluator {
         if (raw == null || spec.mode() != PositionMode.RELATIVE || spec.space() != PositionSpace.BASE) {
             return raw;
         }
-        PointSource.Frame frame = position.frame();
+        PointFrame frame = position.frame();
         if (frame == null) {
             return raw;
         }
@@ -506,14 +519,14 @@ public final class ObjectCameraEvaluator {
             case PLAYER -> world.playerActivation() != null;
             case COORDINATE -> spec.structure().isEmpty() || world.structureCenter(spec.structure()) != null;
             case ENTITY -> world.entityPoint("look_at", spec.selector(),
-                    new PointSource.EntityPoint(spec.partX(), spec.partY(), spec.partZ())) != null;
+                    new EntityPoint(spec.partX(), spec.partY(), spec.partZ())) != null;
             case BLOCK -> {
                 if (spec.block().isEmpty()) {
                     yield false;
                 }
-                PointSource block = PointSource.blockFromString(spec.block());
+                PointKinds.BlockRef block = PointKinds.parseBlock(spec.block());
                 yield block.blockId() != null && !block.blockId().isEmpty()
-                        && world.blockCenter(block.blockId(), block.blockRadius()) != null;
+                        && world.blockCenter(block.blockId(), block.radius()) != null;
             }
         };
     }
@@ -563,10 +576,10 @@ public final class ObjectCameraEvaluator {
         };
     }
 
-    private PointSource.Offset offset(SampledClip sample, P x, P y, P z, P space) {
-        PointSource.Space resolved = "base".equals(str(sample, space)) ? PointSource.Space.BASE
-                : PointSource.Space.WORLD;
-        return new PointSource.Offset(new Vec3(f(sample, x), f(sample, y), f(sample, z)), resolved);
+    private PointOffset offset(SampledClip sample, P x, P y, P z, P space) {
+        PositionSpace resolved = "base".equals(str(sample, space)) ? PositionSpace.BASE
+                : PositionSpace.WORLD;
+        return new PointOffset(new Vec3(f(sample, x), f(sample, y), f(sample, z)), resolved);
     }
 
     // ── 槽位读取（未声明 / 未采样 = schema 缺省） ──

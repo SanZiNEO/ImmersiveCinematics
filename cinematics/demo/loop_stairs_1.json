@@ -9,9 +9,6 @@
     "block_keyboard": false,
     "block_mouse": false,
     "block_mob_ai": false,
-    "hide_hud": false,
-    "hide_skip_hud": true,
-    "render_player_model": true,
     "pause_when_game_paused": true,
     "interruptible": true,
     "skippable": true,
@@ -35,7 +32,34 @@
         },
         "repeatable": true
       }
-    ]
+    ],
+    "screen_layers": {
+      "hud.hotbar": true,
+      "hud.crosshair": true,
+      "hud.health": true,
+      "hud.experience": true,
+      "hud.bossbar": true,
+      "hud.chat": true,
+      "hud.scoreboard": true,
+      "hud.action_bar": true,
+      "hud.title": true,
+      "hud.subtitle": true,
+      "hud.skip_prompt": false,
+      "viewmodel": true,
+      "view_bobbing": true,
+      "screen_effects": true,
+      "player_model": true,
+      "status": true,
+      "hotbar": true,
+      "crosshair": true,
+      "health": true,
+      "bossbar": true,
+      "chat": true,
+      "scoreboard": true,
+      "action_bar": true,
+      "title": true,
+      "subtitles": true
+    }
   },
   "timeline": {
     "tracks": [

@@ -5,6 +5,7 @@ import com.immersivecinematics.immersive_cinematics.script.object.ClipValueView;
 import com.immersivecinematics.immersive_cinematics.script.object.ObjectCallpoints;
 import com.immersivecinematics.immersive_cinematics.script.object.ObjectSlotLayout;
 import com.immersivecinematics.immersive_cinematics.script.object.SampledClip;
+import com.immersivecinematics.immersive_cinematics.script.object.position.EntityPoint;
 import com.immersivecinematics.immersive_cinematics.script.object.position.PointSourceSpec;
 import com.immersivecinematics.immersive_cinematics.script.object.position.WorldContext;
 import com.immersivecinematics.immersive_cinematics.selector.EntitySelectorService;
@@ -27,11 +28,10 @@ import java.util.Map;
  * {@link EntityTargetResolver#selectorAnchor} / {@link EntityTargetResolver#selectorPick} 同口径：
  * 「写了才覆盖」用 {@link ClipValueView#declared(String)} 判定（schema 缺省值不算声明），
  * 超界关键帧由采样器过滤后 {@link SampledClip#present(int)} 为假，同样不参与。
- * 调用点名单 = {@link ObjectCallpoints#NEW_CALLPOINTS}；旧名 {@code facing_origin} 归一为
- * {@code position_origin}（新格式只登记后者）。</p>
+ * 调用点名单 = {@link ObjectCallpoints#NEW_CALLPOINTS}。</p>
  *
  * <p>平滑：{@code look_at} 实体点走通道 {@code point}、{@code position_origin} 实体点走通道 {@code pos}
- * （与旧链路同名），时长取该调用点的 {@code selector_switch_smooth}；其余调用点不引入额外平滑。
+ * （与调用点字段同名），时长取该调用点的 {@code selector_switch_smooth}；其余调用点不引入额外平滑。
  * 实体取点数学复用 {@link EntityTargetResolver#entityPoint}（包围盒底面中心 + 每轴百分比，
  * {@code FOOT} / {@code CENTER} 与旧算式逐位等值）。</p>
  *
@@ -53,7 +53,7 @@ public final class ObjectWorldContext implements WorldContext {
     private static final int ANCHOR = 4;
     private static final int PICK = 5;
 
-    /** 调用点名 → 槽位表行；旧名 {@code facing_origin} 与 {@code position_origin} 同一行。 */
+    /** 调用点名 → 槽位表行。 */
     private static final Map<String, Integer> CALLPOINTS = callpointIndex();
 
     private final EntitySelectorService service;
@@ -121,27 +121,26 @@ public final class ObjectWorldContext implements WorldContext {
     }
 
     @Override
-    public Vec3 entityPoint(String selector, PointSource.EntityPoint point) {
+    public Vec3 entityPoint(String selector, EntityPoint point) {
         return entityPoint(null, selector, point);
     }
 
     @Override
-    public Vec3 entityPoint(String callpoint, String selector, PointSource.EntityPoint point) {
-        String role = normalize(callpoint);
-        Vec3 raw = entityPointRaw(role, selector, point, anchor(role));
+    public Vec3 entityPoint(String callpoint, String selector, EntityPoint point) {
+        Vec3 raw = entityPointRaw(callpoint, selector, point, anchor(callpoint));
         if (raw == null) {
             return null;
         }
-        String channel = smoothChannel(role);
+        String channel = smoothChannel(callpoint);
         if (channel == null) {
             return raw;
         }
-        float smooth = policy(role).switchSmooth();
+        float smooth = policy(callpoint).switchSmooth();
         if (smooth <= 0f) {
             return raw;
         }
-        // 目标切换 / 丢失后恢复的过渡：与旧链路同通道名、同时长来源
-        return service.smoothTargetPoint(role, anchor(role), selector, channel, raw, smooth);
+        // 目标切换 / 丢失后恢复的过渡：与调用点同通道名、同时长来源
+        return service.smoothTargetPoint(callpoint, anchor(callpoint), selector, channel, raw, smooth);
     }
 
     @Override
@@ -151,8 +150,7 @@ public final class ObjectWorldContext implements WorldContext {
 
     @Override
     public double entityBodyYaw(String callpoint, String selector) {
-        String role = normalize(callpoint);
-        Entity entity = resolve(role, selector, anchor(role));
+        Entity entity = resolve(callpoint, selector, anchor(callpoint));
         return entity != null ? TimeInterpolation.entityBodyYaw(entity) : Double.NaN;
     }
 
@@ -163,8 +161,7 @@ public final class ObjectWorldContext implements WorldContext {
 
     @Override
     public double entityLookPitch(String callpoint, String selector) {
-        String role = normalize(callpoint);
-        Entity entity = resolve(role, selector, anchor(role));
+        Entity entity = resolve(callpoint, selector, anchor(callpoint));
         return entity != null ? TimeInterpolation.entityPitch(entity) : Double.NaN;
     }
 
@@ -178,22 +175,10 @@ public final class ObjectWorldContext implements WorldContext {
         return pointLocator != null ? pointLocator.resolveStructurePos(structureId) : null;
     }
 
-    // ── 捕获求值隔离：转发到共用选择器服务 ──
-
-    /** 捕获求值隔离：把选择器锁状态深拷贝留底（与 {@link EntityTargetResolver#snapshotLockState()} 同一份）。 */
-    public void snapshotLockState() {
-        service.snapshotLockState();
-    }
-
-    /** 捕获求值隔离：把选择器锁状态恢复为最近一次留底。 */
-    public void restoreLockState() {
-        service.restoreLockState();
-    }
-
     // ── 内部 ──
 
     /** 实体解析 + 包围盒取点（{@code anchor} 显式给出，供锚点 {@code origin} 的绕回防护）。 */
-    private Vec3 entityPointRaw(String callpoint, String selector, PointSource.EntityPoint point, String anchor) {
+    private Vec3 entityPointRaw(String callpoint, String selector, EntityPoint point, String anchor) {
         Entity entity = resolve(callpoint, selector, anchor);
         if (entity == null) {
             return null;
@@ -333,19 +318,10 @@ public final class ObjectWorldContext implements WorldContext {
         return row != null ? row : -1;
     }
 
-    /** 旧名 {@code facing_origin} 归一为 {@code position_origin}（新格式只登记后者）。 */
-    private static String normalize(String callpoint) {
-        return "facing_origin".equals(callpoint) ? "position_origin" : callpoint;
-    }
-
     private static Map<String, Integer> callpointIndex() {
         Map<String, Integer> index = new HashMap<>();
         for (int row = 0; row < ObjectCallpoints.NEW_CALLPOINTS.size(); row++) {
             index.put(ObjectCallpoints.NEW_CALLPOINTS.get(row), row);
-        }
-        Integer positionOrigin = index.get("position_origin");
-        if (positionOrigin != null) {
-            index.put("facing_origin", positionOrigin);
         }
         return Map.copyOf(index);
     }

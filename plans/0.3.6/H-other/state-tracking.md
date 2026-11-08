@@ -119,7 +119,7 @@
 | 五份记录「同一信号只写一处」 | ①持久布尔 → 事实；②tracker → 事实；③账本只留当前态（观看者 / 暂停 / 时间线基准 / 事件游标），起止与投票进事实；④区域进入态 → `TriggerEdge` 边沿状态 + 进入/离开事实；⑤客户端镜像删除 | 起止信号：事实（历史）+ 观看者集合（当前态）是两种真相，不是双写 |
 | 跳过票 | `SKIP_VOTE` 事实 + `FactLedger` 的实例投票索引（派生索引，写事实时更新） | 索引随实例结束 `clearInstance` 清理；重复投票幂等 |
 | 客户端镜像 | `S2CTriggerStateSyncPacket` + `ClientTriggerStateCache` 删除（全仓零读面） | 展示面归后续轮次（见 §七 移交） |
-| 旧存档 | v1 一次性转换：三集合 → 事实；`triggered_scripts` 旧键仅在该脚本内**唯一**匹配时映射到新身份，歧义/无匹配丢弃（debug 日志） | 不保留兼容读取层；v2 起按事实存储 |
+| 旧存档 | v1 一次性转换已移除，0.3.6 不再兼容旧触发状态：非 v2 版本按空处理并 WARN | 不保留兼容读取层；v2 起按事实存储 |
 
 **验证（2026-11-03）**：`FactStoreProbe` 100 checks、`PrereqFactsProbe` 50、`TrackerFactsProbe` 120、`IdentityProbe` 32、`WindowProbe` 111 全 PASS；旧 231 支解析 / 校验基线逐文件 diff 0；Fabric 实机：穿越用例（同 box，未开启 `sweep` 不触发、开启后触发）、`dwell=40`（进入后 1.2s 未触发、约 3s 触发）、持久事实文件 `version:2` 且含 `playback_started` / `playback_finished` / `trigger_fired`。
 

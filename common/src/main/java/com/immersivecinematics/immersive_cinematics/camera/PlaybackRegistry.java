@@ -177,12 +177,6 @@ final class PlaybackRegistry {
         return top != null && top.isSkippable();
     }
 
-    /** 顶层实例的脚本 id（无活跃实例时 {@code "<none>"}）。 */
-    String activeScriptId() {
-        PlaybackInstance instance = topInstance();
-        return instance != null ? instance.scriptId() : "<none>";
-    }
-
     /** 顶层实例的播放器是否在播放（脚本播放模式）。 */
     boolean isScriptMode() {
         PlaybackInstance instance = topInstance();

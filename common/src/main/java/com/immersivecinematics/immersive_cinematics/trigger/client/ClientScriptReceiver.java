@@ -147,7 +147,7 @@ public class ClientScriptReceiver {
     /**
      * 停止服务端指定脚本：先按实例定位，再回退到取消排队项，两者都不匹配则忽略。
      *
-     * refId 非空时回一条 stop ACK；旧格式 stop 无 refId，其通知由 forceDeactivate 链路覆盖。
+     * refId 非空时回一条 stop ACK；不带 refId 的 stop，其通知由 forceDeactivate 链路覆盖。
      */
     public static void handleStopScript(S2CStopScriptPacket packet) {
         Minecraft.getInstance().execute(() -> {
@@ -167,7 +167,7 @@ public class ClientScriptReceiver {
                 } else {
                     LOGGER.info("Stop ignored (no playing instance / queued entry): {}", scriptId);
                 }
-                // stop 回执（refId 非空才回）；旧格式 stop 无 refId，其通知由 forceDeactivate 链路覆盖
+                // stop 回执（refId 非空才回）；不带 refId 的 stop，其通知由 forceDeactivate 链路覆盖
                 if (refId != null && !refId.isEmpty()) {
                     com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard.sendToServer("C2SScriptFinished(stop ack)",
                             () -> com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(

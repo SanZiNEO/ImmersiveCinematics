@@ -1,6 +1,5 @@
 package com.immersivecinematics.immersive_cinematics.script.object.position;
 
-import com.immersivecinematics.immersive_cinematics.camera.source.PointSource;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.Objects;
@@ -58,7 +57,7 @@ public final class OrientationEvaluator {
         Objects.requireNonNull(freezes, "freezes");
 
         Vec3 world = position == null ? null : position.world();
-        PointSource.Frame frame = position == null ? null : position.frame();
+        PointFrame frame = position == null ? null : position.frame();
 
         if (spec.lookAt() != null && world != null) {
             Vec3 target = resolveLookAt(spec.lookAt(), frame, ctx, freezes, clipKey);
@@ -123,7 +122,7 @@ public final class OrientationEvaluator {
     }
 
     /** 注视目标取点（含偏移 / 冻结）；不可解析 = {@code null}。 */
-    private static Vec3 resolveLookAt(LookAtSpec spec, PointSource.Frame frame, WorldContext ctx,
+    private static Vec3 resolveLookAt(LookAtSpec spec, PointFrame frame, WorldContext ctx,
                                       FreezeStore freezes, String clipKey) {
         Vec3 point = switch (spec.kind()) {
             case PLAYER -> ctx.playerActivation();
@@ -131,13 +130,13 @@ public final class OrientationEvaluator {
                     ? new Vec3(spec.targetX(), spec.targetY(), spec.targetZ())
                     : ctx.structureCenter(spec.structure());
             case ENTITY -> ctx.entityPoint("look_at", spec.selector(),
-                    new PointSource.EntityPoint(spec.partX(), spec.partY(), spec.partZ()));
+                    new EntityPoint(spec.partX(), spec.partY(), spec.partZ()));
             case BLOCK -> blockPoint(spec.block(), ctx);
         };
         if (point == null) {
             return null;
         }
-        PointSource.Offset offset = spec.offset();
+        PointOffset offset = spec.offset();
         if (offset != null) {
             point = offset.apply(point, frame);
         }
@@ -147,13 +146,13 @@ public final class OrientationEvaluator {
         return point;
     }
 
-    /** 方块点源（{@code block:<id>[:radius]}；缺前缀时按裸 id + 缺省半径）→ 方块中心。 */
+    /** 方块点源（{@code block:<id>[:radius]} / 裸 {@code <id>[:radius]}）→ 方块中心。 */
     private static Vec3 blockPoint(String value, WorldContext ctx) {
         if (value == null || value.isEmpty()) {
             return null;
         }
-        PointSource block = PointSource.blockFromString(value.startsWith("block:") ? value : "block:" + value);
-        return ctx.blockCenter(block.blockId(), block.blockRadius());
+        PointKinds.BlockRef block = PointKinds.parseBlock(value);
+        return ctx.blockCenter(block.blockId(), block.radius());
     }
 
     /** 朝向目标方向 → {@code [yaw, pitch]}（度）；水平分量退化时 yaw 沿用 atan2(0,0) 结果、pitch = ±90。 */
@@ -180,7 +179,7 @@ public final class OrientationEvaluator {
         return new float[]{yaw, pitch};
     }
 
-    /** 未解析（NaN / 无穷）= 0（world 基准），与旧链路一致。 */
+    /** 未解析（NaN / 无穷）= 0（world 基准）。 */
     private static double finiteOrZero(double value) {
         return Double.isFinite(value) ? value : 0.0;
     }

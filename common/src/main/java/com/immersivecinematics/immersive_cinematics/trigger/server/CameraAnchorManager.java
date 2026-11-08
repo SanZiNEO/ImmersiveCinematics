@@ -56,10 +56,6 @@ public final class CameraAnchorManager {
         }
     }
 
-    public boolean hasAnchor(UUID player) {
-        return anchors.containsKey(player);
-    }
-
     /** 服务端停止 / 换档时的防御性全清。 */
     public void clearAll() {
         anchors.clear();

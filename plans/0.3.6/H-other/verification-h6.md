@@ -106,7 +106,7 @@ uv run --with pillow --with numpy python tower_count.py fabric/run/lane-captures
 
 ## 三、R1 外部 overlay（第三方模组）
 
-**关闭**：功能已实现并开放接口 —— `screen_layers` / `screen_layer_mode` 的接管与按分类重画由 `api/HudLayerRegistry` 对外暴露，第三方模组按接口接入；接管判定路径已由 H-5 的「注册 overlay + Pre 自绘红方块」像素对照验证（`allowlist` 清空、`normal` 保留）。
+**关闭**：功能已实现并开放接口 —— `screen_layers` 的接管与按分类重画由 `api/HudLayerRegistry` 对外暴露，第三方模组按接口接入；接管判定路径已由 H-5 的「注册 overlay + Pre 自绘红方块」像素对照验证（接管时红块清空，未接管时保留）。
 
 ---
 

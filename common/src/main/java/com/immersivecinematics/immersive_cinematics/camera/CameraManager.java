@@ -71,7 +71,6 @@ public class CameraManager implements CameraApi, PlaybackApi {
     /** 暂停联动取并集：任一游戏实例声明 {@code pause_when_game_paused} 即 {@code true}（编辑器实例不参与）。 */
     public boolean isAnyPauseWhenGamePaused() { return registry.isAnyPauseWhenGamePaused(); }
     public boolean isTopInstanceSkippable() { return registry.isTopInstanceSkippable(); }
-    public String getActiveScriptId() { return registry.activeScriptId(); }
     public boolean isScriptMode() { return registry.isScriptMode(); }
     @Override
     public boolean hasActiveCameraClip() { return registry.hasActiveCameraClip(); }
@@ -257,8 +256,8 @@ public class CameraManager implements CameraApi, PlaybackApi {
      * {@link #getCameraState()} 一致。「最上层」= 跨轨拼接顺序的最后一个 lane（轨道顺序 + 轨道内 clip 顺序），
      * 与渲染叠放次序一致。</p>
      *
-     * <p>旧格式片段的 lane 合成参数为 {@code null}（渲染侧按旧插值器取值），此处回落
-     * {@link CameraLaneComposite#DEFAULT}——即旧链路缺省（全屏 / 不透明 / full mask），与渲染侧同义；
+     * <p>无求值结果时 lane 合成参数为 {@code null}，此处回落
+     * {@link CameraLaneComposite#DEFAULT}（全屏 / 不透明 / full mask），与渲染侧同义；
      * 因此本方法只在无活跃 lane 时返回 {@code null}。</p>
      */
     @Override
@@ -301,8 +300,6 @@ public class CameraManager implements CameraApi, PlaybackApi {
     public boolean isDirectControlWinner() {
         return coverChain.winnerPriority() > BaseCameraProvider.PRIORITY_SCRIPT_DIRECTOR;
     }
-    /** 当前镜头 yaw（度；方向性预加载用）。 */
-    public float getCameraYaw() { return stateHolder.properties().getYaw(); }
     /** 编辑器直控写侧（五参数，位置不动）：写完立即刷新统一快照。 */
     public void setCameraDirect(float yaw, float pitch, float roll, float fov, float zoom) {
         if (!isActive()) return;

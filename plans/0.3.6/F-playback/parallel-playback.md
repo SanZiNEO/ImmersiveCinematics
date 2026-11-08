@@ -176,7 +176,7 @@
 
 ##### 3.2 运行时控制取并集（已确认）
 
-行为开关（`hide_hud`、键鼠屏蔽、`suppress_bob` 等）逐位取**并集**：任一实例要求隐藏 / 屏蔽即生效；该实例结束后，按剩余实例重新求并集。
+行为开关（`screen_layers` / `screen_layer_mode`、键鼠屏蔽、`block_mob_ai` 等）逐位取**并集**：任一实例要求隐藏 / 屏蔽即生效；该实例结束后，按剩余实例重新求并集。
 
 ##### 3.3 主视角与听者（已确认·2026-10-07）
 
@@ -311,7 +311,7 @@
 
 **范围**：运行时控制取并集（§3.2）落地——`CinematicController.apply(RuntimeBehavior)` 拆成两条职责：`applyLifecycle(behavior)`（只写生命周期开关 skippable / interruptible / holdAtEnd / pauseWhenGamePaused）与 `recomputeUnion(List<RuntimeBehavior>)`（行为开关逐位并集）。消费方一行未改（仍读同一组全局 getter，值 = 并集）；实例增删时 `CameraManager` 重算（`startScriptInternal` 非预览分支、`deactivateNow` 出列后按剩余实例）。
 
-**并集口径**：5 个非三态开关（blockKeyboard / blockMouse / blockMobAi / hideHud / renderPlayerModel）逐位 OR；11 个三态开关 + suppressDistortion 先按**各实例自己的 hide_hud** 解析有效值再 OR；`hud_layers` 键集 = 各实例声明键并集，每个键的值 = **全部实例**有效值 OR（未声明该键的实例按自身 hide_hud 参与投票）。空/全 null = 无实例要求 → 复位默认。
+**并集口径**（现行）：`blockKeyboard` / `blockMouse` 只由非编辑器实例投票；`blockMobAi` 全部实例 OR；`screen_layer_mode` 任一实例 `allowlist` → `allowlist`；`screen_layers` 键集 = 各实例**显式声明**键并集，值按隐藏方向 OR（任一实例判隐藏即隐藏），未声明该键的实例不投票。空集 = 无实例要求 → 复位默认。（G 轮旧口径为 `hide_hud` / `hide_*` / `hud_layers` 逐位 OR 与回落，那些字段已在 J-1 移除。）
 
 **验证**：单实例与改造前逐位一致；两实例并存逐位 OR + 顺序无关；实例结束后按剩余实例重算；10057 项冒烟（含 400 组随机多实例与独立参考实现比对）。注意：本版本 CameraManager 仍至多 1 个活跃实例，多实例并集只在离线性质测试验证，未在真实客户端跑过双实例。
 
@@ -407,4 +407,4 @@
 
 - §1“优化模组与光影模组普遍在做二次渲染，说明多画面的渲染压力本身在可控范围内”—— 属论据性陈述，未指定具体模组/文件，未验证（`render-second-pass-cost.md` 另有“仓库内不存在第二遍世界渲染”的相反限定）。
 - §3.7“事件时间线、触发状态机按实例维护”“跳过投票按实例记账”—— 为**方向**（当前均为按 scriptId 记账），非现状断言；作为方向保留，不判对错。
-- §3.2 行为开关“逐位取并集”（`hide_hud`/键鼠屏蔽/`suppress_bob`）—— 为**目标**语义；当前 `CinematicController` 为单一全局开关，未按实例求并集，未逐字段核实（方向稿保留）。
+- §3.2 行为开关“逐位取并集”—— 当时为**目标**语义（当时 `CinematicController` 为单一全局开关）；J-1 已按实例求并集（`CinematicController.computeUnion`），字段为 `screen_layers` / `screen_layer_mode` / 键鼠屏蔽 / `block_mob_ai`。

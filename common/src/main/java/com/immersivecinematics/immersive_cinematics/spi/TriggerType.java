@@ -53,8 +53,6 @@ public class TriggerType {
     public ListenStrategy getStrategy() { return strategy; }
     /** 类型级默认轮询间隔（tick）；事件驱动类型为 0。 */
     public int getPollInterval() { return pollInterval; }
-    /** 条件求值器：{@code (玩家, conditions, ctx)} → 是否命中。 */
-    public Evaluator getEvaluator() { return evaluator; }
 
     /**
      * 解析一个注册项的生效轮询间隔（tick）：触发器级 {@code poll_interval} ?? 脚本级

@@ -7,7 +7,7 @@ package com.immersivecinematics.immersive_cinematics.client.rule;
  * 最近一次已完成执行；绑定的规则事实指该绑定最近一次激活。求值侧只读，不建历史、不跨实例。</p>
  *
  * <p>本接口有两个抽象方法，不是函数式接口——{@link #NONE} 提供恒 {@code false} 的空实现，
- * 供旧 3 参 {@link ClientConditions#evaluate} 使用（旧脚本无事实类型，行为逐位不变）。</p>
+ * 供不需要事实查询的调用方（{@code facts == null} 的回落值）使用。</p>
  */
 public interface FactSource {
 
@@ -30,7 +30,7 @@ public interface FactSource {
      */
     boolean ruleFact(String bindingId, boolean actionCompleted);
 
-    /** 空事实源：一切事实恒不成立（旧 3 参求值路径的唯一实现）。 */
+    /** 空事实源：一切事实恒不成立（默认回落值）。 */
     FactSource NONE = new FactSource() {
         @Override
         public boolean clipFact(String clipId, boolean started) {

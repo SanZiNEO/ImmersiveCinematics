@@ -3,7 +3,7 @@
     "id": "bad_removed_hard_hide_hud",
     "name": "故障-已移除 meta.hard_hide_hud",
     "author": "ImmersiveCinematics",
-    "description": "负例：meta.hard_hide_hud 已在 0.3.6 移除，改用 meta.screen_layer_mode（allowlist / normal）",
+    "description": "负例：meta.hard_hide_hud 已在 0.3.6 移除，改用 meta.screen_layers（画面层接管唯一模式，默认生效）",
     "triggers": [
       {
         "id": "trg_1",

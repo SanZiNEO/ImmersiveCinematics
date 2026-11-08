@@ -20,14 +20,4 @@ public record EventRecord(double time, String eventType, String command, Positio
      */
     public record Position(double x, double z, boolean relative) {
     }
-
-    /** 是否有可执行命令（空串是占位，不算）。 */
-    public boolean hasCommand() {
-        return command != null && !command.isEmpty();
-    }
-
-    /** 是否携带玩家移动目标。 */
-    public boolean hasPosition() {
-        return position != null;
-    }
 }

@@ -178,11 +178,6 @@ public final class FourierPathSpec implements PathSpec {
         return period;
     }
 
-    /** 是否周期形态。 */
-    public boolean isPeriodic() {
-        return periodic;
-    }
-
     /** 起点速度 {@code V0}（位置 / u，仅非周期形态生效）。 */
     public Vec3 startVelocity() {
         return startVelocity;
@@ -202,11 +197,11 @@ public final class FourierPathSpec implements PathSpec {
         return values.toArray(new Vec3[0]);
     }
 
-    // ========== 与 FourierFit 共用的基函数 ==========
+    // ========== 基函数 ==========
 
     /**
      * 非周期趋势项 {@code Q(t) = h00·from + h10·(T·V0) + h01·to + h11·(T·V1)}。
-     * 求值器与 {@link FourierFit} 共用这一算式，拟合减趋势与求值不会漂移。
+     * 拟合减趋势与求值共用这一算式，不会漂移。
      */
     static Vec3 trend(Vec3 from, Vec3 to, Vec3 startVelocity, Vec3 endVelocity, double t, double period) {
         double t2 = t * t;

@@ -252,7 +252,7 @@ ClipExecution
 | 无限只无自然完成、不禁止后续片段 | 已实现（I-2）：`ScriptValidator` 不再把「无限片段后仍有片段」判禁播；账本对无限记录恒 `done=false`、无有限窗口末端 | 后续片段可达性交作者编排与显式依赖诊断，不做框架禁播 |
 | `windowEnd`/`contentEnd` 只做派生显示/定位 | 已实现（I-2）：`Clip.getWindowEnd()` 与 `ClipExecutionLedger.contentEnd()` 对无限执行抛 `IllegalStateException`；调用方先判 `hasFiniteWindowEnd()` / `hasFiniteContentEnd()`；完成只认账本 `done` | 面向显示的 `ScriptPlayer.getRemainingTime()` 仍以 `Double.MAX_VALUE` 表示「不会自然结束」，与末端判据分离 |
 | 规则绑定按每次执行独立判定时间门、门前采集、门后提交；到门可挂起整个实例等待判定，成功事实可接力，动作可延迟；待执行动作参与完成但不冻结内容推进 | 未实现（规则轮）：`RuleEngine` 仍以 `clip.rules` 为片段元数据，`once`/`until` 按时间回退重置，规则生命周期截在片段活跃窗；无提前事实采集、实例级挂起、事实接力、延迟动作 | 本轮不接规则引擎，只保留运行期执行上下文 |
-| 过渡每侧效果状态由各自执行持有 | 未实现（轨道轮）：`CameraKeyframeEvaluator` 仍用 `nextClip` motion / `prevClip` breath 混合 | 过渡混合公式按计划留轨道轮，不能当成已实现 |
+| 过渡每侧效果状态由各自执行持有 | 未实现（轨道轮）：`CameraFrameEvaluator` 仍用 `nextClip` motion / `prevClip` breath 混合 | 过渡混合公式按计划留轨道轮，不能当成已实现 |
 
 ## 七、旧循环脚本迁移对照（I-2，只记录差异，不切换格式）
 

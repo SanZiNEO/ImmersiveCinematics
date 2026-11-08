@@ -165,9 +165,4 @@ public class Config {
         debugLogging = value;
         if (provider != null) provider.setBoolean("debugLogging", value);
     }
-
-    public static void setRuleCommandPermissionLevel(int value) {
-        ruleCommandPermissionLevel = value;
-        if (provider != null) provider.setInt("ruleCommandPermissionLevel", value);
-    }
 }

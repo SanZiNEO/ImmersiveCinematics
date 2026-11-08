@@ -1,19 +1,17 @@
 package com.immersivecinematics.immersive_cinematics.script.object.position;
 
-import com.immersivecinematics.immersive_cinematics.camera.source.PointSource;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * 新格式点源规格：来源形态 + 载荷 + 取点 + 一层偏移 + 冻结开关。
+ * 点源规格：来源形态 + 载荷 + 取点 + 一层偏移 + 冻结开关。
  *
- * <p>形态词汇表与旧链路共用 {@link PointSource.Kind}（判据 = {@link PointSource#kindOf(String)}，
- * 一处定义）：{@code player} / {@code coordinate} / {@code block:id[:radius]} / {@code @…} ·
- * {@code uuid:…} 选择器 / 其余非空 = 结构 id。与旧 {@link PointSource} 的差别：时态只有
- * {@code freeze} 布尔（{@code true} = 首次解析成功后固定坐标值，{@code false} = 实时），
- * 不再出现 {@code live}/{@code snapshot} 枚举。</p>
+ * <p>形态词汇表见 {@link PointKind}（判据 = {@link PointKinds#kindOf(String)}，一处定义）：
+ * {@code player} / {@code coordinate} / {@code block:id[:radius]} / {@code @…} · {@code uuid:…} 选择器 /
+ * 其余非空 = 结构 id。时态只有 {@code freeze} 布尔：{@code true} = 首次解析成功后固定坐标值，
+ * {@code false} = 实时。</p>
  *
- * <p>偏移表达空间见 {@link PointSource.Offset}：世界轴 / 基准坐标系；基准系偏移需要调用方给
- * 本帧参考系，{@code null} 表示本帧没有参考系（偏移不生效，与旧口径一致）。</p>
+ * <p>偏移表达空间见 {@link PointOffset}：世界轴 / 基准坐标系；基准系偏移需要调用方给
+ * 本帧参考系，{@code null} 表示本帧没有参考系（偏移不生效）。</p>
  *
  * <p>冻结键：{@link #signature()} 在构造期由全部字段派生（分隔符 {@code U+001F}），运行期只读、
  * 不拼字符串；来源值变化 = 签名变化 = 新桶，避免"第一次捕获后整个片段冻结"的歧义。
@@ -22,34 +20,34 @@ import net.minecraft.world.phys.Vec3;
  * <p>冻结的粒度由求值层决定（见 {@link PositionEvaluator}）：位置点源冻结的是"含位置偏移的世界点"，
  * 不是来源点；连线端点 / 注视点冻结的是各自的取点（含各自偏移）。</p>
  */
-public record PointSourceSpec(PointSource.Kind kind, String selector, String structureId, String blockId,
-                              int blockRadius, Vec3 coordinate, PointSource.EntityPoint entityPoint,
-                              PointSource.Offset offset, boolean freeze, String signature) {
+public record PointSourceSpec(PointKind kind, String selector, String structureId, String blockId,
+                              int blockRadius, Vec3 coordinate, EntityPoint entityPoint,
+                              PointOffset offset, boolean freeze, String signature) {
 
     /** 签名分隔符：单元分隔符，正常选择器 / 结构 id / 方块 id 不会出现。 */
     private static final char SEP = '\u001f';
 
     public PointSourceSpec {
-        entityPoint = entityPoint == null ? PointSource.EntityPoint.FOOT : entityPoint;
-        offset = offset == null ? PointSource.Offset.NONE : offset;
+        entityPoint = entityPoint == null ? EntityPoint.FOOT : entityPoint;
+        offset = offset == null ? PointOffset.NONE : offset;
         signature = derive(kind, selector, structureId, blockId, blockRadius, coordinate, entityPoint, offset, freeze);
     }
 
     /** 常规构造：签名由其余字段在构造期派生，不接受调用方传入。 */
-    public PointSourceSpec(PointSource.Kind kind, String selector, String structureId, String blockId,
-                           int blockRadius, Vec3 coordinate, PointSource.EntityPoint entityPoint,
-                           PointSource.Offset offset, boolean freeze) {
+    public PointSourceSpec(PointKind kind, String selector, String structureId, String blockId,
+                           int blockRadius, Vec3 coordinate, EntityPoint entityPoint,
+                           PointOffset offset, boolean freeze) {
         this(kind, selector, structureId, blockId, blockRadius, coordinate, entityPoint, offset, freeze, null);
     }
 
     /**
      * 位置点源（{@code position_origin}）→ 规格：空来源按表达空间补缺省（不写 = 不显式指定）。
      *
-     * <p>空来源 + {@link PositionSpace#WORLD} = 玩家激活位置（{@link PointSource.Kind#WORLD}，静态）；
-     * 空来源 + {@link PositionSpace#BASE} = 隐式玩家实体 {@code @p}（{@link PointSource.Kind#SELECTOR}，
+     * <p>空来源 + {@link PositionSpace#WORLD} = 玩家激活位置（{@link PointKind#WORLD}，静态）；
+     * 空来源 + {@link PositionSpace#BASE} = 隐式玩家实体 {@code @p}（{@link PointKind#SELECTOR}，
      * 仍是实体选择器，{@code freeze} 按参数生效；缺省 {@code false} 即不冻结）。
-     * 非空来源按 {@link PointSource#kindOf} 分派：{@code coordinate} 读 {@code x/y/z}；
-     * {@code block:id[:radius]} 用 {@link PointSource#blockFromString}；选择器 / 结构 id 原样携带。</p>
+     * 非空来源按 {@link PointKinds#kindOf} 分派：{@code coordinate} 读 {@code x/y/z}；
+     * {@code block:id[:radius]} 用 {@link PointKinds#parseBlock}；选择器 / 结构 id 原样携带。</p>
      *
      * @param origin 形态字符串；{@code null} / 空串 = 不显式指定
      * @param space  偏移表达空间（决定空来源的缺省点源）
@@ -63,14 +61,14 @@ public record PointSourceSpec(PointSource.Kind kind, String selector, String str
                                                  boolean freeze) {
         PositionSpace resolvedSpace = space == null ? PositionSpace.WORLD : space;
         if (origin == null || origin.isEmpty()) {
-            PointSource.Kind kind = resolvedSpace == PositionSpace.BASE
-                    ? PointSource.Kind.SELECTOR : PointSource.Kind.WORLD;
-            String selector = kind == PointSource.Kind.SELECTOR ? "@p" : null;
-            return new PointSourceSpec(kind, selector, null, null, 0, null, PointSource.EntityPoint.FOOT,
-                    PointSource.Offset.NONE, freeze);
+            PointKind kind = resolvedSpace == PositionSpace.BASE
+                    ? PointKind.SELECTOR : PointKind.WORLD;
+            String selector = kind == PointKind.SELECTOR ? "@p" : null;
+            return new PointSourceSpec(kind, selector, null, null, 0, null, EntityPoint.FOOT,
+                    PointOffset.NONE, freeze);
         }
-        return build(PointSource.kindOf(origin), origin, x, y, z, PointSource.EntityPoint.FOOT,
-                PointSource.Offset.NONE, freeze);
+        return build(PointKind.fromOrigin(origin), origin, x, y, z, EntityPoint.FOOT,
+                PointOffset.NONE, freeze);
     }
 
     /**
@@ -86,16 +84,16 @@ public record PointSourceSpec(PointSource.Kind kind, String selector, String str
      * @return 点源规格；空串 / {@code null} = {@code null}
      */
     public static PointSourceSpec point(String value, double x, double y, double z, boolean freeze,
-                                        PointSource.EntityPoint point, PointSource.Offset offset) {
+                                        EntityPoint point, PointOffset offset) {
         if (value == null || value.isEmpty()) {
             return null;
         }
-        return build(PointSource.kindOf(value), value, x, y, z, point, offset, freeze);
+        return build(PointKind.fromOrigin(value), value, x, y, z, point, offset, freeze);
     }
 
     /** 形态 + 载荷 → 规格（{@code kind == null} = 无点源）。 */
-    private static PointSourceSpec build(PointSource.Kind kind, String value, double x, double y, double z,
-                                         PointSource.EntityPoint point, PointSource.Offset offset, boolean freeze) {
+    private static PointSourceSpec build(PointKind kind, String value, double x, double y, double z,
+                                         EntityPoint point, PointOffset offset, boolean freeze) {
         if (kind == null) {
             return null;
         }
@@ -105,8 +103,8 @@ public record PointSourceSpec(PointSource.Kind kind, String selector, String str
                     freeze);
             case SELECTOR -> new PointSourceSpec(kind, value, null, null, 0, null, point, offset, freeze);
             case BLOCK -> {
-                PointSource block = PointSource.blockFromString(value);
-                yield new PointSourceSpec(kind, null, null, block.blockId(), block.blockRadius(), null, point, offset,
+                PointKinds.BlockRef block = PointKinds.parseBlock(value);
+                yield new PointSourceSpec(kind, null, null, block.blockId(), block.radius(), null, point, offset,
                         freeze);
             }
             case STRUCTURE -> new PointSourceSpec(kind, null, value, null, 0, null, point, offset, freeze);
@@ -114,9 +112,9 @@ public record PointSourceSpec(PointSource.Kind kind, String selector, String str
     }
 
     /** 构造期派生签名：全部字段的函数，只在这里拼一次。 */
-    private static String derive(PointSource.Kind kind, String selector, String structureId, String blockId,
-                                 int blockRadius, Vec3 coordinate, PointSource.EntityPoint entityPoint,
-                                 PointSource.Offset offset, boolean freeze) {
+    private static String derive(PointKind kind, String selector, String structureId, String blockId,
+                                 int blockRadius, Vec3 coordinate, EntityPoint entityPoint,
+                                 PointOffset offset, boolean freeze) {
         StringBuilder builder = new StringBuilder(96);
         builder.append(kind == null ? "" : kind.name()).append(SEP);
         append(builder, selector);

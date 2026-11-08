@@ -53,6 +53,5 @@ public class C2SScriptFinishedPacket implements CinematicC2SPacket {
 
     public String getScriptId() { return scriptId; }
     public String getInstanceId() { return instanceId; }
-    public CompletionReason getReason() { return reason; }
     public String getRefId() { return refId; }
 }

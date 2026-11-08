@@ -260,7 +260,7 @@ ClipSampler
 | 设计目标 | 实现 | 说明 |
 |---|---|---|
 | 同一 executionLocalTime 槽位采样、零分配、点源/参考系/朝向通用求值 | 已实现（I-1）：`ObjectSlotLayout`/`SampledClip`/`ClipSampler`（1e6 次 0 字节）；`script/object/position/`（resolver 注入，不接轨道） | 轨道装配/过渡每侧完整状态/路径条目/规则未接 |
-| 每侧完整状态（含本段 motion/breath）→ 过渡混合 | `CameraKeyframeEvaluator.renderMorph` 先混合六参数，再用 `nextClip` 的 motion、`prevClip` 的 breath 补齐 | 现行实现按“混合后套效果”接线；新设计每侧先求完整状态 |
+| 每侧完整状态（含本段 motion/breath）→ 过渡混合 | `CameraFrameEvaluator.renderMorph` 先混合六参数，再用 `nextClip` 的 motion、`prevClip` 的 breath 补齐 | 现行实现按“混合后套效果”接线；新设计每侧先求完整状态 |
 | 某侧无关键帧时按 `value`/所在段求值 | 某侧 `computeInterpolation` 返回 null 时用 `lastWorldPos`/0 兜底 | 旧端点求值路径没有静态片段语义 |
 | 每侧 motion/breath 每帧只推进一次 | 混合后只对 `nextClip`/`prevClip` 各跑一次 | 现行实现缺少两侧各自完整效果状态，不能据此推断每侧已独立推进 |
 | 路径为脚本级集合，按目标片段/端点对索引；RuleDefinition 不可变、RuleBinding 引用目标片段与时间门、RuleActivation 以（实例，绑定，执行）隔离 | 旧 `Clip.curve` 是 clip 级一份 3D 控制点，对每个 from→to 段隐式复用；`objects.curve` 从未实现；规则是片段级 `clip.rules`，没有定义/绑定/时间门分层 | 旧格式只有一份 `curve` 与片段级规则数组；脚本级结构是新增设计，序列化/引用待评审 |

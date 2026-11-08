@@ -1,13 +1,12 @@
 package com.immersivecinematics.immersive_cinematics.script.object.position;
 
-import com.immersivecinematics.immersive_cinematics.camera.source.PointSource;
 import net.minecraft.world.phys.Vec3;
 
 /**
  * 注视目标规格（{@code look_at}）：形态 + 载荷 + 一层偏移 + 冻结开关。
  *
  * <p>形态见 {@link LookAtKind}：{@link LookAtKind#PLAYER} 玩家激活位置；{@link LookAtKind#COORDINATE}
- * 固定坐标（{@link #structure()} 非空时取结构中心，与旧链路一致）；{@link LookAtKind#ENTITY} 实体
+ * 固定坐标（{@link #structure()} 非空时取结构中心）；{@link LookAtKind#ENTITY} 实体
  * 包围盒内按 {@code look_at_part} 百分比取点（0 ~ 100，缺省 50/50/50）；{@link LookAtKind#BLOCK}
  * {@code block:<id>[:radius]} 就近搜索的方块中心。</p>
  *
@@ -19,7 +18,7 @@ import net.minecraft.world.phys.Vec3;
  */
 public record LookAtSpec(LookAtKind kind, String selector, double partX, double partY, double partZ,
                          double targetX, double targetY, double targetZ, String structure, String block,
-                         PointSource.Offset offset, boolean freeze, String signature) {
+                         PointOffset offset, boolean freeze, String signature) {
 
     /** 签名分隔符：单元分隔符。 */
     private static final char SEP = '\u001f';
@@ -29,7 +28,7 @@ public record LookAtSpec(LookAtKind kind, String selector, double partX, double 
         selector = selector == null || selector.isEmpty() ? "@p" : selector;
         structure = structure == null ? "" : structure;
         block = block == null ? "" : block;
-        offset = offset == null ? PointSource.Offset.NONE : offset;
+        offset = offset == null ? PointOffset.NONE : offset;
         signature = derive(kind, selector, partX, partY, partZ, targetX, targetY, targetZ, structure, block, offset,
                 freeze);
     }
@@ -37,37 +36,37 @@ public record LookAtSpec(LookAtKind kind, String selector, double partX, double 
     /** 常规构造：签名由其余字段在构造期派生，不接受调用方传入。 */
     public LookAtSpec(LookAtKind kind, String selector, double partX, double partY, double partZ,
                       double targetX, double targetY, double targetZ, String structure, String block,
-                      PointSource.Offset offset, boolean freeze) {
+                      PointOffset offset, boolean freeze) {
         this(kind, selector, partX, partY, partZ, targetX, targetY, targetZ, structure, block, offset, freeze, null);
     }
 
     /** 玩家激活位置（静态）。 */
     public static LookAtSpec player() {
-        return new LookAtSpec(LookAtKind.PLAYER, "@p", 50, 50, 50, 0, 0, 0, "", "", PointSource.Offset.NONE, false);
+        return new LookAtSpec(LookAtKind.PLAYER, "@p", 50, 50, 50, 0, 0, 0, "", "", PointOffset.NONE, false);
     }
 
     /** 固定世界坐标。 */
     public static LookAtSpec coordinate(double x, double y, double z) {
-        return new LookAtSpec(LookAtKind.COORDINATE, "@p", 50, 50, 50, x, y, z, "", "", PointSource.Offset.NONE,
+        return new LookAtSpec(LookAtKind.COORDINATE, "@p", 50, 50, 50, x, y, z, "", "", PointOffset.NONE,
                 false);
     }
 
     /** 实体 + 包围盒内取点百分比（每轴 0 ~ 100，越界钳制、NaN = 50）。 */
     public static LookAtSpec entity(String selector, double partX, double partY, double partZ) {
         return new LookAtSpec(LookAtKind.ENTITY, selector, partX, partY, partZ, 0, 0, 0, "", "",
-                PointSource.Offset.NONE, false);
+                PointOffset.NONE, false);
     }
 
     /** 方块点源（{@code block:<id>[:radius]}）。 */
     public static LookAtSpec block(String block) {
-        return new LookAtSpec(LookAtKind.BLOCK, "@p", 50, 50, 50, 0, 0, 0, "", block, PointSource.Offset.NONE,
+        return new LookAtSpec(LookAtKind.BLOCK, "@p", 50, 50, 50, 0, 0, 0, "", block, PointOffset.NONE,
                 false);
     }
 
     /** 构造期派生签名：全部字段的函数，只在这里拼一次。 */
     private static String derive(LookAtKind kind, String selector, double partX, double partY, double partZ,
                                  double targetX, double targetY, double targetZ, String structure, String block,
-                                 PointSource.Offset offset, boolean freeze) {
+                                 PointOffset offset, boolean freeze) {
         StringBuilder builder = new StringBuilder(96);
         builder.append(kind.name()).append(SEP);
         append(builder, selector);

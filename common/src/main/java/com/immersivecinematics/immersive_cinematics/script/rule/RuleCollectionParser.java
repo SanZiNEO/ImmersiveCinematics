@@ -5,12 +5,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.immersivecinematics.immersive_cinematics.script.Clip;
 import com.immersivecinematics.immersive_cinematics.script.ScriptParser.ScriptParseException;
-import com.immersivecinematics.immersive_cinematics.script.execution.ClipExitKind;
 import com.immersivecinematics.immersive_cinematics.script.execution.ClipExitPolicy;
-import com.immersivecinematics.immersive_cinematics.script.identity.ClipRef;
 import com.immersivecinematics.immersive_cinematics.script.identity.ClipResolver;
-import com.immersivecinematics.immersive_cinematics.script.identity.UsageIndex;
-import com.immersivecinematics.immersive_cinematics.script.identity.UsageKind;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -35,10 +31,6 @@ import java.util.regex.Pattern;
  *
  * <p>{@code fact} 调度引用另一条绑定：绑定的构造按依赖顺序进行（前向引用合法，循环依赖报错），
  * 这样 {@link RuleRelease#source()} 始终指向真实绑定对象，无需可变字段。</p>
- *
- * <p>使用边：每条绑定登记 {@link UsageKind#RULE_BINDING}，{@code goto_clip} 动作登记
- * {@link UsageKind#BRANCH_TARGET}，出口覆盖登记 {@link UsageKind#EXIT_TARGET}（宿主路径 =
- * {@code rule_bindings[i].…}）。</p>
  */
 public final class RuleCollectionParser {
 
@@ -52,7 +44,6 @@ public final class RuleCollectionParser {
             List.of("once", "cooldown", "mode", "dwell", "timeout", "on_timeout");
     private static final List<String> BINDING_KEYS =
             List.of("id", "rule", "clip", "gate", "control", "schedule", "exit");
-    private static final String NEW_GOTO = "goto_clip";
 
     private RuleCollectionParser() {}
 
@@ -62,7 +53,7 @@ public final class RuleCollectionParser {
     }
 
     /**
-     * 解析脚本级规则集合（不登记使用边）。
+     * 解析脚本级规则集合。
      *
      * @param root     脚本根对象
      * @param resolver 片段解析器
@@ -72,21 +63,6 @@ public final class RuleCollectionParser {
      */
     public static RuleCollection parse(JsonObject root, ClipResolver resolver, String basePath)
             throws ScriptParseException {
-        return parse(root, resolver, null, basePath);
-    }
-
-    /**
-     * 解析脚本级规则集合。
-     *
-     * @param root     脚本根对象
-     * @param resolver 片段解析器
-     * @param usage    使用边构建器（{@code null} = 不登记）
-     * @param basePath 宿主路径前缀（{@code null} / 空 / {@code "<root>"} = 不加前缀）
-     * @return 不可变规则集合
-     * @throws ScriptParseException 结构 / 引用非法
-     */
-    public static RuleCollection parse(JsonObject root, ClipResolver resolver, UsageIndex.Builder usage,
-                                       String basePath) throws ScriptParseException {
         if (root == null) return RuleCollection.EMPTY;
         boolean hasDefinitions = root.has("rules");
         boolean hasBindings = root.has("rule_bindings");
@@ -97,7 +73,7 @@ public final class RuleCollectionParser {
         for (RuleDefinition definition : definitions) {
             definitionsById.put(definition.id(), definition);
         }
-        List<RuleBinding> bindings = parseBindings(root, resolver, definitionsById, usage, basePath);
+        List<RuleBinding> bindings = parseBindings(root, resolver, definitionsById, basePath);
         return RuleCollection.of(definitions, bindings);
     }
 
@@ -204,7 +180,7 @@ public final class RuleCollectionParser {
 
     private static List<RuleBinding> parseBindings(JsonObject root, ClipResolver resolver,
                                                    Map<String, RuleDefinition> definitionsById,
-                                                   UsageIndex.Builder usage, String basePath)
+                                                   String basePath)
             throws ScriptParseException {
         String path = path(basePath, "rule_bindings");
         JsonElement element = root.get("rule_bindings");
@@ -252,7 +228,6 @@ public final class RuleCollectionParser {
         List<RuleBinding> bindings = new ArrayList<>(raws.size());
         for (int i = 0; i < raws.size(); i++) {
             bindings.add(built[i]);
-            registerUsage(usage, built[i], i, resolver, basePath);
         }
         return List.copyOf(bindings);
     }
@@ -377,51 +352,6 @@ public final class RuleCollectionParser {
         built[index] = new RuleBinding(raw.id, raw.definition, raw.target, raw.gateTime,
                 raw.control, schedule, raw.exit);
         state[index] = 2;
-    }
-
-    // ========== 使用边 ==========
-
-    private static void registerUsage(UsageIndex.Builder usage, RuleBinding binding, int index,
-                                      ClipResolver resolver, String basePath) {
-        if (usage == null) return;
-        String host = path(basePath, "rule_bindings[" + index + "]");
-        usage.reference(UsageKind.RULE_BINDING, host, ClipRef.of(binding.target()));
-
-        registerGotoActions(usage, binding.definition().actions(), host + ".actions", resolver);
-        registerGotoActions(usage, binding.definition().onTimeout(), host + ".on_timeout", resolver);
-
-        ClipExitPolicy exit = binding.exitOverride();
-        if (exit != null && exit.kind() == ClipExitKind.GOTO) {
-            usage.reference(UsageKind.EXIT_TARGET, host + ".exit",
-                    ClipRef.of(exit.target(), exit.entryLocalTime()));
-        }
-    }
-
-    /** {@code goto_clip} 动作 → 分支目标使用边；结构非法的动作留给校验器报错，这里只登记可解析的引用。 */
-    private static void registerGotoActions(UsageIndex.Builder usage, List<JsonObject> actions,
-                                            String host, ClipResolver resolver) {
-        for (int i = 0; i < actions.size(); i++) {
-            JsonObject action = actions.get(i);
-            if (action == null || !NEW_GOTO.equals(actionType(action))) continue;
-            JsonElement clipElement = action.get("clip");
-            if (clipElement == null || !isString(clipElement)) continue;
-            Clip target = resolver.resolve(clipElement.getAsString());
-            if (target == null) continue;
-            double entryTime = 0.0;
-            JsonElement entryElement = action.get("entry_time");
-            if (entryElement != null && isNumber(entryElement)) {
-                double value = entryElement.getAsDouble();
-                if (Double.isFinite(value) && value >= 0.0) {
-                    entryTime = value;
-                }
-            }
-            usage.reference(UsageKind.BRANCH_TARGET, host + "[" + i + "]", ClipRef.of(target, entryTime));
-        }
-    }
-
-    private static String actionType(JsonObject action) {
-        JsonElement type = action.get("type");
-        return type != null && isString(type) ? type.getAsString() : null;
     }
 
     // ========== 公共结构助手 ==========

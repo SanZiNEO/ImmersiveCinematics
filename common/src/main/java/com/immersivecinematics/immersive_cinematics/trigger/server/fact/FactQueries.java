@@ -28,9 +28,4 @@ public final class FactQueries {
     public static boolean triggerFired(UUID player, String script, String triggerId) {
         return FactLedger.INSTANCE.of(player).exists(FactType.TRIGGER_FIRED, script, triggerId);
     }
-
-    /** 该脚本最近一次结束事实；无记录返回 {@code null}。 */
-    public static Fact lastPlaybackFinished(UUID player, String script) {
-        return FactLedger.INSTANCE.of(player).last(FactType.PLAYBACK_FINISHED, script, "");
-    }
 }

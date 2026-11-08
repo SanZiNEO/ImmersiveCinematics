@@ -9,7 +9,7 @@ import java.util.Map;
 /**
  * 第三方轨道注册用的对象声明表：路径 → {@link ObjectDef}，保持声明顺序。
  *
- * <p>只描述新对象模型（{@code objects}），不含旧链路的 clip / keyframe / playControl 字段表；
+ * <p>只描述对象模型（{@code objects}）；
  * 内置 7 轨的字段表仍由 {@code TrackSchemas} 提供，本类不参与。</p>
  *
  * <p>{@link Builder#build()} 做硬校验（不满足抛 {@link IllegalArgumentException}）：</p>
@@ -49,23 +49,6 @@ public final class TrackSchema {
         private final List<ObjectDef> defs = new ArrayList<>();
 
         private Builder() {}
-
-        /**
-         * 声明一个可关键帧的连续量（{@code mode=animated}）。
-         *
-         * @param path         点分路径
-         * @param type         值类型
-         * @param interp       插值方式；{@code null} = 按 {@link Interp#infer} 推导（{@code float} → linear /
-         *                     angle / geometric，{@code int} 等 → step）
-         * @param defaultValue 缺省值；{@code null} = 无缺省
-         * @return 本构造器
-         */
-        public Builder animatable(String path, PropertyType type, Interp interp, Object defaultValue) {
-            return object(ObjectDef.builder(path, PropertyMode.ANIMATED, type)
-                    .interp(interp != null ? interp : Interp.infer(type, path, null))
-                    .def(defaultValue)
-                    .build());
-        }
 
         /**
          * 声明一个只有静态值的字段（{@code mode=value}）。

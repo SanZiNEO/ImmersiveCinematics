@@ -12,7 +12,7 @@ import net.minecraft.server.level.ServerPlayer;
  * 内容相对位置（片段起始秒 + 片段内偏移秒），服务端据此把 EVENT 时间线的基准对到客户端真实位置
  * （位置即真源，恢复从该位置续，不再靠墙钟 tick 推算）。
  *
- * 位置缺省 = 未上报（{@link #getPositionOffset()} 为 {@link Float#NaN}，客户端未提供 / 位置不可得）：
+ * 位置缺省 = 未上报（{@code positionOffset} 为 {@link Float#NaN}，客户端未提供 / 位置不可得）：
  * 服务端保持既有基准不动（回落 tick 推算，不卡事件）。无片段覆盖（片段间隙）时片段起始秒为 NaN、
  * 偏移即绝对秒——见 {@code ScriptPlayer#contentPosition}。
  *
@@ -75,10 +75,4 @@ public class C2SScriptPausePacket implements CinematicC2SPacket {
     public String getInstanceId() { return instanceId; }
     public boolean isPaused() { return paused; }
     public String getRefId() { return refId; }
-
-    /** 内容相对位置：片段起始秒（NaN = 无片段覆盖）。 */
-    public float getPositionClipStart() { return positionClipStart; }
-
-    /** 内容相对位置：片段内偏移秒（NaN = 未上报）。 */
-    public float getPositionOffset() { return positionOffset; }
 }

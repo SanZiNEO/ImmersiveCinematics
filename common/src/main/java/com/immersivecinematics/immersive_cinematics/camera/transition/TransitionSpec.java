@@ -97,7 +97,7 @@ public final class TransitionSpec {
 
     /**
      * 本帧时刻是否落在过渡窗口内（窗口口径的唯一判据：两个消费方——活跃判定
-     * （{@code CameraKeyframeEvaluator.isActiveAt}）/ 轨道驱动（{@code CameraTrackPlayer}）——都用它，
+     * （{@code CameraFrameEvaluator.isActiveAt}）/ 轨道驱动（{@code CameraTrackPlayer}）——都用它，
      * 避免各算一份；Modifier 活跃窗延长用 {@link #windowEnd}）。
      *
      * @param now      当前时刻（秒）

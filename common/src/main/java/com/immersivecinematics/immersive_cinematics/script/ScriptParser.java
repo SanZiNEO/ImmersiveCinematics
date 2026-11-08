@@ -9,12 +9,9 @@ import com.immersivecinematics.immersive_cinematics.camera.cover.ClipModifier;
 import com.immersivecinematics.immersive_cinematics.camera.cover.ComposeMode;
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionMode;
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionParams;
-import com.immersivecinematics.immersive_cinematics.script.execution.ClipExitKind;
 import com.immersivecinematics.immersive_cinematics.script.execution.ClipExitPolicy;
+import com.immersivecinematics.immersive_cinematics.script.execution.LoopMode;
 import com.immersivecinematics.immersive_cinematics.script.identity.ClipIdentity;
-import com.immersivecinematics.immersive_cinematics.script.identity.ClipRef;
-import com.immersivecinematics.immersive_cinematics.script.identity.UsageIndex;
-import com.immersivecinematics.immersive_cinematics.script.identity.UsageKind;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipObjects;
 import com.immersivecinematics.immersive_cinematics.script.object.ObjectFormatException;
 import com.immersivecinematics.immersive_cinematics.script.object.ObjectParser;
@@ -23,6 +20,7 @@ import com.immersivecinematics.immersive_cinematics.script.path.PathCollectionPa
 import com.immersivecinematics.immersive_cinematics.script.rule.ClipExitPolicyParser;
 import com.immersivecinematics.immersive_cinematics.script.rule.RuleCollectionParser;
 import com.immersivecinematics.immersive_cinematics.script.schema.MathModelRegistry;
+import com.immersivecinematics.immersive_cinematics.script.schema.SchemaRegistry;
 import com.immersivecinematics.immersive_cinematics.script.track.TrackRegistry;
 import com.immersivecinematics.immersive_cinematics.spi.FieldDef;
 import com.immersivecinematics.immersive_cinematics.spi.Interp;
@@ -42,12 +40,14 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 脚本解析器 — 将 JSON 字符串解析为 {@link CinematicScript}。
  *
- * 使用 Gson 的 JsonElement 树 API 手动解析（不做反射绑定）；字段表由 {@link SchemaLoader} 驱动。
+ * 使用 Gson 的 JsonElement 树 API 手动解析（不做反射绑定）；字段表由 {@link SchemaRegistry} 驱动。
  * 报错即停：首个错误抛 {@link ScriptParseException}，消息带字段路径（如 {@code meta.id}）。
  */
 public class ScriptParser {
@@ -63,6 +63,31 @@ public class ScriptParser {
      * 键为解析期一次建成的只读 map（入库后不再变更）；条目数 = 出现过的定义形态数。
      */
     private static final Map<Map<String, Object>, MathModel> MODEL_DEFINITIONS = new ConcurrentHashMap<>();
+
+    /**
+     * meta 允许的键：{@link SchemaRegistry#getMetaFields()} 的 schema 字段 + 仅解析期声明、
+     * 不进运行行为的 {@code triggers} / {@code trigger_poll_interval}。
+     * {@link TreeSet} 保证报错文案里的可用字段顺序稳定。
+     */
+    static final Set<String> META_KEYS = metaKeys();
+
+    /** timeline 允许的键（{@link TreeSet} 保证报错文案顺序稳定）。 */
+    static final Set<String> TIMELINE_KEYS = timelineKeys();
+
+    private static Set<String> metaKeys() {
+        Set<String> keys = new TreeSet<>(SchemaRegistry.getMetaFields().keySet());
+        keys.add("triggers");
+        keys.add("trigger_poll_interval");
+        return Collections.unmodifiableSet(keys);
+    }
+
+    private static Set<String> timelineKeys() {
+        Set<String> keys = new TreeSet<>();
+        keys.add("tracks");
+        keys.add("loop_start");
+        keys.add("loop_end");
+        return Collections.unmodifiableSet(keys);
+    }
 
     /** 解析异常 — 消息 = {@code 字段路径: 说明}；{@link #getFieldPath()} 返回路径部分。 */
     public static class ScriptParseException extends Exception {
@@ -123,44 +148,24 @@ public class ScriptParser {
         // 保留原始 JSON：meta.listener 等运行期扩展字段只在 rawJson 里读取；
         // 服务端推送脚本也必须走这里，否则脚本会被当成默认 listener=player。
         script.setRawJson(json);
-        script.setUsageBuilder(buildUsageIndex(timeline));
-        // 片段默认出口（exit）：脚本对象就绪后才解析 goto 目标；使用边登记进同一构建器。
+        // 片段默认出口（exit）：脚本对象就绪后才解析 goto 目标（按片段 id 解析）。
         resolveClipExits(timeline, standalone, script);
-        // 脚本级规则集合（rules / rule_bindings）：格式级的互斥检查已在前，这里只做解析与登记。
-        // 放在 setUsageBuilder 之后：绑定 / 分支 / 出口的使用边直接登记进同一构建器。
+        // 脚本级规则集合（rules / rule_bindings）：只做解析与登记。
         if (hasScriptRules) {
             script.setRuleCollection(
-                    RuleCollectionParser.parse(rootObj, script::findClip, script.usageBuilder(), "<root>"));
+                    RuleCollectionParser.parse(rootObj, script::findClip, "<root>"));
         }
-        // 脚本级路径集合（paths[]）：与规则集合同一装配顺序（usage builder 就绪后登记使用边）。
+        // 脚本级路径集合（paths[]）：与规则集合同一装配顺序。
         script.setPathCollection(
-                PathCollectionParser.parse(rootObj, script::findClip, script.usageBuilder(), "<root>"));
+                PathCollectionParser.parse(rootObj, script::findClip, "<root>"));
         return script;
     }
 
     /**
-     * 编译轨道放置边：每条内联片段登记一条 {@code TRACK_PLACEMENT}，
-     * 宿主路径 = {@code timeline.tracks[i].clips[j]}（与校验器 / 报错文案同一套定位串）。
-     */
-    private static UsageIndex.Builder buildUsageIndex(Timeline timeline) {
-        UsageIndex.Builder builder = UsageIndex.builder();
-        List<TimelineTrack> tracks = timeline.getTracks();
-        for (int ti = 0; ti < tracks.size(); ti++) {
-            List<Clip> clips = tracks.get(ti).getClips();
-            for (int ci = 0; ci < clips.size(); ci++) {
-                builder.placement(clips.get(ci), "timeline.tracks[" + ti + "].clips[" + ci + "]");
-            }
-        }
-        return builder;
-    }
-
-    /**
-     * 解析全部片段的默认出口（内联 + 独立片段）。必须在 {@link CinematicScript} 建好且
-     * {@code usageBuilder} 已装入之后调用——{@code goto} 目标按片段 id 解析，脚本对象是唯一解析器。
+     * 解析全部片段的默认出口（内联 + 独立片段）。必须在 {@link CinematicScript} 建好之后调用——
+     * {@code goto} 目标按片段 id 解析，脚本对象是唯一解析器。
      *
-     * <p>未声明 {@code exit} 的片段保持 {@code null} 策略（运行期 = {@code CONTINUE}）。GOTO 目标登记
-     * 一条 {@link UsageKind#EXIT_TARGET} 使用边（宿主 = 片段 JSON 路径 + {@code .exit}），
-     * 于是「被引用必填 id」由同一索引覆盖。</p>
+     * <p>未声明 {@code exit} 的片段保持 {@code null} 策略（运行期 = {@code CONTINUE}）。</p>
      */
     private static void resolveClipExits(Timeline timeline, List<Clip> standalone, CinematicScript script)
             throws ScriptParseException {
@@ -181,13 +186,7 @@ public class ScriptParser {
             throws ScriptParseException {
         JsonObject rawExit = clip.getRawExit();
         if (rawExit == null) return;
-        ClipExitPolicy policy = ClipExitPolicyParser.parse(rawExit, script::findClip, path);
-        clip.setExitPolicy(policy);
-        UsageIndex.Builder usage = script.usageBuilder();
-        if (usage != null && policy.kind() == ClipExitKind.GOTO) {
-            usage.reference(UsageKind.EXIT_TARGET, path,
-                    ClipRef.of(policy.target(), policy.entryLocalTime()));
-        }
+        clip.setExitPolicy(ClipExitPolicyParser.parse(rawExit, script::findClip, path));
     }
 
     // ========== ScriptMeta 解析 ==========
@@ -195,20 +194,7 @@ public class ScriptParser {
     private static ScriptMeta parseMeta(JsonObject root) throws ScriptParseException {
         String p = "meta";
         JsonObject metaObj = requireObject(root, p, "meta");
-
-        // 旧字段：0.3.6 起已移除，出现即报错（不保留双读 / 兼容分支）
-        if (metaObj.has("version")) {
-            throw new ScriptParseException(p + ".version",
-                    "已移除：meta.version（0.3.6 起不再有格式版本号）");
-        }
-        if (metaObj.has("hud_layers")) {
-            throw new ScriptParseException(p + ".hud_layers",
-                    "已移除：meta.hud_layers；用 meta.screen_layers（true = 显示）");
-        }
-        if (metaObj.has("hard_hide_hud")) {
-            throw new ScriptParseException(p + ".hard_hide_hud",
-                    "已移除：meta.hard_hide_hud；用 meta.screen_layer_mode（allowlist / normal）");
-        }
+        rejectUnknownFields(metaObj, p, META_KEYS);
 
         String id = requireString(metaObj, p, "id");
         String name = requireString(metaObj, p, "name");
@@ -229,20 +215,6 @@ public class ScriptParser {
         boolean blockKeyboard = optBoolMeta(metaObj, "block_keyboard");
         boolean blockMouse = optBoolMeta(metaObj, "block_mouse");
         boolean blockMobAi = optBoolMeta(metaObj, "block_mob_ai");
-        boolean hideHud = optBoolMeta(metaObj, "hide_hud");
-        Boolean hideArm = optNullableBool(metaObj, "hide_arm");
-        Boolean suppressBob = optNullableBool(metaObj, "suppress_bob");
-        Boolean suppressDistortion = optNullableBool(metaObj, "suppress_distortion");
-        Boolean hideChat = optNullableBool(metaObj, "hide_chat");
-        Boolean hideScoreboard = optNullableBool(metaObj, "hide_scoreboard");
-        Boolean hideActionBar = optNullableBool(metaObj, "hide_action_bar");
-        Boolean hideTitle = optNullableBool(metaObj, "hide_title");
-        Boolean hideSubtitles = optNullableBool(metaObj, "hide_subtitles");
-        Boolean hideHotbar = optNullableBool(metaObj, "hide_hotbar");
-        Boolean hideCrosshair = optNullableBool(metaObj, "hide_crosshair");
-        Boolean hideBossbar = optNullableBool(metaObj, "hide_bossbar");
-        Boolean hideSkipHud = optNullableBool(metaObj, "hide_skip_hud");
-        boolean renderPlayerModel = optBoolMeta(metaObj, "render_player_model");
         boolean pauseWhenGamePaused = optBoolMeta(metaObj, "pause_when_game_paused");
         boolean interruptible = optBoolMeta(metaObj, "interruptible");
         boolean skippable = optBoolMeta(metaObj, "skippable");
@@ -272,21 +244,14 @@ public class ScriptParser {
         ScriptMeta.PlayMode playMode = ScriptMeta.PlayMode.fromString(playModeRaw);
         // 画面层（screen_layers）：值 = 显示（true 显示 / false 隐藏）
         java.util.Map<String, Boolean> screenLayers = parseScreenLayers(metaObj);
-        // 模式归一：显式 screen_layer_mode > screen_layers 字段存在 → allowlist > normal
-        ScreenLayerMode screenLayerMode = resolveScreenLayerMode(metaObj);
         // 编辑基准分辨率（可选）：{w, h} 正整数；缺省 1920×1080，非法 → 告警 + 回落缺省（防御式）
         int[] baseResolution = parseBaseResolution(metaObj);
 
         ScriptMeta.RuntimeBehavior behavior = new ScriptMeta.RuntimeBehavior(
                 blockKeyboard, blockMouse, blockMobAi,
-                hideHud, hideArm, suppressBob, suppressDistortion,
-                hideChat, hideScoreboard, hideActionBar,
-                hideTitle, hideSubtitles, hideHotbar, hideCrosshair,
-                hideBossbar, hideSkipHud,
-                screenLayerMode,
-                renderPlayerModel,
-                pauseWhenGamePaused, interruptible, skippable,
-                holdAtEnd, macroLoop, macroLoopMode, macroLoopCount, screenLayers);
+                pauseWhenGamePaused, interruptible, skippable, holdAtEnd,
+                macroLoop, macroLoopMode, macroLoopCount,
+                screenLayers);
 
         // 播放优先级（默认值来自 SchemaRegistry.getMetaFields()；仅用于队列内排序）
         int priority = optInt(metaObj, "priority", 0);
@@ -340,11 +305,7 @@ public class ScriptParser {
             throw new ScriptParseException(p, "缺少必填字段: " + key);
         }
         JsonObject timelineObj = requireObject(root, p, key);
-        // 旧字段：0.3.6 起已移除（有限末端 / 显示范围由片段窗口派生）
-        if (timelineObj.has("total_duration")) {
-            throw new ScriptParseException(p + ".total_duration",
-                    "已移除：timeline.total_duration；有限末端/显示范围由片段窗口派生");
-        }
+        rejectUnknownFields(timelineObj, p, TIMELINE_KEYS);
 
         JsonArray tracksArr = requireArray(timelineObj, p, "tracks");
         List<TimelineTrack> tracks = new ArrayList<>();
@@ -369,7 +330,7 @@ public class ScriptParser {
 
         List<Clip> clips = new ArrayList<>();
         for (int i = 0; i < clipsArr.size(); i++) {
-            clips.add(parseClip(clipsArr.get(i).getAsJsonObject(), p + ".clips[" + i + "]", type));
+            clips.add(parseObjectClip(clipsArr.get(i).getAsJsonObject(), p + ".clips[" + i + "]", type));
         }
 
         return new TimelineTrack(type, clips);
@@ -377,58 +338,10 @@ public class ScriptParser {
 
     // ========== Clip 解析（统一 schema 驱动）==========
 
-    private static Clip parseClip(JsonObject obj, String p, TrackTypeId type) throws ScriptParseException {
-        // 旧字段：0.3.6 起已移除，出现即报错（不保留双读 / 兼容分支）
-        rejectRemovedClipFields(obj, p);
-        return parseObjectClip(obj, p, type);
-    }
-
-    /** 旧片段字段：0.3.6 起已移除，出现即报错（文案统一含「已移除」）。 */
-    private static void rejectRemovedClipFields(JsonObject obj, String p) throws ScriptParseException {
-        for (String field : obj.keySet()) {
-            String message = removedClipFieldMessage(field);
-            if (message != null) {
-                throw new ScriptParseException(p + "." + field, message);
-            }
-        }
-    }
-
-    /** 旧片段字段的「已移除」文案；{@code null} = 不是旧字段。 */
-    private static String removedClipFieldMessage(String field) {
-        switch (field) {
-            case "keyframes":
-                return "已移除：keyframes；用 objects（每个可调项一个采样属性）";
-            case "curve":
-                return "已移除：clip 级 curve；用脚本级 paths（每条引用目标片段与两个相邻位置关键帧）";
-            case "rules":
-                return "已移除：clip 级 rules；用脚本级 rules + rule_bindings";
-            case "interpolation":
-                return "已移除：clip.interpolation；缓动由编辑器烘焙成关键帧";
-            case "follow":
-            case "follow_selector":
-                return "已移除：" + field + "；用 objects 的 position_origin / position_origin_freeze";
-            case "orient":
-            case "yaw_offset":
-            case "pitch_offset":
-                return "已移除：clip 级 " + field + "；写进 objects";
-            default:
-                break;
-        }
-        if (field.startsWith("facing_origin")) {
-            return "已移除：" + field + "；用 objects 的 position_origin / position_origin_freeze";
-        }
-        if (field.startsWith("selector_")
-                && (field.endsWith("_follow") || field.endsWith("_facing_origin"))) {
-            return "已移除：" + field + "；用 selector_*_position_origin";
-        }
-        return null;
-    }
-
     /**
      * 片段解析的唯一入口：{@code start_time} / {@code duration} + 播放控制 + {@code objects}。
      *
-     * <p>旧格式字段在 {@link #parseClip} 处已按「已移除」拒绝；其余未知键在 {@link ObjectParser}
-     * 的片段级白名单处被拒绝。</p>
+     * <p>未知键在 {@link ObjectParser} 的片段级白名单处被拒绝。</p>
      */
     private static Clip parseObjectClip(JsonObject obj, String p, TrackTypeId type) throws ScriptParseException {
         return parseObjectClip(obj, p, type, requireFloat(obj, p, "start_time"));
@@ -458,36 +371,36 @@ public class ScriptParser {
         // STRUCT 值由 ObjectCodec 落成原始 Map/List；强类型消费方（Clip#getModifier 等）要求解析期归一
         objects = normalizeStructs(objects, obj.getAsJsonObject("objects"), p, type);
 
-        Map<String, Object> data = new HashMap<>();
+        boolean loop = false;
         if (obj.has("loop")) {
-            JsonElement loop = obj.get("loop");
-            if (!loop.isJsonPrimitive() || !loop.getAsJsonPrimitive().isBoolean()) {
+            JsonElement loopElement = obj.get("loop");
+            if (!loopElement.isJsonPrimitive() || !loopElement.getAsJsonPrimitive().isBoolean()) {
                 throw new ScriptParseException(p + ".loop", "需要布尔值");
             }
-            data.put("loop", loop.getAsBoolean());
+            loop = loopElement.getAsBoolean();
         }
-        if (obj.has("loop_count")) {
-            data.put("loop_count", requireLoopCount(obj.get("loop_count"), p + ".loop_count"));
-        }
+        int loopCount = obj.has("loop_count")
+                ? requireLoopCount(obj.get("loop_count"), p + ".loop_count")
+                : -1;
+        LoopMode loopMode = LoopMode.REPEAT;
         if (obj.has("loop_mode")) {
-            JsonElement loopMode = obj.get("loop_mode");
-            if (!loopMode.isJsonPrimitive() || !loopMode.getAsJsonPrimitive().isString()) {
+            JsonElement loopModeElement = obj.get("loop_mode");
+            if (!loopModeElement.isJsonPrimitive() || !loopModeElement.getAsJsonPrimitive().isString()) {
                 throw new ScriptParseException(p + ".loop_mode", "需要字符串（repeat / pingpong）");
             }
-            String mode = loopMode.getAsString();
+            String mode = loopModeElement.getAsString();
             if (!"repeat".equals(mode) && !"pingpong".equals(mode)) {
                 throw new ScriptParseException(p + ".loop_mode", "需要 repeat / pingpong，实际: " + mode);
             }
-            data.put("loop_mode", mode);
+            loopMode = LoopMode.fromName(mode, LoopMode.REPEAT);
         }
         // loop_count=0 非法：与旧分支同一口径（记录错误并按 1 处理，不阻断运行）
-        Object loopCount = data.get("loop_count");
-        if (loopCount instanceof Number && ((Number) loopCount).intValue() == 0) {
+        if (loopCount == 0) {
             ErrorLog.log("Parse", p + ".loop_count 不允许为 0（-1=无限循环，正整数=循环次数），已按 1 处理");
-            data.put("loop_count", 1);
+            loopCount = 1;
         }
 
-        Clip clip = new Clip(startTime, duration, type, data, objects, clipId, null);
+        Clip clip = new Clip(startTime, duration, type, loop, loopCount, loopMode, objects, clipId, null);
         // 出口声明延后解析：此刻脚本对象不存在，goto 目标无法解析。这里只做结构形态检查并暂存原文，
         // 由 parseInternal 在脚本装配完成后统一解析（内联 / 独立片段同一口径）。
         if (obj.has("exit")) {
@@ -503,7 +416,7 @@ public class ScriptParser {
     /**
      * 片段 {@code id}（可选）：存在则必须是非空字符串并匹配 {@link ClipIdentity#PATTERN}。
      * 内联片段与独立片段走同一口径；重复 / 悬空引用由 {@code ScriptValidator} 报错，
-     * 解析期只保证格式合法（避免旧解析基线漂移）。
+     * 解析期只保证格式合法（避免解析基线漂移）。
      */
     private static String parseClipId(JsonObject obj, String p) throws ScriptParseException {
         if (!obj.has("id")) return null;
@@ -1399,8 +1312,8 @@ public class ScriptParser {
      * 解析 meta.screen_layers：{@code {层名: 布尔}}，极性 = 「显示」
      * （{@code true} = 显示，{@code false} = 隐藏；与 {@code ScriptMeta.RuntimeBehavior#screenLayers()} 一致）。
      *
-     * <p>已知层名按 {@link ScreenLayer#canonicalize} 归一；其余键保留原始形态，继续按动态层名参与判定
-     * （{@code health} / {@code status} / 未注册 overlay 资源 ID 等）。</p>
+     * <p>键域 = 15 个规范层名（{@link ScreenLayer}）+ 动态层名（注册分类名 / 未注册 overlay 资源 ID）。
+     * 键一律按原样保存，不做别名归一：动态键与规范名同等对待，判定时由消费方按原字符串查找。</p>
      */
     private static java.util.Map<String, Boolean> parseScreenLayers(JsonObject metaObj) {
         java.util.Map<String, Boolean> layers = new java.util.LinkedHashMap<>();
@@ -1411,14 +1324,13 @@ public class ScriptParser {
                         + el + "，已忽略");
             } else {
                 for (java.util.Map.Entry<String, JsonElement> e : el.getAsJsonObject().entrySet()) {
-                    String key = ScreenLayer.canonicalize(e.getKey());
+                    String key = e.getKey();
                     if (key == null || key.isEmpty()) {
                         ErrorLog.log("Parse", "meta.screen_layers 存在空层名，已忽略");
                         continue;
                     }
                     JsonElement v = e.getValue();
                     if (v.isJsonPrimitive() && v.getAsJsonPrimitive().isBoolean()) {
-                        // 重复规范化键（如 "chat" 与 "hud.chat" 并存）：后者覆盖
                         layers.put(key, v.getAsBoolean());
                     } else {
                         ErrorLog.log("Parse", "meta.screen_layers['" + e.getKey()
@@ -1431,33 +1343,18 @@ public class ScriptParser {
     }
 
     /**
-     * 归一 {@code meta.screen_layer_mode}（解析期，结果非 null）：
-     * <pre>
-     * 显式 screen_layer_mode ?? screen_layers 字段存在 → allowlist ?? normal
-     * </pre>
-     * 非法声明按「未声明」处理并告警。
+     * 字段白名单：未知键 → 解析异常（{@code 可用} 列表按 {@link TreeSet} 顺序，文案稳定）。
+     *
+     * @param p 字段路径前缀（{@code meta} / {@code timeline}）
      */
-    private static ScreenLayerMode resolveScreenLayerMode(JsonObject metaObj) {
-        ScreenLayerMode declared = null;
-        if (metaObj.has("screen_layer_mode") && !metaObj.get("screen_layer_mode").isJsonNull()) {
-            JsonElement el = metaObj.get("screen_layer_mode");
-            if (!el.isJsonPrimitive() || !el.getAsJsonPrimitive().isString()) {
-                ErrorLog.log("Parse", "meta.screen_layer_mode 需要字符串（normal / allowlist），实际: "
-                        + el + "，按未声明处理");
-            } else if (!ScreenLayerMode.isKnown(el.getAsString())) {
-                ErrorLog.log("Parse", "meta.screen_layer_mode 非法值: " + el.getAsString()
-                        + "（可选: normal / allowlist），按未声明处理");
-            } else {
-                declared = ScreenLayerMode.fromString(el.getAsString());
+    private static void rejectUnknownFields(JsonObject obj, String p, Set<String> allowed)
+            throws ScriptParseException {
+        for (String key : obj.keySet()) {
+            if (!allowed.contains(key)) {
+                throw new ScriptParseException(p + "." + key,
+                        "未知字段（可用: " + String.join(" / ", allowed) + "）");
             }
         }
-
-        if (declared != null) return declared;
-        // 新字段路径缺省 allowlist：字段存在（非 JSON null）且无模式声明 → 接管模式
-        if (metaObj.has("screen_layers") && !metaObj.get("screen_layers").isJsonNull()) {
-            return ScreenLayerMode.ALLOWLIST;
-        }
-        return ScreenLayerMode.NORMAL;
     }
 
     private static boolean optBool(JsonObject obj, String key, boolean defaultVal) {
@@ -1467,16 +1364,8 @@ public class ScriptParser {
     /** meta 字段默认值来自 SchemaRegistry.getMetaFields()（编辑器与播放器共用同一份 schema） */
     private static boolean optBoolMeta(JsonObject obj, String key) {
         if (obj.has(key)) return obj.get(key).getAsBoolean();
-        FieldDef def = SchemaLoader.getMetaFields().get(key);
+        FieldDef def = SchemaRegistry.getMetaFields().get(key);
         if (def != null && def.defaultValue() instanceof Boolean) return (Boolean) def.defaultValue();
         return false;
-    }
-
-    /**
-     * 读取可空 Boolean：字段不存在或为 JsonNull 时返回 null
-     */
-    private static Boolean optNullableBool(JsonObject obj, String key) {
-        if (!obj.has(key) || obj.get(key).isJsonNull()) return null;
-        return obj.get(key).getAsBoolean();
     }
 }

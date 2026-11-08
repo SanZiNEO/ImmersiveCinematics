@@ -49,7 +49,6 @@ public class CinematicAudioInstance extends AbstractTickableSoundInstance implem
     private boolean valid = false;
     private boolean playing = false;
     private float duration = 0f;
-    private float currentVolume = 1.0f;
     /** 编辑器 seek 目标偏移（秒），play() 时把 PCM 游标移到此处 */
     private double seekOffset = 0.0;
 
@@ -151,7 +150,6 @@ public class CinematicAudioInstance extends AbstractTickableSoundInstance implem
 
     /** 设置音量（0~1，原版据此乘分类音量 / 衰减）。 */
     public void setVolume(float vol) {
-        this.currentVolume = vol;
         this.volume = vol;
     }
 
@@ -238,26 +236,6 @@ public class CinematicAudioInstance extends AbstractTickableSoundInstance implem
 
     /** 解码得到的时长（秒）。 */
     public float getDuration() { return duration; }
-
-    /** 兼容读数：1 = 播放中，0 = 未播放（本实现不直接驱动 OpenAL）。 */
-    public int getSourceState() {
-        return playing ? 1 : 0;
-    }
-
-    /** 当前音量（最近一次 setVolume 的值，未含分类音量 / 衰减）。 */
-    public float getGain() {
-        return currentVolume;
-    }
-
-    /** 兼容读数：本实现不直接调用 OpenAL，恒为 0。 */
-    public int getOpenAlError() {
-        return 0;
-    }
-
-    /** 兼容读数：本实现不跟踪播放游标，恒为 0（定位走 {@link #seekTo}）。 */
-    public float getCurrentTime() {
-        return 0f;
-    }
 
     /** 实例是否可用（解码成功且未 cleanup）。 */
     public boolean isValid() { return valid; }
@@ -363,31 +341,6 @@ public class CinematicAudioInstance extends AbstractTickableSoundInstance implem
         } catch (Exception e) {
             throw new RuntimeException("WAV 解码失败: " + wavPath, e);
         }
-    }
-
-    /**
-     * 编辑器波形峰值解码（失败即抛）。
-     *
-     * @param fileName   音频文件名（同构造器口径）
-     * @param sourceType 音源类型（同构造器口径）
-     * @param buckets    峰值桶数（≥1）
-     * @return 每桶的最大绝对幅值（0~1）
-     */
-    public static float[] decodePeaks(String fileName, String sourceType, int buckets) {
-        DecodeResult r = decode(fileName, sourceType);
-        r.rawAudio.rewind();
-        int n = r.rawAudio.remaining() / 2;
-        short[] samples = new short[n];
-        for (int i = 0; i < n; i++) samples[i] = r.rawAudio.getShort();
-        float[] peaks = new float[Math.max(1, buckets)];
-        int per = Math.max(1, n / peaks.length);
-        for (int b = 0; b < peaks.length; b++) {
-            float max = 0;
-            int from = b * per, to = Math.min(n, from + per);
-            for (int i = from; i < to; i++) max = Math.max(max, Math.abs(samples[i]) / 32768f);
-            peaks[b] = max;
-        }
-        return peaks;
     }
 
     private static byte[] readAllBytes(InputStream is) throws IOException {

@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.camera.source;
 
+import com.immersivecinematics.immersive_cinematics.script.object.position.EntityPoint;
 import com.immersivecinematics.immersive_cinematics.selector.EntitySelectorService;
 import net.minecraft.world.phys.Vec3;
 
@@ -21,7 +22,7 @@ public final class EntityTargetResolver {
     private Vec3 originPos;
 
     /**
-     * 注入世界上下文（点源定位器 + 玩家激活位置）：由 {@code CameraKeyframeEvaluator} 构造时传入同一实例，
+     * 注入世界上下文（点源定位器 + 玩家激活位置）：由 {@code CameraFrameEvaluator} 构造时传入同一实例，
      * 两者共用定位器缓存；一次性接线，重复注入以最后一次为准。
      */
     public void attachWorldContext(WorldPointLocator locator, Vec3 originPos) {
@@ -47,7 +48,7 @@ public final class EntityTargetResolver {
      *
      * @return 世界空间方块坐标
      */
-    static Vec3 entityPoint(Vec3 pos, double width, double height, PointSource.EntityPoint point) {
+    static Vec3 entityPoint(Vec3 pos, double width, double height, EntityPoint point) {
         return new Vec3(
                 pos.x + width * ((point.xPct() - 50.0) / 100.0),
                 pos.y + height * (point.yPct() / 100.0),

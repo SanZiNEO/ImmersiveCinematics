@@ -2,6 +2,7 @@ package com.immersivecinematics.immersive_cinematics.script;
 
 import com.immersivecinematics.immersive_cinematics.overlay.*;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipRuntimeCache;
+import com.immersivecinematics.immersive_cinematics.script.object.ClipValueView;
 import com.immersivecinematics.immersive_cinematics.script.track.TrackDriver;
 import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 import net.minecraft.resources.ResourceLocation;
@@ -62,11 +63,11 @@ public class OverlayTrackPlayer implements TrackDriver {
         if (clip != activeClip) {
             // 诊断：层切换（排查脚本结束后字幕残留）
             if (activeClip != null || clip != null) {
+                String oldLayer = activeClip != null
+                        ? new ClipValueView(activeClip).s("layer_type", "?") : "null";
+                String newLayer = clip != null ? new ClipValueView(clip).s("layer_type", "?") : "null";
                 LOGGER.info("OVERLAY switch: global={} old={} new={} layer={}",
-                        String.format("%.2f", globalTime),
-                        activeClip != null ? activeClip.getString("layer_type", "?") : "null",
-                        clip != null ? clip.getString("layer_type", "?") : "null",
-                        clip != null ? clip.getString("layer_type", "?") : "null");
+                        String.format("%.2f", globalTime), oldLayer, newLayer, newLayer);
             }
             cleanupCurrentLayer();
             activeClip = null;

@@ -1,6 +1,7 @@
 # 格式清理：删除 `meta.version` 与 `timeline.total_duration`
 
 > 状态：已实现（I-5）
+> 本轮（J-1）已全部落地，以下为当时的执行记录。
 > 范围：两个字段的删除、有限内容末端/无限标志/有限显示范围派生、所有消费点、旧字段拒绝口径
 > 关联：`object-model.md`、`loop-execution.md`、`rule-system.md`（本轮规则方向）、`migration.md`、`../Z-editor/object-model.md`；本篇负责格式字段、派生范围与相关消费者的契约
 
@@ -123,7 +124,7 @@ parser/validator 遇到以下字段直接报错，错误信息包含“已移除
 | rules | `RuleActions.java` | goto_clip 范围用 `contentEnd`/无限标志，并保留目标可达/片段覆盖约束（320-323） |
 | command | `CinematicCommand.java` | 打印 `contentEnd` 或“无限/无有限末端”（241-242） |
 | graph | `webui/ScriptGraphService.java` | 节点 duration/infinite 用派生；含无限不伪造 duration（184-187） |
-| template | 编辑器侧模板引擎（Z 轮） | 产物不写 `total_duration`；运行时 `script/template/`、`ScriptTemplate` 随 Z 轮删除，不在本表修改 |
+| template | 编辑器侧模板引擎（Z 轮） | 产物不写 `total_duration`；运行时 `script/template/`、`ScriptTemplate` 已删除，不在本表修改 |
 | editor types | `editor/src/types.ts` | 删除 `ScriptMeta.version`、`Timeline.total_duration` |
 | editor store | `store.ts` | 删除 `recalcDuration`/commit 写入/load 重算（146-152、358-375） |
 | editor ops | `operations.ts` | 删除 version/total_duration 校验（644-652）；用 contentEnd/finiteDisplayEnd |
@@ -227,11 +228,11 @@ CinematicScript
 | 设计目标 | 实现 | 证据 |
 |---|---|---|
 | 删除 `meta.version` / `timeline.total_duration` | `ScriptParser` 顶层校验遇旧字段即报「已移除」（`meta.version` / `timeline.total_duration` 两条文案带替代指引）；`MetaSchemas` / `ScriptMeta` / `Timeline` / `CinematicScript` 不再有这两个字段与 getter；`CinematicScript` 不再转发 `getVersion()` / `getTotalDuration()` | 负例 fixture `cinematics/0.3.6/tests/faults/bad_removed_meta_version.json` / `bad_removed_total_duration.json` 均被拒；`grep -rn "getTotalDuration\|totalDuration" common/src/main/java` 零命中 |
-| 旧 clip 级载体（`keyframes` / `curve` / `rules` / `interpolation` / `follow` / `facing_origin*` / clip 级 `orient` 等）拒绝 | parser 侧已落地：`ScriptParser` 的「已移除」文案表逐字段给出替代（objects / 脚本级 paths / 脚本级 rules + rule_bindings / position_origin），旧字段出现即错误；旧运行时消费分支（`Clip.keyframes` / `Keyframe` / `KeyframeInterpolator` / `ClipRule` / `RuleEngine` 及各轨旧分支）的删除由 I-5 并行 worker 执行中，最终状态由主代理在编译+校验通过后统一回写 | 负例 fixture `bad_removed_keyframes.json`（及 `bad_removed_hud_layers.json` / `bad_removed_hard_hide_hud.json`）被拒；旧分支删除完成后以全仓 `grep` 零残留为准 |
+| 旧 clip 级载体（`keyframes` / `curve` / `rules` / `interpolation` / `follow` / `facing_origin*` / clip 级 `orient` 等）拒绝 | parser 侧已落地：`ScriptParser` 的「已移除」文案表逐字段给出替代（objects / 脚本级 paths / 脚本级 rules + rule_bindings / position_origin），旧字段出现即错误；旧运行时消费分支（`Clip.keyframes` / `Keyframe` / `KeyframeInterpolator` / `ClipRule` / `RuleEngine` 及各轨旧分支）已在 J-1 全部删除 | 负例 fixture `bad_removed_keyframes.json`（及 `bad_removed_hud_layers.json` / `bad_removed_hard_hide_hud.json`）被拒；全仓 `grep` 旧符号零残留 |
 | 有限末端 / 无限标志 / 有限显示范围分离 | `CinematicScript` 加载期派生只读 `infiniteContent` / `contentEndSeconds` / `finiteDisplayEndSeconds`；无限时 `contentEnd()` 抛异常、调用方先判 `hasFiniteContentEnd()`；`Clip.getWindowEnd()` 无限仍抛 `IllegalStateException`；不再用 ∞/NaN/`Float.MAX_VALUE` 哨兵 | `CinematicScript:53-106 / 179-209`；`Clip.isEffectivelyInfinite()` 与 `getWindowEnd()` 的契约注释 |
 | 派生范围消费者 | `ScriptPlayer`（启动日志 / 超时告警 / 宏观末端）、`FrameDriver`（hold-at-end 驻留点）、`CinematicCommand`（打印「有限末端 / 无限」）、`ScriptGraphService`（节点 `duration` / `infinite`）、`ScriptInfo`（`duration` / `infinite`）全部改用派生值 | `ScriptPlayer:446/640/689/912-917`、`CinematicCommand:253`、`ScriptGraphService:185-219`、`ScriptInfo:47`；`grep` 无 `total_duration` 读取 |
 | `goto_clip` 用片段覆盖约束而非总时长上界 | 旧 v1 `goto_clip` 的 `hasClipAt` 按 `[startTime, windowEnd]` 闭区间判覆盖（无限片段恒真），不再读总时长；新规则引擎按目标片段 + `entry_time` 校验落在片段有效范围 | `RuleActions.gotoClip` / `hasClipAt`；`rule-exits.md` §七 |
 | 规则／路径脚本级集合；旧 `clip.rules`、clip 级 `curve` 按已移除／迁移处理 | `script/rule/`（定义 / 绑定 / 运行激活）与 `script/path/`（路径集合）已落地；parser 不再读 `clip.rules` / clip 级 `curve`，旧脚本经迁移器转成 `rules` / `rule_bindings` / `paths` | `rule-implementation.md` §五；迁移摘要见 `migration-report.md`（路径条目 18、规则定义 16 / 绑定 16） |
-| 编辑器 / 模板侧 | 编辑器源码不在本仓，`types.ts` / `store.ts` 的 version/total_duration 清理归 **Z 轮**；运行时 `script/template/` 与 `ScriptTemplate` 的删除随 Z 轮模板引擎同批 | 不属于 I-5 实现范围；Z 轮清单见 `../Z-editor/README.md` |
+| 编辑器 / 模板侧 | 编辑器源码不在本仓，`types.ts` / `store.ts` 的 version/total_duration 清理归 **Z 轮**；运行时 `script/template/` 与 `ScriptTemplate` 已删除 | 不属于 I-5 实现范围；Z 轮清单见 `../Z-editor/README.md` |
 
 全量回归：252 支脚本在新 parser/validator 下 0 结构错误，validator issue 19 → 17（余 17 条全部是既有夹具缺陷，逐条登记在 `../I-BACKLOG.md` M 表）。

@@ -5,7 +5,6 @@ import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.ScriptManager;
 import com.immersivecinematics.immersive_cinematics.trigger.network.S2CPlayScriptPacket;
 import com.immersivecinematics.immersive_cinematics.trigger.server.ScriptEventManager;
-import com.immersivecinematics.immersive_cinematics.util.ScriptStructureResolver;
 import com.mojang.logging.LogUtils;
 import net.minecraft.server.level.ServerPlayer;
 import org.slf4j.Logger;
@@ -46,10 +45,8 @@ public class StartPlaybackAction implements TriggerAction {
             LOGGER.warn("Cannot play script '{}': script={} rawJson={}", scriptId, script, script != null ? "present" : "null");
             return;
         }
-        // 结构/方块来源替换：与 /icinematics play 一致，推送前在服务端按触发者位置定位并替换为坐标
-        // （多人服客户端无兜底解析；单人服不受影响，客户端仍保留兜底）
-        final String json = ScriptStructureResolver.resolveTargets(
-                script.getRawJson(), player.serverLevel(), player.position());
+        // 直接下发脚本原始 JSON：结构 / 方块来源由客户端按本地世界解析。
+        final String json = script.getRawJson();
         List<ServerPlayer> recipients = switch (target) {
             case "all" -> new ArrayList<>(player.server.getPlayerList().getPlayers());
             case "all_except_trigger" -> {

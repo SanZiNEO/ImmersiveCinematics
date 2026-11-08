@@ -10,13 +10,13 @@
 
 ## What It Is
 
-ImmersiveCinematics is a Minecraft 1.20.1 mod that plays cutscenes from JSON scripts. Triggers run on the server: they watch gameplay events and conditions, and when one matches, the script plays on the clients of the players it applies to. Playback is data-driven — a script declares tracks, clips and keyframes, and the runtime executes them.
+ImmersiveCinematics is a Minecraft 1.20.1 mod that plays cutscenes from JSON scripts. Triggers run on the server: they watch gameplay events and conditions, and when one matches, the script plays on the clients of the players it applies to. Playback is data-driven — a script declares tracks, clips and object properties (`objects`), and the runtime executes them.
 
 Typical uses: intro sequences, boss-fight cinematics, fixed-camera puzzle rooms, chest close-ups, server announcements and automated world flythroughs.
 
 ## Scripts
 
-A script is one JSON file: a `meta` block (id, name, author, version, triggers, runtime behavior) and a `timeline` block (tracks → clips → keyframes). The script format is v3, and `meta.version` must be `3`.
+A script is one JSON file: a `meta` block (id, name, author, triggers, runtime behavior) and a `timeline` block (tracks → clips → `objects`). There is no format version number; older syntax is reported as unknown fields.
 
 Seven track types:
 
@@ -30,7 +30,7 @@ Seven track types:
 | `MOD_EVENT` | Events exposed by other mods. |
 | `ADJUST` | Color grading applied to the whole composited picture. |
 
-Clips on a track may overlap; later clips draw on top. Loops are `repeat` or `ping-pong`, and script-level macro loops are `repeat`. A script ends when its content is played out — every clip consumed, finite loop counts exhausted, nothing pending — not when `total_duration` elapses; `total_duration` is informational.
+Clips on a track may overlap; later clips draw on top. Loops are `repeat` or `pingpong`, and script-level macro loops are `repeat`. A script ends when its content is played out — every clip consumed, finite loop counts exhausted, nothing pending. There is no total-duration field: the display range is derived from the clip windows, and an infinite clip or an infinite macro loop makes the content unbounded.
 
 Scripts load from `immersive_cinematics/scripts/` under the game directory (subfolders up to five levels, `/`-separated paths, `.json` optional). Images, audio, `.cube` LUTs and translation files load from `immersive_cinematics/resource/`.
 
@@ -65,8 +65,8 @@ Each trigger supports `delay`, `repeatable`, `on_enter` / `exit_buffer`, `poll_i
 - `meta.play_mode`: `parallel` (default — never blocks newcomers, never interrupted), `exclusive` (others queue up), `interruptible` (a newcomer takes over).
 - The queue is unbounded and survives across instances. Only an `exclusive` script blocks newcomers; queued requests resume by `priority`, then arrival order.
 - Hold **C** to skip the current cutscene; **Ctrl+P** force-quits. Multiplayer skip voting is configurable per script or globally.
-- Keyboard and mouse blocking, mob-AI blocking, per-layer HUD hiding (chat, scoreboard, action bar, title, subtitles, hotbar, crosshair, boss bar, skip prompt), arm hiding, view-bob and distortion suppression, player model rendering, pause-when-paused. `hard_hide_hud` (Forge) takes over GUI rendering, so third-party HUDs that draw outside the overlay registry are hidden too.
-- Several scripts can run at once: hiding and blocking switches are OR-ed across instances, and pause behavior follows any instance that asks for it.
+- Keyboard and mouse blocking, mob-AI blocking, pause-when-paused. Screen layers are controlled by `meta.screen_layers` (15 canonical layer names, value = show); as soon as any layer is hidden, the whole HUD frame is taken over and only allowlisted layers are redrawn. Forge and Fabric behave identically.
+- Several scripts can run at once: screen-layer and blocking switches are OR-ed across instances, and pause behavior follows any instance that asks for it.
 
 ## World loading
 
@@ -89,24 +89,25 @@ Releases: [GitHub Releases](https://github.com/SanZiNEO/ImmersiveCinematics/rele
     "id": "welcome",
     "name": "Welcome",
     "author": "Your Name",
-    "version": 3,
     "triggers": [
       { "id": "on_login", "type": "login", "delay": 1.0, "conditions": {} }
     ]
   },
   "timeline": {
-    "total_duration": 6.0,
     "tracks": [
       {
-        "type": "camera",
+        "type": "CAMERA",
         "clips": [
           {
             "start_time": 0.0,
             "duration": 6.0,
-            "keyframes": [
-              { "time": 0.0, "position": { "dx": 5, "dy": 2, "dz": 3 }, "yaw": 90, "pitch": 5 },
-              { "time": 6.0, "position": { "dx": 0, "dy": 2, "dz": -5 }, "yaw": 0, "pitch": 10 }
-            ]
+            "objects": {
+              "position.x": { "keyframes": [ { "time": 0.0, "value": 5 }, { "time": 6.0, "value": 0 } ] },
+              "position.y": { "value": 2 },
+              "position.z": { "keyframes": [ { "time": 0.0, "value": 3 }, { "time": 6.0, "value": -5 } ] },
+              "yaw":       { "keyframes": [ { "time": 0.0, "value": 90 }, { "time": 6.0, "value": 0 } ] },
+              "pitch":     { "keyframes": [ { "time": 0.0, "value": 5 }, { "time": 6.0, "value": 10 } ] }
+            }
           }
         ]
       }
@@ -115,7 +116,7 @@ Releases: [GitHub Releases](https://github.com/SanZiNEO/ImmersiveCinematics/rele
 }
 ```
 
-`position` with `dx` / `dy` / `dz` is a world-axis offset from the player's activation position; `yaw` and `pitch` are degrees. Save it as `immersive_cinematics/scripts/welcome.json`, run `/icinematics reload`, and it plays one second after login.
+`position.x` / `y` / `z` are world-axis offsets from the player's activation position; `yaw` and `pitch` are degrees. Save it as `immersive_cinematics/scripts/welcome.json`, run `/icinematics reload`, and it plays one second after login.
 
 ### Commands
 
@@ -125,8 +126,6 @@ Releases: [GitHub Releases](https://github.com/SanZiNEO/ImmersiveCinematics/rele
 | `/icinematics stop [script] [players]` | — | Stop playback; no arguments stops everything |
 | `/icinematics reload` | op 2 | Re-read the scripts from disk and rebuild triggers |
 | `/icinematics validate <script>` | op 2 | Static-validate a script and list every problem at once |
-| `/icinematics template list` | op 2 | List the built-in clip templates and their parameters |
-| `/icinematics template <id> [key=value…]` | op 2 | Expand a clip template into a generated script |
 
 Script paths are relative to `immersive_cinematics/scripts/`; `.json` is optional.
 
@@ -140,7 +139,7 @@ The mod jar ships the playback runtime plus the WebSocket server, frame streamin
 
 ## Compatibility
 
-- Forge 47.x+ and Fabric 1.20.1 from one common codebase; the platforms differ only in rendering and HUD adapters (`hard_hide_hud` is Forge-only) and the config screen entry.
+- Forge 47.x+ and Fabric 1.20.1 from one common codebase; the platforms differ only in rendering adapters. `screen_layers` behaves identically on both.
 - Compatible with Sodium, Rubidium and Embeddium.
 - Iris / Oculus shader packs: per-lane shader state is isolated, including cross-dimension lanes; switching shader packs no longer requires a restart.
 - Pause-aware: scripts freeze when the game is paused.
@@ -151,7 +150,7 @@ The mod jar ships the playback runtime plus the WebSocket server, frame streamin
 |---|---|
 | Minecraft | 1.20.1 |
 | Java | 17+ |
-| Script format | v3 |
+| Script format | `objects` (no version number) |
 | Latest release | 0.3.5 (2026-09-09) |
 | In development | 0.3.6 (unreleased) — this README describes the current development state |
 | Standalone editor | 0.1.0 (testing) |

@@ -9,7 +9,7 @@ import com.immersivecinematics.immersive_cinematics.trigger.shared.GeometryCondi
  *
  * <p>只读一条事实与条件对象：{@code object} / {@code detail} / {@code scene} 与 {@code conditions}
  * 的对应字段逐项比对，不读玩家、不读世界、不查账本。调用方负责「取哪一条事实」——单值求值器取
- * 该类型最后一条事实（{@link PlayerFacts#lastOf}），{@code and} 模式取累计索引（{@link PlayerFacts#anyObject}）。
+ * 该类型最后一条事实（{@link PlayerFacts#lastOf}），{@code and} 模式取累计计数。
  *
  * <p>各类型的字段约定：
  * <ul>

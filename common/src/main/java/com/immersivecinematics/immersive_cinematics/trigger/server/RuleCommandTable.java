@@ -3,8 +3,6 @@ package com.immersivecinematics.immersive_cinematics.trigger.server;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
-import com.immersivecinematics.immersive_cinematics.script.Clip;
-import com.immersivecinematics.immersive_cinematics.script.TimelineTrack;
 import com.immersivecinematics.immersive_cinematics.script.rule.RuleBinding;
 import com.immersivecinematics.immersive_cinematics.script.rule.RuleCollection;
 
@@ -15,17 +13,11 @@ import java.util.Map;
 /**
  * 服务端规则命令动作表：把脚本里每个 {@code emit_command} 动作编译成可解析的表项。
  *
- * <p>客户端只提交动作引用（{@code bindingId} / 三个索引），命令原文只存在于服务端这张表里；
+ * <p>客户端只提交动作引用（{@code bindingId} + {@code actionIndex}），命令原文只存在于服务端这张表里；
  * 请求命中表项才执行，未知引用（脚本外动作 / 非命令动作 / 越界索引）一律解析不到。</p>
  *
- * <p>键空间两种形态（同一脚本只会有其中一种，解析期已互斥）：
- * <ul>
- *   <li>脚本级规则（{@code rules} + {@code rule_bindings}）：键 = {@code (bindingId, -1, -1, actionIndex)}，
- *       命令取 {@code binding.definition().actions()[actionIndex].command}；</li>
- *   <li>旧片段规则（{@code clip.rules}）：键 = {@code ("", clipIndex, ruleIndex, actionIndex)}，
- *       {@code clipIndex} 是平铺片段索引（轨道序 → 轨道内片段序，与
- *       {@code ClipExecutionLedger} 同口径），{@code ruleIndex} 恒为 -1（脚本级规则无片段内下标）。</li>
- * </ul>
+ * <p>键空间只有一种：脚本级规则（{@code rules} + {@code rule_bindings}），键 = {@code (bindingId, actionIndex)}，
+ * 命令取 {@code binding.definition().actions()[actionIndex].command}。</p>
  *
  * <p>只存服务端内存；不写脚本、不发给客户端。脚本替换时由
  * {@link ScriptEventManager#primeCommandTable} 重建，旧引用随之失效。</p>
@@ -41,15 +33,13 @@ public final class RuleCommandTable {
      * 一条可执行的规则命令动作。
      *
      * @param scriptId    脚本 id
-     * @param bindingId   绑定 id（空串 = 旧 {@code clip.rules} 形态）
-     * @param clipIndex   平铺片段索引（脚本级规则 = -1）
-     * @param ruleIndex   片段内规则下标（脚本级规则 = -1）
+     * @param bindingId   绑定 id
      * @param actionIndex 动作列表下标
      * @param command     命令原文（只存在于服务端）
      * @param sourcePath  动作在脚本中的位置（审计 / 诊断用，不含命令原文）
      */
-    public record CommandEntry(String scriptId, String bindingId, int clipIndex, int ruleIndex,
-                               int actionIndex, String command, String sourcePath) {}
+    public record CommandEntry(String scriptId, String bindingId, int actionIndex,
+                               String command, String sourcePath) {}
 
     private static final RuleCommandTable EMPTY = new RuleCommandTable(Map.of());
 
@@ -70,7 +60,7 @@ public final class RuleCommandTable {
         String scriptId = script.getId() == null ? "" : script.getId();
         Map<Key, CommandEntry> entries = new HashMap<>();
 
-        // 新形态：脚本级规则的绑定动作（键不含片段 / 规则索引）
+        // 脚本级规则的绑定动作（键 = (bindingId, actionIndex)）
         RuleCollection collection = script.getRuleCollection();
         if (collection != null) {
             for (RuleBinding binding : collection.bindings()) {
@@ -82,8 +72,8 @@ public final class RuleCommandTable {
                     String command = commandOf(action);
                     if (command == null) continue;
                     String path = "rules[" + binding.definition().id() + "].actions[" + ai + "]";
-                    entries.put(new Key(binding.id(), -1, -1, ai),
-                            new CommandEntry(scriptId, binding.id(), -1, -1, ai, command, path));
+                    entries.put(new Key(binding.id(), ai),
+                            new CommandEntry(scriptId, binding.id(), ai, command, path));
                 }
             }
         }
@@ -94,14 +84,12 @@ public final class RuleCommandTable {
     /**
      * 按动作引用查表。
      *
-     * @param bindingId   绑定 id（空串 = 旧 {@code clip.rules} 形态）
-     * @param clipIndex   平铺片段索引（脚本级规则传 -1）
-     * @param ruleIndex   片段内规则下标（脚本级规则传 -1）
+     * @param bindingId   绑定 id
      * @param actionIndex 动作下标
      * @return 命中项；未知引用一律 {@code null}
      */
-    public CommandEntry resolve(String bindingId, int clipIndex, int ruleIndex, int actionIndex) {
-        return entries.get(new Key(bindingId == null ? "" : bindingId, clipIndex, ruleIndex, actionIndex));
+    public CommandEntry resolve(String bindingId, int actionIndex) {
+        return entries.get(new Key(bindingId == null ? "" : bindingId, actionIndex));
     }
 
     /** 表项数（诊断 / 探针）。 */
@@ -125,5 +113,5 @@ public final class RuleCommandTable {
                 ? element.getAsString() : null;
     }
 
-    private record Key(String bindingId, int clipIndex, int ruleIndex, int actionIndex) {}
+    private record Key(String bindingId, int actionIndex) {}
 }

@@ -8,16 +8,16 @@ import com.immersivecinematics.immersive_cinematics.script.object.SampledClip;
 import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 
 /**
- * 新格式 OVERLAY 片段的装配层：value-only 结构每片段解析一次，逐帧只读 {@link SampledClip} 槽位。
+ * OVERLAY 片段的装配层：value-only 结构每片段解析一次，逐帧只读 {@link SampledClip} 槽位。
  *
  * <p>value-only 字段（{@code layer_type} / {@code path} / {@code text} / {@code z_index} /
  * {@code color} / {@code gradient} / {@code mask_shape} / {@code blend_mode}）由
  * {@link ClipValueView} 一次性读出并解析；{@link ColorMaskSpec} 由 {@link ColorMaskSpec#forObjects}
- * 建成，不携带关键帧颜色缓存——新格式颜色来自 {@code color.r/g/b} 采样。</p>
+ * 建成，不携带关键帧颜色缓存——颜色来自 {@code color.r/g/b} 采样。</p>
  *
  * <p>逐帧装配由 {@link #compute(Clip, double, ClipRuntimeCache, OverlayClipRuntime)} 完成：一个
  * {@code SampledClip} 提供全部几何 / 颜色 / 遮罩 / 渐变采样值，按层类型只读适用槽位，其余填 schema
- * 缺省（等价于旧链路「未写该通道即用缺省」的口径）。{@code color.r/g/b} 的回落是逐通道的：只有
+ * 缺省（未写该通道即用缺省）。{@code color.r/g/b} 的回落是逐通道的：只有
  * 作者显式声明了该通道（{@link ClipValueView#declared(String)}）才用采样值，否则回落 value-only
  * {@code color} 的对应通道。</p>
  *
@@ -28,7 +28,7 @@ public final class OverlayClipRuntime {
     /** 层类型缺省（同 {@code TrackSchemas.overlayObjects()}）。 */
     public static final String DEFAULT_LAYER_TYPE = "fade";
 
-    // 遮罩 / 渐变几何缺省（与旧链路 OverlayTrackPlayer 的口径一致）
+    // 遮罩 / 渐变几何缺省（与 OverlayTrackPlayer 的口径一致）
     private static final float DEFAULT_MASK_POSITION = 0.5f;
     private static final float DEFAULT_MASK_SIZE = 1.0f;
     private static final float DEFAULT_MASK_RADIUS = 0.5f;
@@ -95,7 +95,7 @@ public final class OverlayClipRuntime {
     /**
      * 解析一个片段的 value-only 字段（每片段一次；调用方按片段身份缓存结果）。
      *
-     * @param clip   新格式片段
+     * @param clip   片段
      * @param values 该片段的 value-only 读取视图（{@link ClipRuntimeCache#values(Clip)}）
      */
     public static OverlayClipRuntime of(Clip clip, ClipValueView values) {
@@ -143,8 +143,8 @@ public final class OverlayClipRuntime {
     /**
      * 在 {@code executionLocalTime} 装配一帧图层参数。
      *
-     * @param clip      新格式片段
-     * @param localTime 执行局部时间（与旧路径同源）
+     * @param clip      片段
+     * @param localTime 执行局部时间
      * @param cache     该片段的采样缓存
      * @param runtime   本片段的 value-only 解析结果
      * @return 不可变参数对象（播放器立即消费，不长期持有）

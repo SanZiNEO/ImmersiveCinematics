@@ -146,14 +146,13 @@
 
 #### 2. 现状（方向）
 
-- 关键帧**已经是通用容器**（`Keyframe { time, trackType, data: Map }`，`script/Keyframe.java`）——加字段不用改类，底子是好的。
+- 关键帧**已经是通用容器**：片段只持显式字段（`startTime` / `duration` / `trackType` / `loop` / `loopCount` / `loopMode` / `clipId` / `exitPolicy`），其余全部落 `objects`（`ClipObjects`，`script/Clip.java`）；动画量走 `ClipSampler` / `SampledClip`，value-only 字段走 `ClipValueView`——加字段不改 `Clip` 类。
 - 但离“所有东西都能关键帧”还差：
-  - **插值是片段级的**，不是关键帧级：`interpolation` 是 clip 字段（`schema/TrackSchemas.java` 里 CAMERA 与 OVERLAY 的 `clips.put("interpolation", …)`，取值 `linear|smooth`），`Keyframe` 没有插值字段。**相机段根本不读这个字段**（`script/CameraTrackPlayer.java` 全文没有 `"interpolation"`，它用 clip 级 `curve` + `KeyframeInterpolator.computeInterpolation()`），真正消费它的是 `OverlayTrackPlayer`（`"smooth".equals(clip.getString("interpolation", "linear"))`）。
-    > 原文此处引 `camera-state-plan.md` 的“已知缺陷”——该节并没有这一条，见文末核查。
-  - **复合值整体插值**（位置是一个整体）：`Keyframe.getPosition()` 返回单个 `PositionData`（x/y/z 三分量在同一对象内），`KeyframeInterpolator.interpolatePosition()` 对整条 `Vec3` 插值——做不到按分量打关键帧，做不到“只让 X 动、Y 不动”。
-  - **meta 里的东西完全不可关键帧**：听者 `meta.listener`、HUD `hide_hud`、可跳过 `skippable`、可打断 `interruptible`、优先级 `priority`、末尾行为 `hold_at_end` 等都是 `ScriptMeta.RuntimeBehavior` 里整段一个值，没有任何关键帧通道。
-  - **“循环”当前不在 meta 里**：`loop` / `loop_count` / `loop_mode` 是 **clip 级**字段（`schema/TrackSchemas.java`），由 `Clip.isLoop() / getLoopCount() / getLoopMode()` 读取（`script/Clip.java`）；meta schema 里没有循环开关。（§1 把“循环”列进 meta 是方向，不是现状。）
-  - 时间是 float 秒：`Keyframe.time` 是 `float`；`ScriptParser` 用 `requireFloat` 读 `time` / `start_time` / `duration` / `total_duration`，并强制同一 clip 内关键帧时间**严格单调递增**（`keyframes.get(i).getTime() <= keyframes.get(i-1).getTime()` → 解析错误）。
+  - **插值不写在脚本里**：片段级 `interpolation` 字段已删除，缓动由编辑器烘焙成显式关键帧，运行时按字段元数据插值（`LINEAR` / `ANGLE` / `GEOMETRIC` / `STEP`）。
+  - **复合值必须拆叶子**：`objects` 只认叶子路径（`position.x` / `dest.w` / `color.r`…），复合名本身不允许出现；按分量打关键帧、只让 X 动 Y 不动都已成立。位置求值走 `PointKinds` / `PointKind` / `PointFrame` / `PointOffset` / `EntityPoint` + `PositionSpace`。
+  - **meta 里的东西完全不可关键帧**：听者 `meta.listener`、画面层 `meta.screen_layers` / `meta.screen_layer_mode`、可跳过 `skippable`、可打断 `interruptible`、优先级 `priority`、末尾行为 `hold_at_end` 等都是 `ScriptMeta.RuntimeBehavior` 里整段一个值，没有任何关键帧通道。
+  - **“循环”当前不在 meta 里**：`loop` / `loop_count` / `loop_mode` 是 **clip 级**字段（`schema/TrackSchemas.java`），由 `Clip.isExecutionLoop() / getLoopCount() / getLoopMode()` 读取（`script/Clip.java`）；meta schema 里没有循环开关。（§1 把“循环”列进 meta 是方向，不是现状。）
+  - 时间是 float 秒：`ObjectKeyframe.time` 是 `float`；`ScriptParser` 用 `requireFloat` 读 `start_time` / `duration`，`ObjectParser` 读关键帧 `time`，并强制同一对象内关键帧时间**严格递增**（相等或倒序 → 解析错误）。
 - [并行播放](../F-playback/parallel-playback.md)要求**每个脚本实例持有自己的实例状态**，所以模型必须能支撑“**一份脚本定义 × N 份运行时状态**”。
 
 ---
@@ -178,7 +177,7 @@
    > **结案标注（2026-10-08 用户裁决「任务2改判」，见 `implementation-progress.md` 用户裁决新增表）**：本节按**方案 E 结案**——缓动 = 编辑器烘焙（`editor/src/operations.ts`），贝塞尔**手柄归 Z 轮**（运行时只读只执行、不含手柄逻辑；产物数据形态随 Z 轮定稿）。
 2. **参数寻址到分量**：关键帧的归属从“轨道类型”细化为“**哪个实例的哪条轨道、哪个参数、哪个分量**”——这是“所有东西进关键帧”的前提（否则没法给“第 2 条 lane 的目标矩形 x”打关键帧）。
 3. **参数声明加 keyframable**：能不能打关键帧变成声明，编辑器据此决定是否显示关键帧按钮。
-4. **meta 纳入关键帧**：`listener` / `hide_hud` / 循环 / 可跳过……凡满足 §1 判定规则的一律进关键帧；做不到的要单独说明为什么。
+4. **meta 纳入关键帧**：`listener` / `screen_layers` / 循环 / 可跳过……凡满足 §1 判定规则的一律进关键帧；做不到的要单独说明为什么。
 5. **时间精度**：是否改为有理数 / 高精度（长脚本 + 密集关键帧）。
 6. **合成参数（opacity 等）挂在 clip 上（方向·倾向）**：叠化需要 opacity 关键帧直接落在 CAMERA clip 上（A 末尾 1→0、B 开头 0→1）——这支持[画面合成](../F-playback/camera-composition.md) §2 的候选 A（自声明）；候选 B（合成导演）与本条不冲突，执行时随 camera-composition 一起定。
 7. **hold 延伸与叠化生成规则（已确认·2026-10-07）**：见 §1.1——复制延长 = 插等值关键帧 + 窗口调整，不新增字段；叠化工具 / 模板按此规则生成两组 hold 关键帧 + 两组 opacity 关键帧。
@@ -260,12 +259,14 @@
 
 ##### ② 核实为真（本仓，§2）
 
-- **`Keyframe` 是通用容器**：`script/Keyframe.java` 字段恰为 `private final float time; private final TrackType trackType; private final Map<String,Object> data;`，另有 `getString/getFloat/getInt/getBool/getObject` 泛型取值 → “加字段不用改类”成立（新字段进 `data` map）。
+> 本节是 2026-10-06 的核实记录（objects 格式落地前）。J-1 已删除旧 `Keyframe` / 片段级插值 / 旧点源模型；现行符号见 ④。
+
+- **`Keyframe` 是通用容器**（J-1 前）：旧 `script/Keyframe.java` 字段为 `float time` + `TrackType trackType` + `Map<String,Object> data`，另有 `getString/getFloat/getInt/getBool/getObject` 泛型取值 → “加字段不用改类”成立。J-1 后改为显式字段 + `objects`：`Clip` 只持 `startTime` / `duration` / `trackType` / `loop` / `loopCount` / `loopMode` / `clipId` / `exitPolicy`，其余落 `ClipObjects`；value-only 字段由 `ClipValueView` 读，动画量由 `ClipSampler` / `SampledClip` 采样。
 - **插值是片段级**：`schema/TrackSchemas.java` 把 `interpolation` 声明在 **clips** 上（CAMERA 第 32 行、OVERLAY 第 149 行，`enum linear|smooth`）；`Keyframe.java` 无插值字段；`script/InterpolationType.java` 只有 `LINEAR` 且**全仓无引用**（注释自述“仅用于 JSON 校验白名单”）；`ScriptValidator` 对 clip 做 `interpolation ∈ {linear, smooth}` 校验。
 - **相机段不消费 `interpolation`**：`script/CameraTrackPlayer.java` 全文无 `"interpolation"`；它走 `KeyframeInterpolator.computeInterpolation()`（`KeyframeInterpolator.java:40`，只返回 from/to + `adjustedT`，无插值类型分支）+ clip 级 `curve`（`KeyframeInterpolator.java:123/144`、`CameraTrackPlayer.java:754/799`）。真正消费它的是 `OverlayTrackPlayer`（`:84`、`:180`）；黑边 `LetterboxTrackPlayer` 同样不消费。
-- **复合值整体插值**：`Keyframe.getPosition()` 返回单个 `PositionData`（内部 `float x/y/z` + 基准字段）；`KeyframeInterpolator.interpolatePosition()` 取 `from.getPosition().toVec3()` 与 `to.getPosition().toVec3()` 后整条插值；相机关键帧 schema 里 `position` 是**一个** `FieldDef("position", …)` → 位置确实不能按分量打关键帧。
-- **meta 不可关键帧**：`script/ScriptMeta.java` 只有 `id/name/author/version/description/behavior/priority/dimension/triggers/skipVoteRatio` + `record RuntimeBehavior(…)`，无关键帧通道；meta 字段表见 `schema/MetaSchemas.java`（含 `listener`、`hide_hud`、`skippable`、`interruptible`、`priority`、`hold_at_end`）。`listener` 属运行期字段，只在 `rawJson` 里读（`AudioListenerController.listenerMode()`；`ScriptParser` 注释“meta.listener 等运行期扩展字段只在 rawJson 里读取”）。
-- **时间是 float 秒**：`Keyframe.time` 为 `float`；`ScriptParser` 用 `requireFloat` 读 `time`（`parseKeyframe`）、`start_time`/`duration`（`parseClip`）、`total_duration`（`parseTimeline`）。
+- **复合值整体插值**（J-1 前）：旧关键帧的位置是单个复合对象（内部 `float x/y/z` + 基准字段）；`KeyframeInterpolator` 取 `from` / `to` 的整条 `Vec3` 插值；相机关键帧 schema 里 `position` 是**一个** `FieldDef("position", …)` → 当时位置确实不能按分量打关键帧。J-1 后改为 `objects` 叶子路径（`position.x` / `.y` / `.z`）逐分量采样，点源类型为 `PointKinds` / `PointKind` / `PointFrame` / `PointOffset` / `EntityPoint` + `PositionSpace`。
+- **meta 不可关键帧**：`script/ScriptMeta.java` 只有 `id/name/author/description/behavior/priority/playMode/dimension/triggers/skipVoteRatio/triggerPollInterval/baseWidth/baseHeight` + `record RuntimeBehavior(…)`，无关键帧通道；meta 字段表见 `schema/MetaSchemas.java`（含 `listener`、`screen_layers`、`screen_layer_mode`、`skippable`、`interruptible`、`priority`、`hold_at_end`）。`listener` 属运行期字段，只在 `rawJson` 里读（`AudioListenerController.listenerMode()`；`ScriptParser` 注释“meta.listener 等运行期扩展字段只在 rawJson 里读取”）。
+- **时间是 float 秒**：`ObjectKeyframe.time` 为 `float`；`ScriptParser` 用 `requireFloat` 读 `start_time` / `duration`（`parseClip`），`ObjectParser` 读关键帧 `time`。
 
 ##### ③ 已修正
 
@@ -284,8 +285,8 @@
 ##### ④ 补全的信息
 
 - **olive 侧符号/路径**：`Node::Input`（`node.h:1147`）、`AddInput`/`PrependInput`/`InsertInput`/`SetInputProperty`/`SetInputFlag`/`IsInputKeyframable`（`node.h`/`node.cpp`）、`InputFlag` 枚举全值（`param.h`）、`NodeKeyframe` 全成员 + `kDefaultType`（`keyframe.h`/`keyframe.cpp`）、`NodeInputImmediate::keyframe_tracks_` 与 `get_keyframe_at_time*`（`inputimmediate.h/.cpp`）、`NodeValue::split_normal_value_into_track_values` / `combine_track_values_into_normal_value` / `get_number_of_keyframe_tracks`（`value.cpp`）、`NodeKeyframeTrackReference`（`param.h:318`）。
-- **本仓符号/路径**：`script/Keyframe.java`、`script/Clip.java`（`isLoop/getLoopCount/getLoopMode/getCurve`）、`script/PositionData.java`、`script/KeyframeInterpolator.java`（`computeInterpolation` / `interpolatePosition` / `InterpolationResult`）、`script/CameraTrackPlayer.java`、`script/OverlayTrackPlayer.java`、`script/ScriptMeta.java`、`script/schema/TrackSchemas.java`、`script/schema/MetaSchemas.java`、`script/schema/FieldDef.java`（record 字段名 `defaultValue` / `enumValues`）、`script/ScriptParser.java`。
-- **新增事实（对 §4 有约束）**：本仓同一 clip 内关键帧时间**必须严格单调递增**（`ScriptParser`：`keyframes.get(i).getTime() <= keyframes.get(i-1).getTime()` → 抛 `ScriptParseException`）；而 olive 允许同一时刻多帧（不同 track/element）。按分量分轨落地时必须一并处理这条约束。
+- **本仓符号/路径**：`script/Clip.java`（`isExecutionLoop/getLoopCount/getLoopMode/getLoopModeValue`）、`script/object/ClipObjects.java`、`script/object/ClipSampler.java`、`script/object/SampledClip.java`、`script/object/SampledProperty.java`、`script/object/ObjectKeyframe.java`、`script/object/ClipValueView.java`、`script/object/position/PointKinds.java`（`PointKind` / `PointFrame` / `PointOffset` / `EntityPoint` / `PositionSpace`）、`script/CameraTrackPlayer.java`、`script/OverlayTrackPlayer.java`、`script/ScriptMeta.java`、`script/schema/TrackSchemas.java`、`script/schema/MetaSchemas.java`、`script/schema/FieldDef.java`（record 字段名 `defaultValue` / `enumValues`）、`script/ScriptParser.java`。
+- **新增事实（对 §4 有约束）**：本仓同一 `objects` 对象内关键帧时间**必须严格递增**（`ObjectValidator` / `ObjectParser`，相等或倒序 → 解析错误）；而 olive 允许同一时刻多帧（不同 track/element）。按分量分轨落地时必须一并处理这条约束。
 - **§6 `FieldDef`**：实际 record 为 `FieldDef(String type, Object defaultValue, boolean required, List<String> enumValues, String section)`，`section` 默认 `"info"`；javadoc 现为「`section` 为 WebUI 自动分组预留；Java 侧只做元数据声明，不消费该字段」（0.3.6 前写的是「游戏内编辑器使用 `FieldGroup`，不直接消费 section」，该编辑器与 `FieldGroup` 已随退役删除）。
 
 ##### ⑤ 未验证

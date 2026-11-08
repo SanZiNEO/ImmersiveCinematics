@@ -7,22 +7,20 @@
 | 能力 | 入口 | 语义 |
 |---|---|---|
 | 行为开关并集 | `CinematicController.INSTANCE`（`computeUnion` / `applyUnion` / `recomputeUnion`） | 全部活跃实例的 `ScriptMeta.RuntimeBehavior` 逐位取并集：任一实例要求隐藏 / 屏蔽即生效；实例增删后由 `CameraManager` 重算 |
-| 三态字段 | `hide_*` / `suppress_*` | `null` = 未声明，`true` / `false` = 显式声明；`revert()` 恢复为 `null` |
+| 三态字段 | `screen_layers`（层名 → 显示布尔） | 逐实例键并集：只取各实例**显式声明**的键，值取隐藏极性后 OR；未声明该键的实例不投票 |
 | 生命周期门控 | `CameraManager.isAnyPauseWhenGamePaused()` / `isTopInstanceSkippable()` | 无全局副本：暂停联动取并集，跳过提示取**顶层实例**（后来者居上） |
-| 编辑器放行 | `setBlockKeyboard` / `setBlockMouse` | 预览模式临时放行输入 |
-| 画面扭曲 | `suppress_distortion` | 临时改写原版 `screenEffectScale`，退出时恢复 |
+| 画面扭曲 | `screen_effects` 层 | 层判隐藏时临时改写原版 `screenEffectScale`，退出时恢复 |
 
-## 画面层入口（screen_layers / screen_layer_mode）
+## 画面层入口（screen_layers）
 
 | 项 | 说明 |
 |---|---|
-| 唯一字段 | `meta.screen_layers`（层名 → 布尔，**`true` = 显示**）与 `meta.screen_layer_mode`（`normal` / `allowlist`） |
-| 层名真源 | `script/ScreenLayer`：15 个规范层名 + 11 个旧固定别名 + 注册分类名 + 未注册 overlay 的完整资源 ID |
-| 模式归一 | 显式 `screen_layer_mode` > 写了 `screen_layers` → `allowlist` > `normal` |
-| 模式并集 | 任一活跃实例 `allowlist` → 整段 `allowlist`；无活跃实例复位 |
-| 判定顺序 | `screen_layers[规范层名]` → `screen_layers[原始分类键]` → 该实例旧字段（`hide_*` / `suppress_*` / `render_player_model`）→ `hide_hud` |
-| 查询面 | `isLayerHidden(layerName, categoryKey)` / `isLayerHidden(layer)` / `screenLayerMode()` / `isAllowlistMode()` / `anyScreenLayerHidden()` |
-| 已移除 | `meta.hud_layers` / `meta.hard_hide_hud`：解析期硬错（「已移除」），不再归一、不再进入运行时判定 |
+| 唯一入口 | `meta.screen_layers`（层名 → 布尔，**`true` = 显示**） |
+| 接管模式 | 唯一模式：**任一隐藏层 → 整帧清除 + 白名单重画**，默认生效，无模式字段 |
+| 层名真源 | `script/ScreenLayer`：15 个规范层名 + 第三方注册的分类名 + 未注册 overlay 的完整资源 ID |
+| 判定顺序 | `screen_layers[规范层名]` → `screen_layers[原始分类键]` → 派生值 `hudAllHidden`（HUD 空间 11 层全判隐藏）；未声明的层不显示（allowlist 语义） |
+| 查询面 | `isLayerHidden(layerName, categoryKey)` / `isLayerHidden(layer)` / `anyScreenLayerHidden()` / `isScreenLayerTakeoverActive()` |
+| 已移除 | `meta.hud_layers` / `meta.hard_hide_hud` / `meta.screen_layer_mode` / `meta.hide_hud` / `hide_*` / `suppress_*` / `render_player_model`：统一走 meta 未知字段白名单，解析期报错 |
 
 ## 退出原因与完成原因
 

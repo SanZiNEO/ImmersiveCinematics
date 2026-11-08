@@ -1,6 +1,5 @@
 package com.immersivecinematics.immersive_cinematics.script.object.position;
 
-import com.immersivecinematics.immersive_cinematics.camera.source.PointSource;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -10,5 +9,5 @@ import net.minecraft.world.phys.Vec3;
  * <p>{@code frame} 的 {@code origin} 是基准锚点（点源解析点；冻结时换成冻结后的世界点），
  * 三轴由方向源给出（单位向量，{@code up} 固定世界竖直）。</p>
  */
-public record PositionResult(Vec3 world, PointSource.Frame frame) {
+public record PositionResult(Vec3 world, PointFrame frame) {
 }
