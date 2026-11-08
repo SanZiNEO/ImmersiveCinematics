@@ -150,7 +150,7 @@
 - 但离“所有东西都能关键帧”还差：
   - **插值不写在脚本里**：片段级 `interpolation` 字段已删除，缓动由编辑器烘焙成显式关键帧，运行时按字段元数据插值（`LINEAR` / `ANGLE` / `GEOMETRIC` / `STEP`）。
   - **复合值必须拆叶子**：`objects` 只认叶子路径（`position.x` / `dest.w` / `color.r`…），复合名本身不允许出现；按分量打关键帧、只让 X 动 Y 不动都已成立。位置求值走 `PointKinds` / `PointKind` / `PointFrame` / `PointOffset` / `EntityPoint` + `PositionSpace`。
-  - **meta 里的东西完全不可关键帧**：听者 `meta.listener`、画面层 `meta.screen_layers` / `meta.screen_layer_mode`、可跳过 `skippable`、可打断 `interruptible`、优先级 `priority`、末尾行为 `hold_at_end` 等都是 `ScriptMeta.RuntimeBehavior` 里整段一个值，没有任何关键帧通道。
+  - **meta 里的东西完全不可关键帧**：听者 `meta.listener`、画面层 `meta.screen_layers`（有隐藏层即整帧接管 + 白名单重画，默认生效）、可跳过 `skippable`、可打断 `interruptible`、优先级 `priority`、末尾行为 `hold_at_end` 等都是 `ScriptMeta.RuntimeBehavior` 里整段一个值，没有任何关键帧通道。
   - **“循环”当前不在 meta 里**：`loop` / `loop_count` / `loop_mode` 是 **clip 级**字段（`schema/TrackSchemas.java`），由 `Clip.isExecutionLoop() / getLoopCount() / getLoopMode()` 读取（`script/Clip.java`）；meta schema 里没有循环开关。（§1 把“循环”列进 meta 是方向，不是现状。）
   - 时间是 float 秒：`ObjectKeyframe.time` 是 `float`；`ScriptParser` 用 `requireFloat` 读 `start_time` / `duration`，`ObjectParser` 读关键帧 `time`，并强制同一对象内关键帧时间**严格递增**（相等或倒序 → 解析错误）。
 - [并行播放](../F-playback/parallel-playback.md)要求**每个脚本实例持有自己的实例状态**，所以模型必须能支撑“**一份脚本定义 × N 份运行时状态**”。
@@ -265,7 +265,7 @@
 - **插值是片段级**：`schema/TrackSchemas.java` 把 `interpolation` 声明在 **clips** 上（CAMERA 第 32 行、OVERLAY 第 149 行，`enum linear|smooth`）；`Keyframe.java` 无插值字段；`script/InterpolationType.java` 只有 `LINEAR` 且**全仓无引用**（注释自述“仅用于 JSON 校验白名单”）；`ScriptValidator` 对 clip 做 `interpolation ∈ {linear, smooth}` 校验。
 - **相机段不消费 `interpolation`**：`script/CameraTrackPlayer.java` 全文无 `"interpolation"`；它走 `KeyframeInterpolator.computeInterpolation()`（`KeyframeInterpolator.java:40`，只返回 from/to + `adjustedT`，无插值类型分支）+ clip 级 `curve`（`KeyframeInterpolator.java:123/144`、`CameraTrackPlayer.java:754/799`）。真正消费它的是 `OverlayTrackPlayer`（`:84`、`:180`）；黑边 `LetterboxTrackPlayer` 同样不消费。
 - **复合值整体插值**（J-1 前）：旧关键帧的位置是单个复合对象（内部 `float x/y/z` + 基准字段）；`KeyframeInterpolator` 取 `from` / `to` 的整条 `Vec3` 插值；相机关键帧 schema 里 `position` 是**一个** `FieldDef("position", …)` → 当时位置确实不能按分量打关键帧。J-1 后改为 `objects` 叶子路径（`position.x` / `.y` / `.z`）逐分量采样，点源类型为 `PointKinds` / `PointKind` / `PointFrame` / `PointOffset` / `EntityPoint` + `PositionSpace`。
-- **meta 不可关键帧**：`script/ScriptMeta.java` 只有 `id/name/author/description/behavior/priority/playMode/dimension/triggers/skipVoteRatio/triggerPollInterval/baseWidth/baseHeight` + `record RuntimeBehavior(…)`，无关键帧通道；meta 字段表见 `schema/MetaSchemas.java`（含 `listener`、`screen_layers`、`screen_layer_mode`、`skippable`、`interruptible`、`priority`、`hold_at_end`）。`listener` 属运行期字段，只在 `rawJson` 里读（`AudioListenerController.listenerMode()`；`ScriptParser` 注释“meta.listener 等运行期扩展字段只在 rawJson 里读取”）。
+- **meta 不可关键帧**：`script/ScriptMeta.java` 只有 `id/name/author/description/behavior/priority/playMode/dimension/triggers/skipVoteRatio/triggerPollInterval/baseWidth/baseHeight` + `record RuntimeBehavior(…)`，无关键帧通道；meta 字段表见 `schema/MetaSchemas.java`（含 `listener`、`screen_layers`、`skippable`、`interruptible`、`priority`、`hold_at_end`）。`listener` 属运行期字段，只在 `rawJson` 里读（`AudioListenerController.listenerMode()`；`ScriptParser` 注释“meta.listener 等运行期扩展字段只在 rawJson 里读取”）。
 - **时间是 float 秒**：`ObjectKeyframe.time` 为 `float`；`ScriptParser` 用 `requireFloat` 读 `start_time` / `duration`（`parseClip`），`ObjectParser` 读关键帧 `time`。
 
 ##### ③ 已修正

@@ -43,8 +43,8 @@ public record PointSourceSpec(PointKind kind, String selector, String structureI
     /**
      * 位置点源（{@code position_origin}）→ 规格：空来源按表达空间补缺省（不写 = 不显式指定）。
      *
-     * <p>空来源 + {@link PositionSpace#WORLD} = 玩家激活位置（{@link PointKind#WORLD}，静态）；
-     * 空来源 + {@link PositionSpace#BASE} = 隐式玩家实体 {@code @p}（{@link PointKind#SELECTOR}，
+     * <p>空来源 + {@link PointSpace#WORLD} = 玩家激活位置（{@link PointKind#WORLD}，静态）；
+     * 空来源 + {@link PointSpace#BASE} = 隐式玩家实体 {@code @p}（{@link PointKind#SELECTOR}，
      * 仍是实体选择器，{@code freeze} 按参数生效；缺省 {@code false} 即不冻结）。
      * 非空来源按 {@link PointKinds#kindOf} 分派：{@code coordinate} 读 {@code x/y/z}；
      * {@code block:id[:radius]} 用 {@link PointKinds#parseBlock}；选择器 / 结构 id 原样携带。</p>
@@ -57,11 +57,11 @@ public record PointSourceSpec(PointKind kind, String selector, String structureI
      * @param freeze 冻结开关（只对实体选择器形态有意义，静态来源写了等价于无效果）
      * @return 点源规格；不会为 {@code null}
      */
-    public static PointSourceSpec positionOrigin(String origin, PositionSpace space, double x, double y, double z,
+    public static PointSourceSpec positionOrigin(String origin, PointSpace space, double x, double y, double z,
                                                  boolean freeze) {
-        PositionSpace resolvedSpace = space == null ? PositionSpace.WORLD : space;
+        PointSpace resolvedSpace = space == null ? PointSpace.WORLD : space;
         if (origin == null || origin.isEmpty()) {
-            PointKind kind = resolvedSpace == PositionSpace.BASE
+            PointKind kind = resolvedSpace == PointSpace.BASE
                     ? PointKind.SELECTOR : PointKind.WORLD;
             String selector = kind == PointKind.SELECTOR ? "@p" : null;
             return new PointSourceSpec(kind, selector, null, null, 0, null, EntityPoint.FOOT,

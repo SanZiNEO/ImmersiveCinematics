@@ -30,7 +30,6 @@ import com.immersivecinematics.immersive_cinematics.spi.PropertyType;
 import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 import com.immersivecinematics.immersive_cinematics.spi.TriggerType;
 import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
-import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1097,14 +1096,6 @@ public class ScriptParser {
     }
 
     // ========== JSON 辅助方法 ==========
-
-    private static Vec3 parseVec3(JsonObject obj, String p) throws ScriptParseException {
-        return new Vec3(
-                requireFloat(obj, p, "x"),
-                requireFloat(obj, p, "y"),
-                requireFloat(obj, p, "z")
-        );
-    }
 
     private static Map<String, Object> parseDataMap(JsonObject obj, String p) {
         Map<String, Object> map = new HashMap<>();

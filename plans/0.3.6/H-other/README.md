@@ -18,7 +18,7 @@
 | **H8** | **P3-impl 连续语义**：离散采样 → 连续判定 | [`trigger-continuity.md`](trigger-continuity.md) | ✅ **已实现（H-1，2026-11-03；`observation` 扫掠除外）**（见该文档 §六） |
 | **H9** | **跳过投票 + 跳过 HUD**：判定对齐 MC `SleepStatus`、HUD 合成一行、位置可配 | [`skip-vote-and-hud.md`](skip-vote-and-hud.md) | ✅ **已实现（H-2，2026-11-03）**（见该文档 §六） |
 | **H10** | **相机视图实体活性**：服务端原版实体跟踪镜像 + 客户端目标世界 tick；不做假玩家、不改 AI goal | [`entity-liveness.md`](entity-liveness.md) | ✅ **已实现（H-3，2026-11-04）**（见该文档 §七） |
-| **H11** | **HUD 层注册 API**：面向第三方的正式注册入口 + `hud_layers` / 固定分类口径 + Fabric/Forge 边界 | [`hud-layer-api.md`](hud-layer-api.md) | ✅ **已实现（H-2，2026-11-03）**（见该文档 §八） |
+| **H11** | **HUD 层注册 API**：面向第三方的正式注册入口 + `screen_layers` / 分类名口径 + Fabric/Forge 边界 | [`hud-layer-api.md`](hud-layer-api.md) | ✅ **已实现（H-2，2026-11-03）**（见该文档 §八） |
 | **H12** | **对外接口（API / SPI）**：播放链路、相机只读面、轨道 / 触发器 / 模型 / 曲线 / 前置条件注册门面、注册时机与失败隔离 | [`public-api.md`](public-api.md) | ✅ **已实现（H-4，2026-11-04）**（见该文档 §十 验收 / §十一 实现结果） |
 
 H7 / H8 之间没有强绑定：H8 的**最小版本**（位置扫掠 / 朝向弧 / 进入边沿）不依赖 H7，可先落地；H8 的窗口与事件时间戳依赖 H7。
@@ -116,5 +116,5 @@ N1–N9 的现状：N1/N2/N3（位置 / 朝向 / 边沿）在开启 `sweep` 后�
 | [`../C-trigger/condition-system.md`](../C-trigger/condition-system.md) | 判定规则（**脚本级规则定义/绑定**；I 轮迁移前的载体是片段级 `clip.rules`），与触发器判定是不同层 |
 | [`../F-playback/parallel-playback.md`](../F-playback/parallel-playback.md) | 实例账本的上游；H7 阶段 2 与之对齐 |
 | [`entity-liveness.md`](entity-liveness.md) | H10，F8 相机视图实体活性的下一项设计 |
-| [`hud-layer-api.md`](hud-layer-api.md) | H11，HUD 层正式注册入口（`hud_layers` / 固定分类 / 接管重画的平台边界） |
+| [`hud-layer-api.md`](hud-layer-api.md) | H11，HUD 层正式注册入口（`screen_layers` / 分类名 / 接管重画的平台边界） |
 | [`public-api.md`](public-api.md) | H12，对外接口总纲：播放链路、相机只读面、轨道 / 触发器 / 模型 / 曲线 / 前置条件注册、注册时机与失败隔离 |

@@ -268,6 +268,8 @@ public abstract class FabricGuiTakeoverMixin {
                 this.ic$renderScoreboardSidebar(guiGraphics, scoreboard);
             }
 
+            RenderSystem.enableBlend();
+
             // 13. CHAT_PANEL（鼠标坐标计算 + chat.render）
             if (!CinematicController.INSTANCE.isLayerHidden("hud.chat")) {
                 int mouseX = Mth.floor(mc.mouseHandler.xpos() * (double) window.getGuiScaledWidth() / (double) window.getScreenWidth());

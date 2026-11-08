@@ -308,11 +308,6 @@ public class ScriptEventManager {
         onPlayerFinished(player, scriptId, instanceId, reason);
     }
 
-    public boolean isScriptActive(String scriptId) {
-        Map<String, ScriptPlayback> byInstance = scriptPlaybacks.get(scriptId);
-        return byInstance != null && !byInstance.isEmpty();
-    }
-
     /**
      * 该玩家是否正在播放指定脚本。
      * 只查 {@code scriptId} 名下的实例，任一实例把该玩家记为观看者即为真：表达的是“同脚本同玩家单实例”的占用，
@@ -325,25 +320,6 @@ public class ScriptEventManager {
             if (pb.viewers.contains(playerUuid)) return true;
         }
         return false;
-    }
-
-    public boolean isFullyComplete(String scriptId) {
-        Map<String, ScriptPlayback> byInstance = scriptPlaybacks.get(scriptId);
-        if (byInstance == null) return true;
-        for (ScriptPlayback pb : byInstance.values()) {
-            if (!pb.viewers.isEmpty()) return false;
-        }
-        return true;
-    }
-
-    public int getRemainingViewers(String scriptId) {
-        Map<String, ScriptPlayback> byInstance = scriptPlaybacks.get(scriptId);
-        if (byInstance == null) return 0;
-        int total = 0;
-        for (ScriptPlayback pb : byInstance.values()) {
-            total += pb.viewers.size();
-        }
-        return total;
     }
 
     public void onServerTick(MinecraftServer server) {
@@ -623,16 +599,6 @@ public class ScriptEventManager {
             }
         }
         return new int[]{segments, failed};
-    }
-
-    /**
-     * 规则命令权限门：发送者是否是该脚本当前播放实例的观看者（{@code ScriptPlayback.viewers} 含其 UUID）。
-     * 探针可直调（不需要 {@code ServerPlayer} 实例）。
-     */
-    public boolean isRuleCommandAllowed(UUID playerId, String scriptId, String instanceId) {
-        if (playerId == null || scriptId == null) return false;
-        ScriptPlayback pb = playback(scriptId, instanceId);
-        return pb != null && pb.viewers.contains(playerId);
     }
 
     private void executeCommand(ScriptPlayback pb, ServerPlayer player, String command) {

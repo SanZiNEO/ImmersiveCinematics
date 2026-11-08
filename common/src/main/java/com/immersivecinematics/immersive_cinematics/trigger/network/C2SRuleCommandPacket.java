@@ -59,6 +59,4 @@ public class C2SRuleCommandPacket implements CinematicC2SPacket {
 
     public String getScriptId() { return scriptId; }
     public String getInstanceId() { return instanceId; }
-    public String getBindingId() { return bindingId; }
-    public int getActionIndex() { return actionIndex; }
 }

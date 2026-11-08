@@ -27,10 +27,10 @@ import com.immersivecinematics.immersive_cinematics.script.object.position.Point
 import com.immersivecinematics.immersive_cinematics.script.object.position.PointKinds;
 import com.immersivecinematics.immersive_cinematics.script.object.position.PointOffset;
 import com.immersivecinematics.immersive_cinematics.script.object.position.PointSourceSpec;
+import com.immersivecinematics.immersive_cinematics.script.object.position.PointSpace;
 import com.immersivecinematics.immersive_cinematics.script.object.position.PositionEvaluator;
 import com.immersivecinematics.immersive_cinematics.script.object.position.PositionMode;
 import com.immersivecinematics.immersive_cinematics.script.object.position.PositionResult;
-import com.immersivecinematics.immersive_cinematics.script.object.position.PositionSpace;
 import com.immersivecinematics.immersive_cinematics.script.object.position.PositionSpec;
 import com.immersivecinematics.immersive_cinematics.script.object.position.SampledPathTangent;
 import com.immersivecinematics.immersive_cinematics.script.object.position.WorldContext;
@@ -312,8 +312,8 @@ public final class ObjectCameraEvaluator {
                                       double executionLocalTime) {
         PositionMode mode = "absolute".equals(str(sample, P.POS_MODE)) ? PositionMode.ABSOLUTE
                 : PositionMode.RELATIVE;
-        PositionSpace space = "base".equals(str(sample, P.POS_SPACE)) ? PositionSpace.BASE
-                : PositionSpace.WORLD;
+        PointSpace space = "base".equals(str(sample, P.POS_SPACE)) ? PointSpace.BASE
+                : PointSpace.WORLD;
         PointSourceSpec origin = mode == PositionMode.ABSOLUTE ? null
                 : PointSourceSpec.positionOrigin(str(sample, P.POS_ORIGIN), space,
                         f(sample, P.POS_ORIGIN_X), f(sample, P.POS_ORIGIN_Y), f(sample, P.POS_ORIGIN_Z),
@@ -503,7 +503,7 @@ public final class ObjectCameraEvaluator {
 
     /** 表达空间导数 → 世界方向：{@code base} 空间过本帧参考系，其余原样。 */
     private static Vec3 toWorldDirection(Vec3 raw, PositionSpec spec, PositionResult position) {
-        if (raw == null || spec.mode() != PositionMode.RELATIVE || spec.space() != PositionSpace.BASE) {
+        if (raw == null || spec.mode() != PositionMode.RELATIVE || spec.space() != PointSpace.BASE) {
             return raw;
         }
         PointFrame frame = position.frame();
@@ -577,8 +577,8 @@ public final class ObjectCameraEvaluator {
     }
 
     private PointOffset offset(SampledClip sample, P x, P y, P z, P space) {
-        PositionSpace resolved = "base".equals(str(sample, space)) ? PositionSpace.BASE
-                : PositionSpace.WORLD;
+        PointSpace resolved = "base".equals(str(sample, space)) ? PointSpace.BASE
+                : PointSpace.WORLD;
         return new PointOffset(new Vec3(f(sample, x), f(sample, y), f(sample, z)), resolved);
     }
 

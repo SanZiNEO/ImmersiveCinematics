@@ -12,8 +12,8 @@ import java.util.Objects;
  *   <li>{@link PositionMode#ABSOLUTE}：{@code world = (x, y, z)}，{@code frame = null}；
  *       {@code absolute} + {@code base} / 非空点源由 validator 拒绝，本层不做修复。</li>
  *   <li>{@link PositionMode#RELATIVE}：先解析原点（世界激活位置 / 坐标 / 实体选择器 / 方块 / 结构），
- *       不可解析 = {@code null}；{@link PositionSpace#WORLD} 时三轴是世界轴偏移、{@code frame = null}；
- *       {@link PositionSpace#BASE} 时先按原点建参考系（{@link #frame}），再把三轴当
+ *       不可解析 = {@code null}；{@link PointSpace#WORLD} 时三轴是世界轴偏移、{@code frame = null}；
+ *       {@link PointSpace#BASE} 时先按原点建参考系（{@link #frame}），再把三轴当
  *       {@code (fwd, up, right)} 施加，参考系不可建 = {@code null}。</li>
  *   <li>冻结：{@code position_origin_freeze=true} 时把首次解析出的"含偏移世界点"写入
  *       {@link FreezeStore}（键 = 片段 + {@code position_origin} + 来源签名），之后复用；签名变化 = 新桶。
@@ -69,7 +69,7 @@ public final class PositionEvaluator {
             return null;
         }
 
-        if (spec.space() != PositionSpace.BASE) {
+        if (spec.space() != PointSpace.BASE) {
             Vec3 world = origin.add(spec.x(), spec.y(), spec.z());
             world = freeze(originSpec, world, freezes, clipKey, PATH_POSITION_ORIGIN);
             return new PositionResult(world, null);
