@@ -5,6 +5,7 @@ import com.immersivecinematics.immersive_cinematics.api.CameraState;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.control.CinematicKeyBindings;
 import com.immersivecinematics.immersive_cinematics.control.FlightModeManager;
+import com.immersivecinematics.immersive_cinematics.media.capture.FrameCapture;
 import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
 import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
 import com.google.gson.JsonObject;
@@ -51,6 +52,9 @@ public class WebPreviewScreen extends Screen {
     /** 画面捕获失败后关闭本次捕获，直到重开编辑器（新实例）恢复。 */
     private boolean captureDisabled;
 
+    /** 通用捕获层实例；渲染线程创建，onClose 释放。 */
+    private FrameCapture frameCapture;
+
     /** 打开预览屏：{@code init()} 时启动本地 WebUI 服务并开始推流。 */
     public WebPreviewScreen() {
         super(Component.literal("Web Preview"));
@@ -60,6 +64,10 @@ public class WebPreviewScreen extends Screen {
     protected void init() {
         activeScreen = this;
         WebEditorServer.INSTANCE.start();
+        // 窗口尺寸变化会重新走 init()，捕获器只建一次（FBO 在渲染线程创建）。
+        if (frameCapture == null) {
+            frameCapture = FrameCapture.create(1280, 720);
+        }
         if (minecraft.player != null) {
             if (WebEditorServer.INSTANCE.hasClients()) {
                 minecraft.player.displayClientMessage(
@@ -76,8 +84,10 @@ public class WebPreviewScreen extends Screen {
         minecraft.renderBuffers().bufferSource().endBatch();
         if (!captureDisabled) {
             try {
-                WebFrameCapture.capture(minecraft);
-                WebFrameStreamer.onFrame();
+                // 无客户端时不捕获：避免每帧 glReadPixels 读回开销。
+                if (WebFrameStreamer.shouldCapture()) {
+                    frameCapture.capture(minecraft, WebFrameStreamer::onCapturedFrame);
+                }
             } catch (Exception e) {
                 // 渲染边界：关闭本次捕获直到重开编辑器；播放状态推送 / 飞控照常
                 FatalErrors.rethrowIfFatal(e);
@@ -343,7 +353,7 @@ public class WebPreviewScreen extends Screen {
         }
         if (activeScreen == this) activeScreen = null;
         CameraManager.INSTANCE.exitPreview();
-        WebFrameCapture.destroy();
+        if (frameCapture != null) frameCapture.close();
         WebEditorServer.INSTANCE.stop();
         CinematicKeyBindings.notifyEditorClosed();
         if (minecraft != null) {

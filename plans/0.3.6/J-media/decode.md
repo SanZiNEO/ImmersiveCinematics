@@ -111,4 +111,13 @@ WaterMedia 证明“MC 内放视频”可行；它解决的是“进程内解码
 
 ## 六、实现结果
 
-状态：未实现。
+状态：已实现（2026-11-08，J-2）。
+
+- `media.video.Ffmpeg`：仅 PATH 查找 `ffmpeg` / `ffprobe`（Windows 试 `.exe`），结果缓存；不做配置项。
+- `media.video.VideoProbe`：`ffprobe -v error -select_streams v:0 ... -of default=noprint_wrappers=1` 探测宽高 / fps（`avg_frame_rate` 优先，回退 `r_frame_rate`）/ duration（format 优先）/ 音轨；按（路径, size, mtime）缓存；失败限频日志（60s）。
+- `media.video.VideoDecoder`：外部进程 `ffmpeg -v error -nostdin [-ss t] -i <path> -an -vf fps=<fps>,scale=<w>:<h>:flags=bilinear -f rawvideo -pix_fmt rgba pipe:1`；解码线程读满 `w*h*4` 入 `ArrayBlockingQueue`（容量 3，满则阻塞）；stderr 独立线程排空并保留尾部 8 行；seek = 停进程 → join(200ms) → 强制销毁 → 清队列 → 按 `-ss` 重启；`close()` 幂等。
+- 帧时间：rawvideo 不带 PTS，统一走 §3.2 的回退口径——`-vf fps=` 把源重采样为恒定帧率，帧号 = `round(seekTime*fps) + n`；目标帧 = `floor(localTime*fps)`，取不晚于目标的最新帧。
+- 上传：`media.video.VideoFrameTexture` 两张 RGBA8 `DynamicTexture` 轮换，`glTexSubImage2D` 直传（不逐像素），上传后恢复 `GL_UNPACK_ALIGNMENT`；渲染线程独占。
+- **解码尺寸口径（原 R4 已重写）**：解码尺寸 = 视频自身分辨率，仅超过 4K（4096×2160）时等比缩到上限内；**不按屏幕物理分辨率钳制、不放大**。显示大小 / 位置 / 裁切 / 缩放由图层参数决定，和图片层同一套几何。
+  原 R4「按屏幕物理分辨率钳制」不可实现：`screenWidth/screenHeight` 是 GUI 缩放空间而非物理像素；视频层的实际显示尺寸 = 裁切后素材像素 × k × scale，`scale`/`source` 可关键帧动画、可多图层、可裁切，每帧都可能变；解码尺寸却在会话创建时固定，无法跟随每帧显示尺寸。窗口 resize / 全屏 / GUI scale 变化还会让「屏幕分辨率」本身变化。可实现的口径只能是「源分辨率 + 硬上限」，显示交给 GPU 缩放；若将来要省解码，应按消费者输出分辨率（预览 / 导出）设 cap，而不是屏幕。
+- 管道读取：64KB 分块读（Windows `ProcessPipeInputStream` 对整帧 8.3MB 单次请求只有约 37MB/s，会掉到 4fps；分块后 1080p 探针 73fps、4K 约 28.6fps）。

@@ -268,7 +268,7 @@ I-3 移交的规则 / 路径项与 I-4 卫生项，全部在本轮关闭：
 | B19 迟滞观感（四象限人眼判定） | **J-1 已关闭（2026-11-07）** | 同上 §三 + `verification-2026-11-07.md` §四 |
 | C-pause 实机复验 | **J-1 已关闭（2026-11-07）** | 同上 §四 + `verification-2026-11-07.md` §五（含 clip3 卡死修复） |
 | F 轮失败处理 P1/P2 | **J-1 已关闭（2026-11-07）** | 同上 §五 + `failure-handling-audit.md` §0.4 / §9 + `verification-2026-11-07.md` §六 |
-| F5 光影 per-pipeline（WP5） | **K 轮** | [`K-optimization/shader-per-pipeline.md`](K-optimization/shader-per-pipeline.md) |
+| F5 光影 per-pipeline（WP5） | **Z 轮验收（原 K-2，K 轮取消）** | [`Z-editor/README.md`](Z-editor/README.md) §8.9 |
 
 ### M-3. J-1 收尾（本轮无新增移交项）
 
@@ -296,7 +296,7 @@ J1-R1~R5 已在 J-1 内全部关闭，不留移交：
 | Fabric 自定义层 | `FabricHudLayerRegistry.register(layerId, category, renderer)` 是 Fabric 平台专属；跨平台分类注册仍走 `HudLayerRegistry` | 已关闭（本轮） |
 | `ScriptStructureResolver` | 删除；结构 / 方块来源由客户端 `WorldPointLocator` 执行时解析 | 已关闭（本轮） |
 
-### N-2. 移交 K 轮（`K-optimization/code-quality-review-2026-11-06.md`）
+### N-2. 移交 Z 轮（原 K 轮取消；code-quality-review 条目）
 
 该文是**活跃代码**的结构 / 性能审查，不属旧模型残留，本轮不施工；条目与关闭条件如下（原文含 `file:line` 与改法）：
 

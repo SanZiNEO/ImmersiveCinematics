@@ -1,8 +1,8 @@
 # 音频解码（AUDIO 轨与视频音轨）
 
-> 状态：未实现
-> 范围：AUDIO 轨的音频格式解码、视频容器音轨的处置与抽取、与视频播放的时间边界
-> 关联：`playback.md`、`../I-script-core/track-audio-adjust.md`、`../I-script-core/runtime-evaluation.md`
+> 状态：视频音轨已实现（J-2）；AUDIO 轨外部格式扩展未实现（J-3）
+> 范围：AUDIO 轨的音频格式解码、视频容器音轨的处置、与视频播放的时间边界
+> 关联：`playback.md`、`export.md`、`../I-script-core/track-audio-adjust.md`、`../I-script-core/runtime-evaluation.md`
 
 ## 一、摘要
 
@@ -39,7 +39,8 @@
 
 ### 3.2 视频音轨
 
-- 视频解码不固定 `-an`：容器音轨随视频一起解码，输出 PCM 交给与视频同一实例的音频通道。
+- **概念**：视频容器音轨 = 视频自带的声音，随视频播放；不拆成独立 AUDIO 轨、不新增脚本字段。
+- **实现**：视频进程 `-an` + 音频进程 `-vn` 两个 ffmpeg 进程，共享同一 `executionLocalTime`。两进程是实现细节，不是把音轨拆轨。
 - 播放时间与视频同一片段局部时间；暂停 / seek / 循环跟随视频，不单独维护时间轴。
 - AUDIO 轨仍可播放独立音频文件；它与视频音轨是两路，互不替代、不自动混音。
 - 无 ffmpeg 时视频素材不显示，音轨自然也不播放（有什么显示什么）。
@@ -83,7 +84,7 @@
 
 | 备选方案 | 做法 | 代价 | 为什么没选 |
 |---|---|---|---|
-| 视频音轨跟画面一起解 | 同一解码进程输出视频帧 + PCM | 音画同步、暂停、seek 复用视频时钟 | **选此路线**：音轨跟随视频，AUDIO 轨独立 |
+| 视频音轨跟画面一起解 | 概念上同一路声音；实现可单进程或两进程 | 音画同步、暂停、seek 复用视频时钟 | **选此路线**：概念不拆轨；J-2 实现为两进程（Windows 三句柄限制） |
 | 视频固定 `-an`、音轨抽取 | 导入期抽成 OGG/WAV | 多一步导入，音画对齐靠作者 | 保留为素材预处理选项 |
 | 只支持 WAV/OGG | 维持现状 | 常见素材不可用；视频音轨无出口 | 扩展到外部解码，保持字段不变 |
 | 运行时自动音画对齐 | 播放层做漂移校正 | 复杂度高、行为不可预测 | 作者用脚本时间对齐 |
@@ -96,4 +97,11 @@
 
 ## 六、实现结果
 
-状态：未实现。
+状态：视频音轨已实现（2026-11-08，J-2）；AUDIO 轨的 mp3/aac/flac 扩展未做（本文 §3.1，归 J-3）。
+
+- 视频音轨：`media.video.VideoAudioTrack` + `VideoAudioInstance`（`AbstractTickableSoundInstance` + `CustomStreamProvider`）+ `ProcessPcmStream`；命令 `ffmpeg -v error -nostdin [-ss t] -i <path> -vn -f s16le -ac 2 -ar 48000 pipe:1`。
+- 实现口径：概念不拆轨；视频进程 `-an` + 音频进程 `-vn` 两进程，共享同一 `executionLocalTime`。
+- 时间：跟随视频同一 `executionLocalTime`；暂停（时间停滞 >100ms）停实例；seek / 循环回卷（时间倒退 >0.05s）或音画漂移 >0.25s 时按当前时间重建流。
+- 音量：固定 1.0，`SoundSource.MASTER`，相对听者无衰减；不改 AUDIO 轨字段。
+- 失败：进程起不来 / 读失败 → 空流 + 限频日志，静音不影响画面。
+- 导出不包含音频（2026-11-08 裁决；见 `export.md` §3.4）；本页只负责运行时播放。

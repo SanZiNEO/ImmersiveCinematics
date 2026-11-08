@@ -40,10 +40,8 @@ plans/0.3.6/
 ├── H-other/           H 轮：HUD/实机验证/触发器状态层/相机视图实体活性（H7/H8/H9/H10）
 ├── I-script-core/     I 轮：对象模型、脚本级规则/路径集合、规则控制与事实接力、次数执行（I-1/I-2/I-4 已实现）
 ├── J-media/           J 轮：媒体（运行时解码/播放、编辑器预览流、分片传输；未实现，可独立顺延）
-├── K-optimization/    K 轮：优化（编辑器前收尾：代码残留清理 + 光影 per-pipeline 隔离等技术收口；不新增脚本语义）
 ├── Z-editor/          Z 轮：编辑器（最后一轮；固定格式脚本生成器，字段全量适配与打磨）
 ├── done/              主链路已完成（非 A/B 轮）
-├── misc/              其余（规范/注释收敛）
 └── consolidation/     本版整理结论（只读）
 ```
 
@@ -74,8 +72,7 @@ plans/0.3.6/
 | H 其它 | `H-other/` | screen-layers（画面层，H4–H6）、state-tracking（H7 = P1-impl）、trigger-continuity（H8 = P3-impl）、skip-vote-and-hud（H9）、entity-liveness（H10，相机视图实体活性）、public-api（H12） | H1 ⊘ **已取消**（2026-11-04 用户决定暂不做区域同步传送，`region-sync.md` 已删除）；H2 ⊘ 已被 C6 判定规则吸收（等待点收编为 `until→do` 阻塞形态，设计稿随轮次归档）；H4 ✅；H5 ✅（H-2 逐条核对 12 条，见 `H-other/doc-lag-2026-11-03.md`）；H6 ✅（H-2 七条实机记录，见 `H-other/verification-2026-11-03.md`；**B18 ④⑤ / B19 观感为孤儿欠账，已归 J 轮**，见 [`J-media/handover.md`](J-media/handover.md)）；H7/H8 ✅（H-1，2026-11-03）；H9 ✅（H-2 落地：单一分母 + `max(1,ceil)` + 按实例分流；广播节流为有意不做）；H10 ✅（H-3，2026-11-04）；H12 ✅（H-4，2026-11-04）；详见 [`H-other/README.md`](H-other/README.md) |
 | I 脚本底层 | [`I-script-core/`](I-script-core/README.md) | 对象模型／schema、脚本级规则/路径集合、规则控制与事实接力、规则命令信任边界、分支出口、实际状态过渡、次数执行、格式清理与迁移（编辑器对象模型见 Z） | ✅ **I 轮已关单（I-1~I-5，2026-11-06）**：`objects` 单格式；`rules` / `rule_bindings` / `clips` / `paths` 四键定稿；时间门、挂起、事实接力、延迟动作、出口与分支、命令信任、EVENT seek、独立片段渲染全部落地；252 支脚本迁移 0 错误（摘要见 [`migration-report.md`](I-script-core/migration-report.md)）。遗留见 [`I-BACKLOG.md`](I-BACKLOG.md) §M |
 | J 媒体 | [`J-media/`](J-media/README.md) | 运行时视频解码/播放、音频解码、共享帧捕获、编辑器预览编码流、远程媒体分片传输、实时录屏导出；不改脚本字段 | 🔵 未实现；只依赖 OVERLAY `image` 字段与 F8 视图；三条契约 = 视频时间取片段局部时间、传输走分片、失败降级不崩。**J 轮开头先做遗留验证**：B18 ④打断 / ⑤链式、B19 迟滞四象限、C-pause 复验、F 轮失败处理 P1/P2（见 [`handover.md`](J-media/handover.md)） |
-| K 优化 | [`K-optimization/`](K-optimization/README.md) | 代码残留清理（旧字段读取口 / `ScriptStructureResolver` 旧行为 / 死方法 / 死 import）+ 编辑器前技术收口（光影 per-pipeline）；只做清理与性能隔离，不新增脚本语义 | 🔵 未开始（用户 2026-11-06 决定：F5 光影 WP5 放 K 轮）→ [`code-residue.md`](K-optimization/code-residue.md)、[`shader-per-pipeline.md`](K-optimization/shader-per-pipeline.md) |
-| Z 编辑器 | [`Z-editor/`](Z-editor/README.md) | 固定格式脚本生成器：脚本创建/编辑/预览、模板引擎、对象与路径编辑、转场与效果生成、调色与合成面板、几何工具、架构图、触发器编辑器 | 🟡 主体已实现（桌面程序、服务端、协议、握手校验、预览推流、飞控绑定、架构图步骤 1–4）；模板引擎与对象模型未实现；剩余工作排在所有轮次之后，等 0.3.6 字段定稿启动 |
+| Z 编辑器 | [`Z-editor/`](Z-editor/README.md) | 固定格式脚本生成器：脚本创建/编辑/预览、模板引擎、对象与路径编辑、转场与效果生成、调色与合成面板、几何工具、架构图、触发器编辑器 | 🟡 WebUI 外部编辑器主体已实现（桌面程序、服务端、协议、握手校验、预览推流、飞控绑定、架构图步骤 1–4）；游戏内编辑器由晴雪 UI 附属模组承载（规划，独立编辑器仓库：`webui` 跨版本分支 + `ingame/<mc>` 分支）；模板引擎与对象模型未实现；光影组合矩阵并入 Z 验收（原 K-2）；剩余工作排在所有轮次之后，等 0.3.6 字段定稿启动 |
 | 主链路已完成 | `done/` | script-i18n | ✅ 既有实现记录保留；循环目标见 I 轮 [`loop-execution.md`](I-script-core/loop-execution.md)；编辑器文档见 [`Z-editor/README.md`](Z-editor/README.md) |
 
 ---

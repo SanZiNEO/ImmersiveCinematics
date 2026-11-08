@@ -101,8 +101,15 @@
 
 - `layer_type=image` 承载视频是命名债；读代码的人容易误判。
 - seek 依赖重启解码，长 GOP 视频首帧慢。
-- 视频音轨不自动播放，作者要额外建 AUDIO 片段。
+- 视频音轨随视频播放；作者仍可另建 AUDIO 片段，两路互不替代。
 
 ## 六、实现结果
 
-状态：未实现。
+状态：已实现（2026-11-08，J-2）。
+
+- 入口：`OverlayTrackPlayer.createObjectLayer` 的 `layer_type=image` 分支按 `VideoFiles.isVideo(path)`（mp4/webm/mkv，大小写不敏感）分流到 `media.video.VideoLayer`；不新增字段、不新增 `layer_type`。
+- 几何：抽 `overlay.ImageGeometry`，图片层与视频层共用同一套 `k` / `element` 数学（逐字搬移，像素不变）。作者参数：`x/y`（窗口归一化中心）、`anchor_x/anchor_y`（缩放绕点）、`scale_x/scale_y`（相对素材原始像素）、`source.x/y/w/h`（素材归一化裁切）、`opacity`、`z_index`；编辑基准分辨率取脚本 `meta.base_width/base_height`。元素框 = 裁切后素材像素 × `k` × `scale`，`k = min(窗口宽/基准宽, 窗口高/基准高)`。
+- 时间：`OverlayLayer` 新增 default `setTime(double)`；`OverlayTrackPlayer` 每帧把 `executionLocalTime` 送入当前层。暂停 = 时间不动 → 停帧；seek / 循环回卷 = 时间倒退 → 按目标帧号重开解码；超出视频时长停最后一帧，视频自身不循环。消费模型照 water：每帧按目标帧号从有界队列取（`pollAtOrBefore`），取不到就保持当前纹理，队列领先/落后都不重启。
+- 失败：缺 ffmpeg → 不显示、不占位、限频日志一次；探测 / 解码失败（坏文件）→ 共享错误纹理（`media.ErrorTexture`，黑/洋红棋盘格，虚拟 1920×1080）；解码未产出任何帧且时间未到片尾 → 切错误纹理。
+- 回收：`VideoLayer.close()` 依次关解码器 / 帧纹理 / 音轨，幂等；层移除 / 停播 / 退世界走 `OverlayManager.removeLayer(s)`。
+- 探针：`VideoPipelineProbe` 35/35（探测、解码前 10 帧、seek 首帧 60、50 次启停、扩展名分流、PCM 格式）+ 1080p 连续解码吞吐断言。

@@ -85,13 +85,9 @@ public class ImageLayer implements OverlayLayer {
         float srcH = (clamp01(sourceY + sourceH) - v0) * texH;
         if (srcW <= 0f || srcH <= 0f) return;
 
-        // 分辨率转义 k：在绘制空间（GUI 缩放空间）直接算 min(空间宽/W基, 空间高/H基)；退化 → 本帧不绘制
-        float k = CanvasTransform.resolutionEscape(baseWidth, baseHeight, screenWidth, screenHeight);
-        if (k <= 0f) return;
-
-        // 元素框：基准 B = 裁切后素材像素 × k；位置 = 窗口百分比（B 的中心），缩放绕 anchor
-        CanvasTransform.Rect box = CanvasTransform.element(x, y, anchorX, anchorY,
-                srcW * k, srcH * k, scaleX, scaleY, screenWidth, screenHeight);
+        // 元素框：分辨率转义 k + 基准 B = 裁切后素材像素 × k + 缩放绕 anchor（与视频层共用同一套数学）
+        ImageGeometry.Rect box = ImageGeometry.compute(x, y, anchorX, anchorY,
+                srcW, srcH, scaleX, scaleY, baseWidth, baseHeight, screenWidth, screenHeight);
         if (box.width() <= 0f || box.height() <= 0f) return;
 
         // 最终绘制：唯一一次落到像素；素材恒按元素框铺满
@@ -103,6 +99,7 @@ public class ImageLayer implements OverlayLayer {
         long now = System.currentTimeMillis();
         if (now - lastPosLog >= 1000) {
             lastPosLog = now;
+            float k = CanvasTransform.resolutionEscape(baseWidth, baseHeight, screenWidth, screenHeight);
             LOGGER.info("OVERLAY image: screen={}x{} k={} pos=({}, {}) size={}x{} scale=({}, {}) opacity={}",
                     screenWidth, screenHeight, k, box.x(), box.y(), box.width(), box.height(),
                     scaleX, scaleY, opacity);
@@ -159,9 +156,10 @@ public class ImageLayer implements OverlayLayer {
         this.gif = TextureLoader.getGif(fileName);
     }
 
-    /** 设置当前全局时间（秒），GIF 层据此计算帧索引；调用方时间按 double 传入（float 存储侧自动宽化）。 */
-    public void setTime(double globalTime) {
-        this.time = globalTime;
+    /** 设置当前片段局部时间（秒），GIF 层据此计算帧索引；调用方时间按 double 传入（float 存储侧自动宽化）。 */
+    @Override
+    public void setTime(double localTime) {
+        this.time = localTime;
     }
 
     public void setOpacity(float opacity) {

@@ -1,5 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
+import com.immersivecinematics.immersive_cinematics.media.video.VideoFiles;
+import com.immersivecinematics.immersive_cinematics.media.video.VideoLayer;
 import com.immersivecinematics.immersive_cinematics.overlay.*;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipRuntimeCache;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipValueView;
@@ -88,10 +90,8 @@ public class OverlayTrackPlayer implements TrackDriver {
         OverlayClipRuntime.OverlayParams params =
                 OverlayClipRuntime.compute(clip, localTime, runtimeCache, clipRuntime(clip));
         applyObjectParams(params);
-        if (currentLayer instanceof ImageLayer imageLayer) {
-            // 视频 / GIF 时间跟片段局部时间
-            imageLayer.setTime(localTime);
-        }
+        // 时间跟片段局部时间：GIF / 视频层重写，其余层 default 空操作
+        currentLayer.setTime(localTime);
     }
 
     @Override
@@ -155,19 +155,27 @@ public class OverlayTrackPlayer implements TrackDriver {
                 layer = fl;
             }
             case "image" -> {
-                ImageLayer il = new ImageLayer(scriptPlayer.owner());
                 String path = runtime.path();
-                if (!path.isEmpty()) {
-                    ResourceLocation tex = com.immersivecinematics.immersive_cinematics.util.TextureLoader.loadTexture(path);
-                    if (tex != null) {
-                        il.setTexture(path, tex);
-                    } else {
-                        LOGGER.debug("Image not found in resource/: {}", path);
+                if (VideoFiles.isVideo(path)) {
+                    // 视频容器：几何 / 取材 / 时间轴与图片层同一套，解码与音轨由视频层自管
+                    VideoLayer vl = new VideoLayer(scriptPlayer.owner(), path);
+                    vl.setZIndex(runtime.zIndex());
+                    vl.setBaseResolution(baseWidth, baseHeight);
+                    layer = vl;
+                } else {
+                    ImageLayer il = new ImageLayer(scriptPlayer.owner());
+                    if (!path.isEmpty()) {
+                        ResourceLocation tex = com.immersivecinematics.immersive_cinematics.util.TextureLoader.loadTexture(path);
+                        if (tex != null) {
+                            il.setTexture(path, tex);
+                        } else {
+                            LOGGER.debug("Image not found in resource/: {}", path);
+                        }
                     }
+                    il.setZIndex(runtime.zIndex());
+                    il.setBaseResolution(baseWidth, baseHeight);
+                    layer = il;
                 }
-                il.setZIndex(runtime.zIndex());
-                il.setBaseResolution(baseWidth, baseHeight);
-                layer = il;
             }
             case "subtitle" -> {
                 SubtitleLayer sl = new SubtitleLayer(scriptPlayer.owner());
@@ -205,6 +213,13 @@ public class OverlayTrackPlayer implements TrackDriver {
             il.setAnchor(params.anchorX(), params.anchorY());
             il.setScale(params.scaleX(), params.scaleY());
             il.setSource(params.sourceX(), params.sourceY(), params.sourceW(), params.sourceH());
+        } else if (currentLayer instanceof VideoLayer vl) {
+            // 与图片层同一套装配参数（视频层不是 ImageLayer 子类，单独走一条）
+            vl.setOpacity(params.opacity());
+            vl.setPosition(params.x(), params.y());
+            vl.setAnchor(params.anchorX(), params.anchorY());
+            vl.setScale(params.scaleX(), params.scaleY());
+            vl.setSource(params.sourceX(), params.sourceY(), params.sourceW(), params.sourceH());
         } else if (currentLayer instanceof SubtitleLayer sl) {
             sl.setOpacity(params.opacity());
             sl.setPosition(params.x(), params.y());

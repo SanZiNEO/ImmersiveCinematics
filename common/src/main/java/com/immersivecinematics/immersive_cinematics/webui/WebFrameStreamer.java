@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.webui;
 
+import com.immersivecinematics.immersive_cinematics.media.capture.CapturedFrame;
 import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
 import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
 
@@ -10,10 +11,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * 把 WebFrameCapture 读回的 RGBA 像素通过 WebSocket 发送。
+ * 把捕获层（{@link com.immersivecinematics.immersive_cinematics.media.capture.FrameCapture}）产出的
+ * {@link CapturedFrame} 通过 WebSocket 发送。
  *
  * 原始 RGBA 路线：不编码，直接把最新帧打包发出去。
- * 读帧在渲染线程，翻转/网络发送在独立 worker 线程；跟不上时只保留最新一帧。
+ * 捕获与行翻转在渲染线程（捕获层完成），网络发送在独立 worker 线程；跟不上时只保留最新一帧。
  *
  * 帧格式：
  * [1 byte type = 0x01]
@@ -32,26 +34,36 @@ public class WebFrameStreamer {
         return t;
     });
 
-    private static final AtomicReference<byte[]> PENDING = new AtomicReference<>();
+    /** 单槽待发帧：新帧覆盖旧帧，跟不上时只保留最新一帧。 */
+    private static final AtomicReference<CapturedFrame> PENDING = new AtomicReference<>();
     private static final AtomicBoolean SCHEDULED = new AtomicBoolean(false);
     private static final long SEND_INTERVAL_MS = 16; // 发送节流 ~60fps
 
     private static long lastSend;
-    private static int frameCounter;
 
     private WebFrameStreamer() {
     }
 
-    /** 由渲染线程每一帧调用；无客户端时直接返回，不产生读回开销。 */
-    public static void onFrame() {
-        if (!WebEditorServer.INSTANCE.isRunning() || !WebEditorServer.INSTANCE.hasClients()) {
-            return;
-        }
+    /**
+     * 当前是否有客户端需要帧。渲染线程每帧调用；返回 false 时调用方应跳过捕获，
+     * 不产生读回开销。
+     */
+    public static boolean shouldCapture() {
+        return WebEditorServer.INSTANCE.isRunning() && WebEditorServer.INSTANCE.hasClients();
+    }
 
-        byte[] rgba = WebFrameCapture.readPixels();
-        if (rgba.length == 0) return;
+    /**
+     * 捕获层回调（渲染线程调用）：把帧放进单槽并调度发送。
+     *
+     * <p>无客户端时直接丢弃；发送侧跟不上时旧帧被新帧覆盖（单槽语义）。</p>
+     *
+     * @param frame 捕获帧（RGBA8、自顶向下，捕获层已完成翻转）
+     */
+    public static void onCapturedFrame(CapturedFrame frame) {
+        if (frame == null) return;
+        if (!shouldCapture()) return;
 
-        PENDING.set(rgba);
+        PENDING.set(frame);
         scheduleSendIfNeeded();
     }
 
@@ -60,9 +72,9 @@ public class WebFrameStreamer {
             SENDER.submit(() -> {
                 try {
                     while (true) {
-                        byte[] rgba = PENDING.getAndSet(null);
-                        if (rgba == null) break;
-                        sendRaw(rgba);
+                        CapturedFrame frame = PENDING.getAndSet(null);
+                        if (frame == null) break;
+                        sendRaw(frame);
                     }
                 } finally {
                     SCHEDULED.set(false);
@@ -74,7 +86,8 @@ public class WebFrameStreamer {
         }
     }
 
-    private static void sendRaw(byte[] rgba) {
+    private static void sendRaw(CapturedFrame frame) {
+        byte[] rgba = frame.rgba();
         try {
             // 发送节流：采样无上限，这里控制实际发送约 60fps。
             long now = System.currentTimeMillis();
@@ -89,23 +102,17 @@ public class WebFrameStreamer {
             }
             lastSend = System.currentTimeMillis();
 
-            int w = WebFrameCapture.getWidth();
-            int h = WebFrameCapture.getHeight();
-            int stride = w * 4;
+            int w = frame.width();
+            int h = frame.height();
 
-            // OpenGL 读回自底向上，转成浏览器期待的从上到下。
-            byte[] flipped = new byte[rgba.length];
-            for (int y = 0; y < h; y++) {
-                System.arraycopy(rgba, (h - 1 - y) * stride, flipped, y * stride, stride);
-            }
-
+            // 行序已是自顶向下（捕获层 flipRows 完成），这里直接打包。
             int headerSize = 7;
-            ByteBuffer buf = ByteBuffer.allocate(headerSize + flipped.length);
+            ByteBuffer buf = ByteBuffer.allocate(headerSize + rgba.length);
             buf.put((byte) FRAME_TYPE_RAW_RGBA);
-            buf.putShort((short) (frameCounter++ & 0xFFFF));
+            buf.putShort((short) ((int) (frame.frameId() & 0xFFFF)));
             buf.putShort((short) w);
             buf.putShort((short) h);
-            buf.put(flipped);
+            buf.put(rgba);
 
             WebEditorServer.INSTANCE.broadcastBinary(buf.array());
         } catch (RuntimeException e) {

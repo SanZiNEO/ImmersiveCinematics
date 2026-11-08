@@ -61,6 +61,16 @@ public interface OverlayLayer {
     default void tick(double deltaTime) {}
 
     /**
+     * 片段局部时间（秒）；只有按时间取帧的层（GIF / 视频）重写。
+     *
+     * <p>由建层方在每渲染帧按 {@code executionLocalTime} 送入：暂停时时间不动 → 层停帧；
+     * 剪辑 seek / 循环回卷时时间跳变 → 层据此重开解码或回退帧。</p>
+     *
+     * @param localTime 片段局部时间（秒，可小于 0 = 剪辑起点之前）
+     */
+    default void setTime(double localTime) {}
+
+    /**
      * 触发退出动画。实现类可重写以启动渐出，默认空操作
      * （无动画的层无需关心——下一帧由帧驱动硬停）。
      */
