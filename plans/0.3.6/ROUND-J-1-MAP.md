@@ -1,160 +1,78 @@
-# J-1 遗留收口 · 轮次地图
+# ROUND J-1 地图（旧模型残留清零 + Fabric allowlist 接管）
 
-> 建立：2026-11-07。来源：J-1 任务书（A–I 轮 8 项欠账）。
-> 本文件是派单与验收的唯一引用面；任务书没写的口径以「本轮内完整最优」为准，不留双写入口 / 并行判定。
+> 依据：任务书（2026-11-07）+ `misc/old-dead-code.md` / `misc/old-new-shared-code.md` / `misc/obsolete-old-methods.md` / `misc/fabric-hud-takeover.md`。
+> 基线：`HEAD 59a5fb4`，工作区干净（六个设计文档未跟踪）。
+> 口径：**只删旧、不加新能力**；唯一例外是交付物 11（Fabric allowlist 接管，平台能力补齐）。
 
-## 0. 任务书自检与裁决
+## 一、任务清单（11 项，全部本轮做完）
 
-| 项 | 结论 |
-|---|---|
-| 目标 / 范围 / 验收 / 不做 | 四项齐全，互不矛盾 |
-| 第 8 项（数组条件） | **已 ask 裁决（2026-11-07）**：触发器体系只有 `any` / `all_of` 一套组合机制；触发器内部的多项判定也用它。**旧格式（数组 + `mode: or/and`）本轮删除，不做兼容**；两条夹具改写为新格式（组合器 + `continuity.window`） |
-| 第 7 项（旧基线像素对比） | **已 ask 裁决（2026-11-07）**：采「等值映射 + 数值探针」。旧 worktree 只编译 `:common:`，用同一探针在旧/新 sampler 上按固定脚本时间采样，输出最大误差表；另单列旧格式 vs 新格式语义差异。不构建旧客户端、不做像素 diff |
-| 数字口径修正 | `E:/tmp/icv` 基线实测 **8 of 258** = 2 支真实缺陷（`showcase_02` / `showcase_07`）+ **6 支 `cinematics/0.3.6/tests/faults/` 负例**（本应 FAIL）。修完第 8 项后应为 **6 of 258**（不是 7）。另：`SELFTEST: 6 ... FAILED` = `Validate.java` 内 6 个旧格式自检样本，归第 9 项 |
-
-## 1. 任务清单
-
-| ID | 一句话目标 | 验收（可判定） |
+| # | 目标 | 验收 |
 |---|---|---|
-| T1 | 内联片段默认出口真正执行，且与分支 target 共用**同一处**完成派发 | 探针全绿：`goto` 启动目标 / `end_script` 结束脚本 / `continue` 主线继续 / 链式不丢 / seek 不合成完成事件；夹具 `test_standalone_camera_branch.json` 改由内联片段 `exit.goto` 启动独立 CAMERA 片段，实机登录后 2s 相机移动 |
-| T2 | F 轮失败处理 P1/P2（37 条：15 P1 + 12 P2 + 10 P3）全部落地 | 坏 keyframe / 坏命令 / 坏图层三注入 → 进程存活、日志可定位（边界名 + scriptId/instanceId/层级/字段路径 + 限频）、其余实例继续；审计 §0.4 更新为「P1/P2 已落地」 |
-| T3 | 数组条件按新格式收口：内部多项判定 = `any` / `all_of`，删除旧数组 + `mode` | 两条 showcase 夹具校验 0 issue；`conditions.mode` 出现即报「已移除」；`TriggerSchemas` / `Evaluators` / `FactWindow` 无数组分支；文档一致 |
-| T4 | B18 ④ 过渡「打断」实机 | 逐帧六参数：打断帧无跳变、无双重混合、窗口按打断时刻重算、与 `snap` 有可见差异 |
-| T5 | B18 ⑤ 过渡「链式」实机 | 三段衔接处逐帧六参数：衔接点无跳变、第二段起点 = B 当帧实际状态、窗口 `[now, now+maxDuration]` |
-| T6 | B19 迟滞四象限人眼判定 | 同屏四象限（1 对照组 + `exponential_smooth` / `spring` / `inertia`），截图 + 逐型一句话结论 + 60/120/解锁三档记录 |
-| T7 | C-pause 实机复验 | 含 EVENT 片段中途 pause → 3s → resume：①内容位置不变 ②EVENT 不重不漏 ③恢复后继续推进 ④`test_rules_actions` clip3 不卡死；四条各有日志/帧证据 |
-| T8 | 迁移等值证据（旧基线数值探针） | 旧 worktree 编译 `:common:` + 同一探针双跑，输出逐项最大误差；差异报告单列「旧格式 vs 新格式」可观察差异（morph 每侧完整状态、路径条目化） |
-| T9 | 工具侧收尾 | `E:/tmp/icv/Validate.java` 6 个旧格式自检样本 → 新格式，`SELFTEST` 全过；`test_h11_hard_hide.json` Forge 复测（`screen_layer_mode: allowlist` 下接管/重画） |
-| T10 | 文档收口与提交 | 各专篇状态回写；`implementation-progress.md` 孤儿欠账表清零；未做项写入 `I-BACKLOG.md`（带归属轮次 + 关闭条件）；`type(0.3.6):` 提交，不 push |
+| 1 | 位置/朝向旧模型清零：`PointKinds`/`PointKind`/`PointFrame`/`PointOffset`/`EntityPoint` 落地；删 `PositionData`、`camera/source/PointSource`；`CameraKeyframeEvaluator`→`CameraFrameEvaluator`；删 `facing_origin` 归一与 `snapshot/restoreLockState` 转发；`ObjectCameraEvaluator.evaluate` 去 `laneRank` | `PositionData\|camera\.source\.PointSource\|facing_origin\|CameraKeyframeEvaluator` 在 common/fabric/forge → 0；`:common:compileJava` |
+| 2 | `Clip` 显式 `loop/loopCount/loopMode`；删 `data`/`getData`/`declare` 的 data 分支/5 个泛型读取口/17 个旧访问器；消费方改 `ClipValueView`/`SampledClip` | `Map<String, Object> data`/`getData()`/`.getString(` 等（clip 相关）→ 0；`:common:compileJava` |
+| 3 | schema/导出清零：删七轨 `clips`/`kfs` 表、`TrackTypeSchema` 两字段与 2 参构造、`SchemaExporter` 两段、`SchemaLoader` 整类、`SchemaRegistry` 9 个死方法、`MetaSchemas.hud_layers/hard_hide_hud`、`CompositePaths`、`SelectorSchema.CALLPOINTS/isCallpoint/callpointField` | 对应符号 → 0；`schema.get` 只含 meta/objects/playControl/triggers/models/curveTypes/script_structure；`:common:compileJava` |
+| 4 | 删 `script/template/` 10 文件 + `/icinematics template` 子树；保留 `ScriptTemplate`/`script.new`；删旧路径解码 `replace('_','/')` | 目录不存在；`TemplateRegistry\|TemplateScriptAssembler\|ClipTemplate` → 0；命令树无 `template` |
+| 5 | 规则协议收缩 `(bindingId, actionIndex)`；bump `PROTOCOL_VERSION`；删 `RuleCommandAudit` 旧分支 | `clipIndex\|ruleIndex` 在 trigger/camera.rule → 0；探针按二元键命中 |
+| 6 | 删 `LegacyStateMigration`、`FactLedger` v1 分支与 `legacyTriggers` | `LegacyStateMigration\|legacyTriggers\|version == 1` → 0 |
+| 7 | 画面层：一次性迁移脚本（E:/tmp）物化 15 层 + 删旧字段/别名/回落/`LegacyFlags`；`GuiMixin` 改按 `screen_layers`；文档口径 | `hide_*\|suppress_*\|render_player_model\|legacyHidden\|legacyAlias\|LegacyFlags` → 0；夹具旧键 0；抽查 10 支同层同值 |
+| 8 | 零散死代码 + 旧注释 + `UsageIndex`/`usageBuilder` + imports + `math/path` 死类/死方法 | 任务书检索矩阵 → 0；`:common:compileJava` |
+| 9 | 文档同步：`docs/SCRIPT_FORMAT.md`、`docs/modules/*`、`plans/0.3.6/**` 现行正文；旧字段只留「已移除」表 | `facing_origin\|hud_layers\|hard_hide_hud\|legacyHidden\|旧插值器` 仅命中已移除表/历史 |
+| 10 | 补充旧代码面：删 `meta.version`/`hud_layers`/`hard_hide_hud`/`exit_on_duration_overrun`/`total_duration` 显式拒绝（**改为白名单报错**）、`hasObjects()` 改名、补充死代码、旧注释 | 追加 grep → 0；`bad_removed_*` 5 支仍失败（白名单文案） |
+| 11 | Fabric allowlist 接管：能力位、`FabricGuiTakeoverMixin`、自定义层表、暂停菜单配置入口 | `:fabric:compileJava`；实机 §六 1–9；Forge 不变 |
 
-## 2. 真实文件 / 类 / 签名
+## 二、依赖顺序（波次）
 
-### T1 内联片段默认出口
+1. **波次 A（并行，文件集互斥）**：T1 位置朝向；T2 template+命令；T3 规则协议；T4 旧存档；T5 schema/导出。
+2. **波次 B（并行）**：T6 `Clip`+`ScriptParser`(片段/白名单)+`ScriptValidator`；T7 画面层**迁移脚本+夹具**（只改 JSON，主代理执行）；T8 零散死代码（避开 T6/T9 文件）。
+3. **波次 C**：T9 画面层代码删除（`MetaSchemas`/`ScriptMeta`/`ScreenLayer`/`CinematicController`/`PlaybackInstance`/`GuiMixin`/`HudLayerRegistry`/`ScriptParser.parseMeta`）+ T10 文档同步。
+4. **波次 D**：T11 Fabric allowlist 接管（在 T9 后，避免抢 `CinematicController`）。
+5. 主代理：编译 → 探针 → 全量 grep → 提交。
 
-| 位置 | 现状 | 缺口 |
+## 三、裁决记录（任务书未写或与源码冲突，本轮按此执行）
+
+| # | 事项 | 裁决 | 理由 |
+|---|---|---|---|
+| R1 | 任务书要求新建 `PointSpace`，但 `script/object/position/PositionSpace` 已存在（WORLD/BASE），被 5 个文件使用 | **不新建 `PointSpace`**；`PointOffset.space` 用现有 `PositionSpace`；删 `PointSource.Space` | 单一入口，避免两个等价枚举（项目原则：无重复判定） |
+| R2 | `PointKinds` 与 `PointKind` 两套词汇 | `PointKinds` 保留旧 **int** 词汇（`PLAYER=0`/`COORDINATE=1`/`STRUCTURE=2`/`BLOCK=3`/`SELECTOR=4`/`NO_KIND=-1`/`DEFAULT_BLOCK_RADIUS=16`）+ `kindOf(String)` + `parseBlock(String)→BlockRef`；`PointKind` 枚举新增 `fromOrigin(String)`，内部只调 `PointKinds.kindOf` | `ObjectValidator` 依赖 int 常量；枚举判据必须单一 |
+| R3 | 任务书要求删 `meta.version` 等显式拒绝、改由「字段白名单/未知键报错」，但当前 `parseMeta` **没有** meta 未知键白名单 | **本轮新建**：`ScriptParser`/`ScriptValidator` 对 meta 键做白名单校验，白名单 = `SchemaRegistry.getMetaFields().keySet()` ∪ `{triggers, trigger_poll_interval}`；timeline 白名单 = `{tracks, loop_start, loop_end}` | 否则删掉显式拒绝会变成静默忽略旧字段，违反 `bad_removed_*` 仍须失败 |
+| R4 | 迁移脚本写入 `screen_layers` 会让 `resolveScreenLayerMode` 隐含 `ALLOWLIST`（行为漂移） | 迁移脚本必须同时写 `screen_layer_mode: normal`；仅旧 `hard_hide_hud: true` → `allowlist` | 等价迁移；allowlist 是平台能力补齐，不能顺手给全部脚本切换模式 |
+| R5 | `Clip.hasObjects()` 语义 | 改名 `hasObjectProperties()`，语义 = 「有对象属性」；`ObjectCameraEvaluator.isClipUsable`/`PathCollectionParser`/`ScriptPlayer` 同步 | 任务书交付物 10：不再把空 `objects` 当旧格式 |
+| R6 | `TrackTypeSchema` 收敛 | 只留 `(Map<String,ObjectDef> objects, Map<String,FieldDef> playControl)`；`TrackRegistry:117` 与 `EMPTY` 同步 | 交付物 3 |
+| R7 | 六个未跟踪文档（四份 misc 设计文档 + 两份 K-optimization） | **不删除、不提交**；本轮只消费其清单，清理由用户手动处理 | 用户指示：不要删东西 |
+| R8 | Fabric 实机验收 | 若实机不可用，报告明确写「未验证」，不冒充通过 | 不编造验证 |
+| R9 | `old-new-shared-code.md` §七 要求 `CameraLane` 改为 `(state, sample, composite)`，但 `CameraLeasePool.acquire(owner, Clip, dimension)` 与 `CameraTrackPlayer.indexOfClip(Clip)` 都需要 `Clip` 身份 | **保留 `clip`**，删 `clipLocalTime`，新增 `sample`（`SampledClip`）；`ScriptPlayer` 用 `lane.sample()` 不再重采样 | 文档方案漏了这两个消费点；删 `clip` 会破坏租约对账 |
+| R10 | 第六份文档 `K-optimization/code-quality-review-2026-11-06.md` 是活跃代码的结构/性能审查（巨型文件、`script↔camera` 耦合、每帧分配、WebUI 帧流），不是旧模型残留 | **本轮不施工**，整表移交 K 轮，写入 `I-BACKLOG.md` §N-2（含 P0–P3 与关闭条件） | 任务书「不做」排除改播放/相机语义；结构重构不属「旧代码清零」 |
+| R11 | 画面层是否保留 `normal` / `allowlist` 双模式 | **用户裁决（2026-11-08）：只留一个模式**——强制清除整帧 + 白名单放行，默认生效，删 `meta.screen_layer_mode` 字段、`ScreenLayerMode` 枚举、平台能力位、`normal` 逐层抑制整条路径（`GuiMixin` / 4 个 HUD 组件 mixin / Forge `RenderGuiOverlayEvent.Pre` / Fabric TAIL） | 「屏蔽只留效果最好的那个模式」；双模式是无用的旧逻辑 |
+| R12 | 第三方模组验证 | **不验证**：只提供 `FabricHudLayerRegistry.register` / `HudLayerRegistry.register` 接口，由第三方自行适配 | 用户指示 |
+
+## 四、缺口分类
+
+- **本轮做**：上述 11 项全部；`E:/tmp/icv` 与 `E:/tmp/i5/probe/I5Probe.java` 的旧断言同步改写（探针不入库）。
+- **移交后续轮次**：无（0.3.6 收口轮，Z 轮前不留清理项）。
+- **契约边界**：
+  - 0.3.6 不再读旧脚本 / 旧 v1 存档（旧事实转换只提供 `E:/tmp` 一次性工具，不入库）。
+  - `FabricHudLayerRegistry.register` 是 Fabric 平台专属接口；跨平台第三方用 `HudLayerRegistry`。
+  - `parseBlock` 接受带或不带 `block:` 前缀（统一 `OrientationEvaluator`/`ObjectCameraEvaluator` 两处旧行为）。
+
+## 五、前置轮次边界核对
+
+- I-5 已关单：`screen_layers` / `screen_layer_mode` / `LegacyFlags` 回落是 I-5 产物，本轮只删不重建。
+- 旧 J-1 收口（`59a5fb4`）已完成单入口/失败处理；本轮不重做那些项。
+- `fabric-hud-takeover.md` 是方向稿（§八「未实现」），本轮实现其 §四/§六；其中「双模式」部分被 R11 裁决覆盖。
+
+## 六、验收记录（2026-11-08 实测）
+
+| 验收项 | 命令 / 方式 | 结果 |
 |---|---|---|
-| `common/src/main/java/com/immersivecinematics/immersive_cinematics/script/execution/ClipBranchController.java` | `poll()` 首行 `if (!branching) return;`，只观察分支 target | 主线片段完成无人读 `ClipExitResolver` |
-| 同上 `launch(Clip, double, ClipExitPolicy)` / `fail(Clip, String)` | 分支启动 / 失败回滚 | 保持 |
-| `common/.../script/execution/ClipExecutionLedger.java` | `advance(double)`、`executionOf(Clip)`、`at(int)`、`size()`、`endBranch(Clip)`、`snapshot()/restore()` | 需提供「遍历全部记录」的读面（已有 `at` / `size`） |
-| `common/.../script/execution/ClipExecution.java` | `done()`、`executionId()`、`branchEntry()` | 完成事实唯一真源（不改） |
-| `common/.../camera/FrameDriver.java:174-180` | 每帧 `instance.branch().poll()`（已 try/catch） | 调用点保持 |
-| `common/.../camera/PlaybackInstance.java:310-333` | `syncExits` 已把内联 + 独立片段 `exit` 进表；`branch` 重建 | 确认无需改 |
-| `common/.../script/rule/ClipExitPolicyParser.java` | 解析五种出口 | 保持 |
-| `cinematics/0.3.6/tests/rules/test_standalone_camera_branch.json` | 现由 `rules[].goto_clip` 启动 | 改为内联 `intro.exit = {on_complete:"goto", target:"cam_standalone"}` |
-| `plans/0.3.6/I-script-core/rule-exits.md` | §七 写「主线完成不走出口策略」 | 改写为新口径（单一完成派发） |
-
-**实现口径（派单写死，避免两套判定）**
-
-1. `poll()` 每帧扫描账本**全部**记录；每个 (clip, executionId) 只在 `done` 由 false→true 的那一帧派发一次。
-2. `executionId` 变化（`reset` / `seek` / `startBranch` / `endBranch`）只记基线、不派发 —— seek 不得合成完成事件。
-3. 派发 = 一个 `applyExit(clip, execution, policy)`：
-   - `CONTINUE` / `RETURN` / `END_EXECUTION` → 若是当前分支 target，`ledger.endBranch(clip)`；主线执行无需结束。
-   - `GOTO` → 若是分支 target 先 `endBranch`，再 `launch(policy.target(), policy.entryLocalTime(), null)`；`launch` 返回 false（已有分支在跑 / 目标非法）→ 限频日志，不静默。
-   - `END_SCRIPT` → 若是分支 target 先 `endBranch`，再 `host.requestScriptEnd()`。
-4. 优先级单点：`resolver.resolve(clip, isBranchTarget ? entryOverride : null)`；`isBranchTarget = branching && target == clip`（一个谓词，不是第二条判定链）。
-5. 同帧多个完成按扁平索引顺序派发；无限执行永不 `done`，不派发。
-6. 探针（仓库外 `E:/tmp/j1-exit/`）：普通片段 goto / end_script / continue、链式两段、入口覆盖优先、seek 不合成、`endBranch` 后不重复派发。
-
-### T2 F 轮 P1/P2（37 条）
-
-分片按「边界归属」切，文件不重叠：
-
-- **片 A（渲染 / lane / 调试路径）**：`overlay/OverlayManager.java`（`update` 逐层 catch）、`mixin/GameRendererMixin.java:89-95`（帧尾调试捕获 catch + 失败关闭调试）、`mixin/LevelRendererVanillaMixin.java`（`smartCull` 自愈）、`mixin/LaneCullStateMixin.java`（`mirrorCompiled`）、`client/lane/LaneRenderer.java`（Iris 反射首次 INFO）、`client/lane/LaneDiagnostics.java`（静默解析）、`client/post/ColorAdjustPass.java` + `client/lane/LaneCompositor.java`（shader 加载 `RuntimeException`）、`client/lane/LaneDebugCapture.java`（由 A11 覆盖，确认）。
-- **片 B（服务端 / 网络 / WebUI 消息）**：`trigger/server/ScriptEventManager.java`（`onServerTick` 按 playback 隔离）、`trigger/server/store/TriggerStateStore.java`（`saveAll`）、`trigger/client/ClientScriptReceiver.java`（play/reload 日志补上下文）、`trigger/client/ClientEntitySelectorCache.java`（空体 catch → 限频日志）、`trigger/server/ScriptSyncState.java`、`trigger/network/AckTracker.java`、`webui/WebEditorApi.java`（补栈）、`trigger/server/evaluator/Evaluators.java`（gamestage 首次 INFO）、`util/ErrorLog.java`（首次 stderr）、`script/AudioListenerController.java`。
-- **片 C（客户端 tick / 输入 / 解析 / 配置）**：`mixin/KeyboardHandlerMixin.java`、`mixin/MouseHandlerMixin.java`、`mixin/LocalPlayerMixin.java`、`mixin/SoundManagerMixin.java`、`camera/PreviewChannel.java`（`pushScript` catch + 玩家 null）、`handler/ClientEventHandler.java`（建目录 WARN）、`webui/WebPreviewScreen.java` + `webui/WebFrameStreamer.java`、`fabric/.../FabricConfig.java`（+ Forge 对应配置类，若存在）。
-
-**每条改动四要素**：边界名、上下文（scriptId / instanceId / 层级 / 字段路径 / 玩家）、限频 key（失败点 + 实例）、`Error` 直接上抛（`FatalErrors.rethrowIfFatal` 已有）。
-
-### T3 数组条件 → 新格式
-
-| 位置 | 现状 | 动作 |
-|---|---|---|
-| `script/schema/TriggerSchemas.java` | `entityKill()`：`entity` string + `mode` enum(or/and)；`inventory()`：`items` array + `mode` enum(and/or) | 删除两处 `mode`；`entity` / `item` 保持 string |
-| `trigger/server/evaluator/Evaluators.java` | `evaluateEntityKill` / `evaluateItemPickup` 数组分支；`evaluateInventory` `mode=or` 分支 | 删除数组与 mode 分支；presence 恒为「全部拥有」 |
-| `trigger/server/fact/FactWindow.java` | `entityKill` / `itemPickup` 数组分支 | 删除数组分支 |
-| `script/ScriptValidator.java` | schema 驱动；未知键静默 | `conditions.mode`（entity_kill / inventory）出现即报「已移除：用 any / all_of 表达」 |
-| `cinematics/mod_showcase/scripts/showcase_02_kill_sheep.json` | `entity:["minecraft:sheep"]` + `mode:"and"` | 单值 `entity:"minecraft:sheep"` |
-| `cinematics/mod_showcase/scripts/showcase_07_barter.json` | `item:[15 项]` + `mode:"or"` | `any` 组合器 + 15 个单值 `item_pickup` 子条件 + `continuity.window` |
-| `plans/0.3.6/C-trigger/trigger-conditions.md` | §六「内部判定统一未落地」 | 裁决 + 落地记录（唯一格式） |
-| `docs/TRIGGER_TYPES.md` | §20 / §21 仍写 `mode` or/and | 改为新格式；旧写法不再支持 |
-
-### T4–T9 材料
-
-| 项 | 材料 |
-|---|---|
-| T4 / T5 | `cinematics/0.3.6/tests/camera/test_camera_transition_b18_a.json`、`_b.json`、`test_camera_transition_params.json`（已就绪，validator OK）；实现 `camera/transition/CameraTransitionLayer.java`（`interrupt` / `settle`） |
-| T6 | 新建 `cinematics/0.3.6/tests/camera/test_camera_hysteresis_quadrant.json`：4 条 CAMERA 轨、同轨迹、`dest.x/y/w/h` 各占一象限；3 轨分别挂 `motion_*` = `exponential_smooth` / `spring` / `inertia`，1 轨不挂（对照）。通道 schema 见 `script/schema/TrackSchemas.java:696-699` |
-| T7 | 新建 `cinematics/0.3.6/tests/rules/test_cpause_event.json`：CAMERA + EVENT 轨（EVENT 位于 pause 窗口之后，可判「不丢」；pause 前一条可判「不重」）+ 规则 `pause` → `until(timeout)` → `resume`；复跑 `test_rules_actions.json` clip3 |
-| T8 | 旧 worktree `E:/tmp/j1-old`（`42c0ef4`，I-5 格式清理前）+ 探针 `E:/tmp/j1-equiv/`；新侧用当前 `common/build/classes/java/main` |
-| T9 | `E:/tmp/icv/Validate.java`（6 个内联旧格式样本 + 期望串）；`cinematics/0.3.6/tests/hud/test_h11_hard_hide.json` |
-
-## 3. 依赖顺序
-
-```
-Wave 1（并行，均不跑 gradle）
-  T1 代码 + 夹具 + 探针
-  T2-A / T2-B / T2-C
-  T3 代码 + 夹具 + 文档
-  T9-icv（Validate.java 迁移，独立于仓库）
-Wave 1 收尾（主代理）
-  :common:compileJava → icv 全量 → 探针（T1、T8 新侧）→ 修缺口重派
-Wave 2（实机准备）
-  T4/T5/T6/T7 夹具 + 临时 trace 补丁（env 门控，测完还原）
-  T8 旧 worktree 编译 + 双跑探针
-Wave 3（实机，主代理）
-  Fabric 一轮：T1 夹具 → B18 A/B → B19 四象限 → C-pause → 三注入冒烟
-  Forge：:forge:compileJava + h11 复测
-Wave 4
-  还原 trace、文档回写、提交（不 push）
-```
-
-## 4. 现状与缺口分类
-
-| 缺口 | 分类 | 说明 |
-|---|---|---|
-| 主线片段 `exit` 不执行 | **本轮做（T1）** | 单一完成派发入口 |
-| F P1/P2/P3（37 条） | **本轮做（T2）** | 只补边界捕获 + 日志 + 降级，不改业务流程 |
-| `entity` / `item` 数组 + `mode` | **本轮做（T3）** | 旧格式删除；新格式 = 组合器 + `continuity.window` |
-| B18 ④⑤ / B19 / C-pause 实机 | **本轮做（T4–T7）** | 夹具 + 实机 + 人眼 |
-| 像素级旧基线 | **本轮做（T8，替代证据）** | 数值探针对拍 + 差异清单 |
-| icv 自检样本 / h11 Forge | **本轮做（T9）** | 工具侧不入库 |
-| 事件类子条件时间窗（H7/H8 剩余） | **契约边界** | `FactWindow` + `continuity.window` 已可用；事实层持久化 / 时间戳展示归后续 |
-| `END_EXECUTION` 与 `CONTINUE` 等价 | **契约边界** | 无调用栈；`rule-exits.md` §二 已写明 |
-| 分支失败不回滚副作用 | **契约边界** | I2-B8 已定 |
-| 媒体能力（J-2 起） | **不做** | 任务书明确 |
-
-## 5. 验证口径（主代理执行）
-
-1. `sh gradlew :common:compileJava --offline --no-daemon` + `:forge:compileJava`。
-2. `E:/tmp/icv` 全量 = 6 of 258（6 支为 `tests/faults/` 负例）+ `SELFTEST` 全过。
-3. 探针：`I5Probe` 24/24 PASS + T1 出口探针 + T8 等值探针。
-4. 实机：Fabric 一轮跑完 T1 夹具 / B18 A+B / B19 四象限 / C-pause / 三注入；Forge 编译 + h11。
-5. 每项总结给「结论 + 证据路径」。
-
-## 6. 执行结果（2026-11-07 收口）
-
-| ID | 结果 | 证据 |
-|---|---|---|
-| T1 | ✅ 完成 | 单一完成派发（`applyExit`）；探针 28/28（`E:/tmp/j1-exit`）；夹具 `test_standalone_camera_branch.json` 实机 2s 启动、12.003s 自然结束 |
-| T2 | ✅ 完成 | 37 条（P1 15 / P2 12 / P3 10）落地或核对为已存在；三注入（坏命令 / 坏图层 / 坏声音）均有可定位日志、进程存活、脚本自然结束 |
-| T3 | ✅ 完成 | `entity` / `item` 数组与 `entity_kill` / `inventory` 的 `mode` 删除；两条 showcase 改写；`icv` 全量 `6 of 260`（6 支 `faults` 负例） |
-| T4 / T5 | ✅ 完成 | snap 单帧硬切 / blend 每帧 ≤0.012px·0.09°、窗口 12s；链式 t=48 衔接 0.025px·0.155° |
-| T6 | ✅ 完成 | 四象限逐帧 yaw 表（对照 / exp / spring / inertia）+ 逐型结论 + 60/120/解锁三档 |
-| T7 | ✅ 完成 | 位置恒 0.000/6.004（666 帧）、EVENT 4/8/12 各一次、恢复推进到 20.002；**另修复 clip3 卡死**（pause 释放判据改「本执行内仍可触发的 resume」） |
-| T8 | ✅ 完成 | 旧/新对拍 **21/21 PASS**：5 支仓库夹具全通道 maxAbsDiff=0；补测 yaw/roll 环绕（mod 360 差 0）、无限折叠 3 支、path 几何 5 支、多关键帧（≤9.54e-7）；非正 zoom 由校验期拒绝并断言 |
-| T9 | ✅ 完成 | `E:/tmp/icv` SELFTEST 全过；Forge h11 接管 + 白名单重画（`hud.hotbar`）复测通过 |
-| T10 | ✅ 完成 | 本文档 + `J-media/verification-2026-11-07.md` + 各专篇回写；**本轮新增遗留 R1~R5 已全部关闭，BACKLOG 无新增移交项** |
-
-### 探针与命令（可复跑）
-
-| 项 | 命令 | 结果 |
-|---|---|---|
-| 编译 | `sh gradlew :common:compileJava :fabric:compileJava :forge:compileJava --offline --no-daemon` | BUILD SUCCESSFUL |
-| 全量校验 | `sh E:/tmp/icv/run.sh E:/Documents/GitHub/ImmersiveCinematics/cinematics` | `6 of 260` + `SELFTEST: all validator-rule self-tests passed` |
-| I5Probe | `E:/tmp/i5/probe`（javac + java） | `SUMMARY pass=24 fail=0`（语料 260 支 = 252 正常 + 8 负例） |
-| 出口探针 | `sh E:/tmp/j1-exit/run.sh` | `SUMMARY pass=28 fail=0` |
-| 等值探针 | `sh E:/tmp/j1-equiv/run.sh` | `SUMMARY pass=21 fail=0` |
-
-### 本轮新增 deprecated / 兼容路径
-
-**无**。旧数组 + `mode` 直接删除（校验期报「已移除」），未留双读或垫片；`ClipBranchController` 旧的分支专用 poll 路径已并入单一派发。
+| 编译 | `sh gradlew :common:compileJava :forge:compileJava :fabric:compileJava --offline --no-daemon` | BUILD SUCCESSFUL（仅既有 MC API deprecation 警告） |
+| 检索矩阵（任务书全部 grep，含 R11 追加的 `ScreenLayerMode\|screen_layer_mode\|isAllowlistMode\|supportsScreenLayerTakeover`、5 个已删 mixin 名） | grep common/fabric/forge | 全部 0 命中 |
+| `I5Probe` | 无头探针（classpath 按 `E:/tmp/icv/run.sh` 模板） | **24/24 PASS**；260 支夹具 252 正常 + 8 负例全部按预期拒绝 |
+| `E:/tmp/icv` 全量基线 | `sh run.sh <cinematics>` | 7/260 FAIL，全部为 `tests/faults/bad_*` 负例（基线口径：正常脚本 0 失败；demo / mod_showcase 从基线 FAIL 变 OK） |
+| `bad_removed_*` 负例 | 同上 | 5 支全部失败（文案 = 白名单「未知字段」口径） |
+| 夹具旧键 | grep cinematics | `hide_*` / `suppress_*` / `render_player_model` / `hud_layers` / `hard_hide_hud` / `screen_layer_mode` 仅存在于 `tests/faults/**` 负例 |
+| Fabric 实机（allowlist 白名单） | rig（Sodium 0.5.13 在场）+ `icinematics play` + 游戏内截图 | hotbar / 跳过提示 / 玩家模型 / 本模组字幕显示；准星 / 血条 / 经验 / Boss 条 / 聊天 / 记分板 / 动作栏 / 标题 / 字幕隐藏；世界内容照常 |
+| Fabric 实机（F1） | 播放中按 F1 + 截图 | HUD 层全部不画；世界效果层照常（Fabric 遵循原版 `!hideGui` 块，比 Forge 更严格，见 fabric-hud-takeover §5.2 有意偏差） |
+| Fabric 实机（退出恢复） | `icinematics stop` + 截图 | 准星 / hotbar / 手臂全部恢复，无残留清空 |
+| Fabric 实机（单层隐藏） | `screen_layers` 只写 `hud.chat:false` + 截图 | 接管触发，chat 隐藏、其余层放行（等价旧 normal 逐层抑制的视觉） |
+| Fabric 启动 | 服务端 + 客户端日志 | 无 mixin / `@Shadow` 报错；修复了 `FabricEvents` 引用 client-only 类导致专用服务器启动崩溃的回归（client 事件移入 `FabricClientEvents`） |
+| 第三方 HUD（`HudRenderCallback` 全灭 / `FabricHudLayerRegistry.register` 层显示） | — | **未验证**（无第三方测试模组；按用户指示不构造，接口已提供） |

@@ -89,7 +89,7 @@ I-3 移交的规则 / 路径项与 I-4 卫生项，全部在本轮关闭：
 | H1-R9 | `entity_interact` 的 `target` 由「全等 + `*`」改为 `matchesId`（支持 `ns:*` 与无冒号子串） | **契约边界** | 与其它 id 条件统一；已写入 `state-tracking.md` §六 |
 | H1-R10 | 事实 `count` / `exists` / `last` 为累计口径（保留集淘汰后仍成立）；`anyWithin` / `lastWithin` / `lastMatching` 受保留深度约束 | **契约边界** | 已写入 `PlayerFacts` Javadoc 与 `state-tracking.md` §六；保留上限：事件类 64–512 条、触发命中 1024 条 |
 | H1-R11 | 窗口判定里「多个击杀都要满足」由 `all_of` 组合器表达（每个子条件各自查窗口事实、场景按该条事实判定），与单点求值器「最近一次击杀的场景」不同 | **契约边界** | 窗口语义按事实逐条判定；`mode` 已删除（J-1），口径见 `trigger-continuity.md` §六 |
-| H1-R12 | v1 触发器状态文件做一次性转换：旧键 `type_scriptId` 仅在该脚本内**唯一**匹配时映射到新身份，歧义/无匹配丢弃（debug 日志）；v2 起按事实存储 | **契约边界** | 版本原则：不保留兼容读取层；已写入 `state-tracking.md` §六 |
+| H1-R12 | ~~v1 触发器状态文件做一次性转换：旧键 `type_scriptId` 仅在该脚本内**唯一**匹配时映射到新身份，歧义/无匹配丢弃（debug 日志）~~；**已移除（J-1）：0.3.6 不再兼容旧触发状态**，`FactLedger` 只解码 `version:2`，其它版本按空处理并 WARN | **契约边界** | 迁移器与 `FactLedger` v1 分支 / `legacyTriggers` 已删除；`grep` 在 `common/src` 零命中 |
 | H1-R13 | 顶层事件触发器不受 `continuity.window` 影响（窗口只作用于 `all_of` / `any` 的事件类子条件） | **契约边界** | 已写入 `trigger-continuity.md` §六 |
 
 ## G. H-2 遗留项（画面层与 HUD：H9 跳过投票 + H11 注册 API + H5/H6）
@@ -281,6 +281,37 @@ J1-R1~R5 已在 J-1 内全部关闭，不留移交：
 - **R5**：`test_rules_actions` clip2 规则补 `once`，实机 `goto 拒绝=0` 且 `fully complete`。
 
 证据：`J-media/verification-2026-11-07.md` §九。
+
+---
+
+## N. J-1 旧模型清零轮（2026-11-08）
+
+### N-1. 本轮契约边界（非遗留，写清归属）
+
+| 项 | 结论 | 关闭条件 |
+|---|---|---|
+| 旧脚本 / 旧存档 | 0.3.6 不再兼容：`meta.version` / `hud_layers` / `hard_hide_hud` / `hide_*` / `suppress_*` / `render_player_model` / `total_duration` / clip 级 `keyframes`·`curve`·`rules`·`interpolation`·`follow*`·`facing_origin*` 一律按「未知字段」报错；`FactLedger` 只解码 `version:2` | 已关闭（本轮） |
+| `screen_layers` 未声明键 | `normal` 下显示；`allowlist` 下隐藏。`status` 与分类名由夹具迁移显式物化，第三方未注册 overlay 的资源 ID 未声明时按 `hudAllHidden`（HUD 空间 11 层全隐藏）派生 | 已关闭（本轮）；新增第三方层请自行写入 `screen_layers` |
+| `CameraLane` | 保留 `clip`（`CameraLeasePool` 租约与 `indexOfClip` 的身份），删除 `clipLocalTime`，新增 `sample`（`SampledClip`）；`ScriptPlayer` 不再重采样 | 已关闭（本轮） |
+| Fabric 自定义层 | `FabricHudLayerRegistry.register(layerId, category, renderer)` 是 Fabric 平台专属；跨平台分类注册仍走 `HudLayerRegistry` | 已关闭（本轮） |
+| `ScriptStructureResolver` | 删除；结构 / 方块来源由客户端 `WorldPointLocator` 执行时解析 | 已关闭（本轮） |
+
+### N-2. 移交 K 轮（`K-optimization/code-quality-review-2026-11-06.md`）
+
+该文是**活跃代码**的结构 / 性能审查，不属旧模型残留，本轮不施工；条目与关闭条件如下（原文含 `file:line` 与改法）：
+
+| 优先级 | 项 | 关闭条件 |
+|---|---|---|
+| P0 | `webui/WebFrameStreamer` 读回侧节流 + 缓冲复用（每帧 `glReadPixels` + 3 次全量拷贝） | 读回次数 / 秒 ≤ 发送次数（60）；每帧分配从约 11 MB 降到 0；画面一致 |
+| P1 | `camera/FrameDriver.frame()` 每帧 `new ArrayList` 消除 | 25 实例场景帧分配计数下降；启停行为不变 |
+| P1 | `client/lane/LaneRenderer` 每 lane `new PoseStack` / `new Matrix3f` 复用 | 25 lane 场景逐帧分配下降；画面逐位一致 |
+| P1 | `LaneRenderer` 9 个静态可变字段 → 显式 `LaneRenderContext` | `private static` 可变字段降到 1–2 个；渲染行为不变 |
+| P2 | `ScriptValidator` / `ObjectValidator.Check` / `ScriptParser` / `LaneDiagnostics` 巨型文件按域拆分 | 公开签名不变；夹具校验结果逐条一致 |
+| P3 | `ScriptPlayer` 职责拆分（`AudioRuntime` / `CameraLaneSource`）；`script ↔ camera` 包重排 | `ScriptPlayer` 可脱离 `CameraManager.INSTANCE` 构造；播放行为不变 |
+
+### N-3. 本轮无新增遗留
+
+旧模型清零项全部在本轮落地；`E:/tmp` 下的探针与一次性脚本不入库、不进打包。
 
 ---
 
