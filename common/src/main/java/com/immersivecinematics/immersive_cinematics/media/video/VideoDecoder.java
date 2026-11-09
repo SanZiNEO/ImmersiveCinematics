@@ -117,7 +117,7 @@ public final class VideoDecoder implements AutoCloseable {
         if (executable == null) {
             ended = true;
             ErrorLog.warnRateLimited("Video", "decode-ffmpeg-missing", LOG_INTERVAL_MS,
-                    "未在 PATH 中找到 ffmpeg，无法解码：" + path);
+                    "未在 <gameDir>/ffmpeg/ 中找到 ffmpeg，无法解码：" + path);
             return;
         }
         Process started;

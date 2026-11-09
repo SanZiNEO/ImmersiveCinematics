@@ -27,7 +27,7 @@ import java.util.Locale;
  *   <li>stderr 排空线程为 daemon，只读不写，随进程销毁退出。</li>
  * </ul>
  *
- * 启动失败（PATH 无 ffmpeg / 进程起不来）不抛异常：流进入已关闭状态，{@link #read(int)} 一律返回空缓冲，
+ * 启动失败（<gameDir>/ffmpeg/ 无 ffmpeg / 进程起不来）不抛异常：流进入已关闭状态，{@link #read(int)} 一律返回空缓冲，
  * 原版 SoundEngine 据此直接结束该声音，画面播放不受影响。
  */
 public final class ProcessPcmStream implements AudioStream {
@@ -70,7 +70,7 @@ public final class ProcessPcmStream implements AudioStream {
         if (executable == null) {
             closed = true;
             ErrorLog.warnRateLimited("VideoAudio", "pcm-ffmpeg-missing", LOG_INTERVAL_MS,
-                    "未在 PATH 中找到 ffmpeg，视频音轨不可用：" + path);
+                    "未在 <gameDir>/ffmpeg/ 中找到 ffmpeg，视频音轨不可用：" + path);
         } else {
             Process launched = null;
             try {
