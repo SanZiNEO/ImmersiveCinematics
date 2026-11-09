@@ -174,8 +174,9 @@ public final class PreviewStreamer {
     /**
      * 每渲染帧调用：1s 节流，向每个会话推送 {@code preview.stats}，并落一行限频统计日志。
      *
-     * <p>字段：{@code mode/width/height/fps/encoder/sent/dropped/inputDropped}。
-     * {@code sent}/{@code dropped} 来自会话发送队列，{@code inputDropped} 是本层节流丢弃的帧数。</p>
+     * <p>字段：{@code mode/width/height/fps/encoder/sent/dropped/inputDropped/encoderDropped}。
+     * {@code sent}/{@code dropped} 来自会话发送队列，{@code inputDropped} 是本层节流丢弃的帧数，
+     * {@code encoderDropped} 是编码器输入队列（容量 1）挤掉的帧数（含已关闭实例的累计）。</p>
      */
     public void tick(Minecraft mc) {
         long now = System.currentTimeMillis();
@@ -188,14 +189,17 @@ public final class PreviewStreamer {
         long totalSent = 0L;
         long totalDropped = 0L;
         long totalInputDropped = 0L;
+        long totalEncoderDropped = 0L;
 
         for (SessionStream stream : sessions.values()) {
             long sent = stream.session.sentFrames();
             long dropped = stream.session.droppedFrames();
             long inputDropped = stream.inputDroppedCount();
+            long encoderDropped = stream.encoderDroppedCount();
             totalSent += sent;
             totalDropped += dropped;
             totalInputDropped += inputDropped;
+            totalEncoderDropped += encoderDropped;
 
             JsonObject data = new JsonObject();
             data.addProperty("mode", config.wireName());
@@ -206,6 +210,7 @@ public final class PreviewStreamer {
             data.addProperty("sent", sent);
             data.addProperty("dropped", dropped);
             data.addProperty("inputDropped", inputDropped);
+            data.addProperty("encoderDropped", encoderDropped);
             JsonObject msg = new JsonObject();
             msg.addProperty("type", "preview.stats");
             msg.add("data", data);
@@ -213,9 +218,9 @@ public final class PreviewStreamer {
         }
 
         ErrorLog.warnRateLimited(LOG_CATEGORY, "preview-stats", STATS_INTERVAL_MS,
-                String.format("预览流统计：%s %dx%d@%dfps 会话=%d sent=%d dropped=%d inputDropped=%d",
+                String.format("预览流统计：%s %dx%d@%dfps 会话=%d sent=%d dropped=%d inputDropped=%d encoderDropped=%d",
                         config.wireName(), width, height, config.fps(),
-                        sessions.size(), totalSent, totalDropped, totalInputDropped));
+                        sessions.size(), totalSent, totalDropped, totalInputDropped, totalEncoderDropped));
     }
 
     /**
@@ -268,6 +273,9 @@ public final class PreviewStreamer {
 
         /** 本层因节流丢弃的帧数。 */
         private long inputDropped;
+
+        /** 已关闭编码器累计的输入队列丢帧数（{@link PreviewEncoder#droppedFrames()}）。 */
+        private long encoderDroppedTotal;
 
         SessionStream(WebSocketSession session) {
             this.session = session;
@@ -400,8 +408,10 @@ public final class PreviewStreamer {
         /** 关闭并清空编码器（锁内调用）：实例只提交一次到关闭器，不在调用线程等进程退出。 */
         private void closeEncoderLocked() {
             PreviewEncoder enc = encoder;
-            encoder = null;
             if (enc != null) {
+                // 关闭后实例不再可查询，先把它自己的输入队列丢帧计入累计
+                encoderDroppedTotal += enc.droppedFrames();
+                encoder = null;
                 ENCODER_CLOSER.execute(enc::close);
             }
         }
@@ -490,6 +500,11 @@ public final class PreviewStreamer {
 
         synchronized long inputDroppedCount() {
             return inputDropped;
+        }
+
+        /** 编码器输入队列丢帧总数：已关闭实例的累计 + 当前实例的实时值。 */
+        synchronized long encoderDroppedCount() {
+            return encoderDroppedTotal + (encoder == null ? 0L : encoder.droppedFrames());
         }
     }
 }

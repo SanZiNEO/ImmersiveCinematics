@@ -94,6 +94,7 @@
   - 18.. payload
 - RGBA payload = `width*height*4`（自顶向下）；H.264 payload = 一个完整 AU。
 - 队列按消息条数计数（容量 16），不按字节。
+- `preview.stats` 字段：`mode` / `width` / `height` / `fps` / `encoder` / `sent` / `dropped` / `inputDropped` / `encoderDropped`；后三者分别是会话发送队列丢帧、渲染层 fps 节流丢帧、编码器输入队列丢帧。
 
 ### 4.4 边界
 

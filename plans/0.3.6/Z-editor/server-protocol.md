@@ -75,7 +75,7 @@
 
 - RGBA payload = `width*height*4`，行序自顶向下；H.264 payload = 一个完整 Annex B access unit（关键帧内联 SPS/PPS）。
 - 新增请求 `editor.previewConfig`：`{mode:"original"|"720p"|"1080p", fps:30|60, keyframeIntervalSeconds:1..10, encoder:boolean}`；回执 `editor.previewConfig.result`（含实际捕获 `width/height`）。
-- 新增推送 `preview.stats`（每会话每秒）：`{mode,width,height,fps,encoder:"h264"|"rgba"|"off"|"pending",sent,dropped,inputDropped}`。
+- 新增推送 `preview.stats`（每会话每秒）：`{mode,width,height,fps,encoder:"h264"|"rgba"|"off"|"pending",sent,dropped,inputDropped,encoderDropped}`。
 
 ### 4.5 凭据与路径
 

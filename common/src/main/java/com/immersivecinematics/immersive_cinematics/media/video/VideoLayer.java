@@ -211,7 +211,7 @@ public final class VideoLayer implements OverlayLayer {
             // 工具链不全（缺 ffmpeg 或 ffprobe）：不是素材的问题，不显示也不占位
             unavailable = true;
             ErrorLog.warnRateLimited(LOG_CATEGORY, "video-no-ffmpeg", LOG_INTERVAL_MS,
-                    "未在 PATH 中找到 ffmpeg/ffprobe，视频层不显示：" + path);
+                    "未在 <gameDir>/ffmpeg/ 中找到 ffmpeg/ffprobe，视频层不显示：" + path);
             return;
         }
 
