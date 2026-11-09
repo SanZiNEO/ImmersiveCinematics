@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.webui;
 
 import com.google.gson.JsonObject;
+import com.immersivecinematics.immersive_cinematics.media.capture.CaptureHub;
 import com.immersivecinematics.immersive_cinematics.media.capture.CapturedFrame;
 import com.immersivecinematics.immersive_cinematics.media.video.Ffmpeg;
 import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
@@ -16,14 +17,17 @@ import java.util.concurrent.Executors;
 /**
  * 编辑器预览流：捕获帧 → 每会话 H.264 编码（ffmpeg 不可用/失败时回退原始 RGBA）→ 会话发送队列。
  *
- * <p>线程模型：{@link #onCapturedFrame}、{@link #setPaused}、{@link #setConfig}、{@link #tick} 在渲染线程；
- * {@link #onSessionOpened} / {@link #onSessionClosed} 在 WebSocket 网络线程。共享状态用并发容器 +
+ * <p>线程模型：{@link #onFrame}、{@link #needsFrame}、{@link #setPaused}、{@link #tick}
+ * 在渲染线程；{@link #onSessionOpened} / {@link #onSessionClosed} 在 WebSocket 网络线程。共享状态用并发容器 +
  * 每会话同步块保护。</p>
  *
- * <p>每个会话独立：编码器（独立 ffmpeg 进程）、RGBA 回退标志、按 {@code 1000/fps} ms 的提交节流、
- * 相对该会话首帧的 PTS 基准。编码器失败只影响本会话，其他会话与渲染线程不受影响。</p>
+ * <p>捕获由 {@link CaptureHub} 统一调度：本类只声明是否需要帧与期望规格，帧率节流在
+ * {@link #needsFrame} 完成，导出期间 hub 的覆盖规格会让预览自动跟随导出尺寸/帧率。</p>
+ *
+ * <p>每个会话独立：编码器（独立 ffmpeg 进程）、RGBA 回退标志、相对该会话首帧的 PTS 基准。
+ * 编码器失败只影响本会话，其他会话与渲染线程不受影响。</p>
  */
-public final class PreviewStreamer {
+public final class PreviewStreamer implements CaptureHub.Consumer {
 
     /** 进程内单例：预览是客户端全局能力，会话由 {@link WebEditorServer} 统一登记。 */
     public static final PreviewStreamer INSTANCE = new PreviewStreamer();
@@ -57,7 +61,7 @@ public final class PreviewStreamer {
     /** 已连接会话 → 该会话的流状态；键集合与 {@link WebEditorServer} 的会话表同源。 */
     private final Map<WebSocketSession, SessionStream> sessions = new ConcurrentHashMap<>();
 
-    private volatile PreviewConfig config = PreviewConfig.defaults();
+    private final PreviewConfig config = PreviewConfig.fixed();
 
     /** 预览暂停（编辑器播放已激活且处于暂停）：不捕获、不编码，帧直接释放。 */
     private volatile boolean paused;
@@ -85,10 +89,36 @@ public final class PreviewStreamer {
         }
     }
 
-    /** 当前是否需要捕获：服务在跑、有客户端，且（未暂停或暂停期间还有待发的刷新帧）。 */
-    public boolean shouldCapture() {
-        return WebEditorServer.INSTANCE.isRunning() && WebEditorServer.INSTANCE.hasClients()
-                && (!paused || pausedRefreshFrames > 0);
+    /**
+     * 本帧是否需要捕获（渲染线程，禁止阻塞/分配）。
+     *
+     * <p>服务在跑且有客户端是前提；暂停时只供刷新帧；未暂停时每帧都采（采样无上限），
+     * 发送节流在 {@link SessionStream#submitLocked} 按预览帧率执行。</p>
+     */
+    @Override
+    public boolean needsFrame(long nowNanos) {
+        if (!WebEditorServer.INSTANCE.isRunning() || !WebEditorServer.INSTANCE.hasClients()) {
+            return false;
+        }
+        if (paused) {
+            return pausedRefreshFrames > 0;
+        }
+        // 采样无上限：未暂停时每帧都交给 hub；发送节流在 submitLocked 按预览 fps 做。
+        return true;
+    }
+
+    /** 预览固定 1920×1080@60。 */
+    @Override
+    public CaptureHub.CaptureSpec captureSpec(Minecraft mc) {
+        return new CaptureHub.CaptureSpec(1920, 1080, 60);
+    }
+
+    /** 捕获规格变化（导出开始/结束、配置变更）：关闭编码器，下一帧按新尺寸/帧率重建。 */
+    @Override
+    public void onCaptureFormatChanged(int width, int height, int fps) {
+        for (SessionStream stream : sessions.values()) {
+            stream.resetForConfigChange();
+        }
     }
 
     /**
@@ -106,33 +136,36 @@ public final class PreviewStreamer {
     }
 
     /**
-     * 捕获层回调（渲染线程）：每个会话 retain 一份提交，传入帧本身归捕获层所有
-     * （{@link com.immersivecinematics.immersive_cinematics.media.capture.FrameCapture}
-     * 在回调返回后自行 release），本方法不得释放传入引用。
+     * 捕获层回调（渲染线程）：传入的这份引用归消费者所有，本方法必须恰好释放一次。
      *
      * <p>暂停时只放行刷新帧：每个会话产出过一次后立即停止供帧，其余情况直接丢弃；
-     * 没有任何会话时同样不进入编码路径。</p>
+     * 未暂停时把帧交给各会话（每个会话 retain 一份，{@link SessionStream#submit} 接管并释放）。</p>
      */
-    public void onCapturedFrame(CapturedFrame frame) {
+    @Override
+    public void onFrame(CapturedFrame frame) {
         if (frame == null) return;
-        if (paused) {
-            if (pausedRefreshFrames <= 0) {
+        try {
+            if (paused) {
+                if (pausedRefreshFrames <= 0) {
+                    return;
+                }
+                pausedRefreshFrames--;
+                boolean allSatisfied = true;
+                for (SessionStream stream : sessions.values()) {
+                    stream.submitRefreshFrame(frame.retain());
+                    allSatisfied &= stream.refreshSatisfied();
+                }
+                if (allSatisfied) {
+                    pausedRefreshFrames = 0;
+                }
                 return;
             }
-            pausedRefreshFrames--;
-            boolean allSatisfied = true;
+            pausedRefreshFrames = 0;
             for (SessionStream stream : sessions.values()) {
-                stream.submitRefreshFrame(frame.retain());
-                allSatisfied &= stream.refreshSatisfied();
+                stream.submit(frame.retain());
             }
-            if (allSatisfied) {
-                pausedRefreshFrames = 0;
-            }
-            return;
-        }
-        pausedRefreshFrames = 0;
-        for (SessionStream stream : sessions.values()) {
-            stream.submit(frame.retain());
+        } finally {
+            frame.release();
         }
     }
 
@@ -158,14 +191,6 @@ public final class PreviewStreamer {
         }
     }
 
-    /** 应用新配置：关闭全部编码器，下一帧按新尺寸/帧率重建（不直接持有捕获器）。 */
-    public void setConfig(PreviewConfig value) {
-        config = value != null ? value : PreviewConfig.defaults();
-        for (SessionStream stream : sessions.values()) {
-            stream.resetForConfigChange();
-        }
-    }
-
     /** 当前配置（渲染线程读取；不可变值对象，可安全跨线程）。 */
     public PreviewConfig config() {
         return config;
@@ -175,6 +200,7 @@ public final class PreviewStreamer {
      * 每渲染帧调用：1s 节流，向每个会话推送 {@code preview.stats}，并落一行限频统计日志。
      *
      * <p>字段：{@code mode/width/height/fps/encoder/sent/dropped/inputDropped/encoderDropped}。
+     * {@code width/height} 是捕获（编码输入）尺寸。
      * {@code sent}/{@code dropped} 来自会话发送队列，{@code inputDropped} 是本层节流丢弃的帧数，
      * {@code encoderDropped} 是编码器输入队列（容量 1）挤掉的帧数（含已关闭实例的累计）。</p>
      */
@@ -184,8 +210,11 @@ public final class PreviewStreamer {
         lastStatsMs = now;
         if (sessions.isEmpty()) return;
 
-        int width = config.captureWidth(mc);
-        int height = config.captureHeight(mc);
+        int hubWidth = CaptureHub.INSTANCE.width();
+        int hubHeight = CaptureHub.INSTANCE.height();
+        int width = hubWidth > 0 ? hubWidth : config.width();
+        int height = hubHeight > 0 ? hubHeight : config.height();
+        int fps = config.fps();
         long totalSent = 0L;
         long totalDropped = 0L;
         long totalInputDropped = 0L;
@@ -205,7 +234,7 @@ public final class PreviewStreamer {
             data.addProperty("mode", config.wireName());
             data.addProperty("width", width);
             data.addProperty("height", height);
-            data.addProperty("fps", config.fps());
+            data.addProperty("fps", fps);
             data.addProperty("encoder", stream.encoderState());
             data.addProperty("sent", sent);
             data.addProperty("dropped", dropped);
@@ -219,7 +248,7 @@ public final class PreviewStreamer {
 
         ErrorLog.warnRateLimited(LOG_CATEGORY, "preview-stats", STATS_INTERVAL_MS,
                 String.format("预览流统计：%s %dx%d@%dfps 会话=%d sent=%d dropped=%d inputDropped=%d encoderDropped=%d",
-                        config.wireName(), width, height, config.fps(),
+                        config.wireName(), width, height, fps,
                         sessions.size(), totalSent, totalDropped, totalInputDropped, totalEncoderDropped));
     }
 
@@ -230,6 +259,7 @@ public final class PreviewStreamer {
      * 调用方可能在渲染线程（关屏）。</p>
      */
     public synchronized void close() {
+        CaptureHub.INSTANCE.unregister(this);
         for (SessionStream stream : sessions.values()) {
             stream.closeStream();
         }
@@ -249,15 +279,14 @@ public final class PreviewStreamer {
         private PreviewEncoder encoder;
         private int encoderWidth;
         private int encoderHeight;
+        /** 编码器帧率（固定为预览配置帧率）。 */
+        private int encoderFps;
 
         /** 编码不可用/失败后固定走原始 RGBA，直到恢复播放或改配置。 */
         private boolean rgbaFallback;
 
         /** 会话已关闭：不再提交、不再入队。 */
         private boolean closed;
-
-        /** 上次提交时刻（{@link System#nanoTime()}）；0 = 尚未提交。 */
-        private long lastSubmitNanos;
 
         /** 本会话真正产出的帧数：H.264 = AU 回调，RGBA = 成功入队。 */
         private long producedFrames;
@@ -270,6 +299,9 @@ public final class PreviewStreamer {
 
         /** 上一个对外发出的 H.264 PTS（微秒）；-1 = 尚未发出。 */
         private long lastAuPtsMicros = -1L;
+
+        /** 上次向编码器提交的时刻（{@link System#nanoTime()}）；0 = 尚未提交。 */
+        private long lastSubmitNanos;
 
         /** 本层因节流丢弃的帧数。 */
         private long inputDropped;
@@ -287,8 +319,9 @@ public final class PreviewStreamer {
         }
 
         /**
-         * 暂停刷新：不受 fps 节流限制。编码器为空（本暂停周期首帧 / 上次失败后）时由
-         * {@link #ensureEncoder} 新建，首帧即 IDR；已有编码器则复用，PTS 保持单调。
+         * 暂停刷新：由 {@link #onFrame} 的刷新预算驱动，与常规提交走同一路径。
+         * 编码器为空（本暂停周期首帧 / 上次失败后）时由 {@link #ensureEncoder} 新建，首帧即 IDR；
+         * 已有编码器则复用，PTS 保持单调。
          */
         synchronized void submitRefreshFrame(CapturedFrame frame) {
             submitLocked(frame, true);
@@ -300,15 +333,16 @@ public final class PreviewStreamer {
                 if (closed || session.isClosed()) {
                     return;
                 }
-                long now = System.nanoTime();
+                // 采样无上限；发送/编码节流在消费者侧按预览 fps 做（force = 暂停刷新，不节流）。
                 if (!force) {
+                    long now = System.nanoTime();
                     long intervalNanos = 1_000_000_000L / Math.max(1, config.fps());
                     if (lastSubmitNanos != 0L && now - lastSubmitNanos < intervalNanos) {
                         inputDropped++;
                         return;
                     }
+                    lastSubmitNanos = now;
                 }
-                lastSubmitNanos = now;
                 if (basePtsNanos < 0L) {
                     basePtsNanos = frame.ptsNanos();
                 }
@@ -361,11 +395,13 @@ public final class PreviewStreamer {
                 rgbaFallback = true;
                 return null;
             }
+            int targetFps = config.fps();
             if (encoder != null && !encoder.isFailed()
-                    && encoderWidth == width && encoderHeight == height) {
+                    && encoderWidth == width && encoderHeight == height
+                    && encoderFps == targetFps) {
                 return encoder;
             }
-            // 尺寸变化或上一进程已失败：丢弃旧进程，按新尺寸重建
+            // 尺寸/帧率变化或上一进程已失败：丢弃旧进程，按新参数重建
             closeEncoderLocked();
             Path ffmpeg = Ffmpeg.ffmpeg();
             if (ffmpeg == null) {
@@ -373,15 +409,13 @@ public final class PreviewStreamer {
                 return null;
             }
             try {
-                int encWidth = width;
-                int encHeight = height;
                 // 本编码器的 AU PTS 从 0 起：会话级偏移在创建时定死，旧进程在途 AU 不受影响
-                long frameMicros = 1_000_000L / Math.max(1, config.fps());
+                long frameMicros = 1_000_000L / Math.max(1, targetFps);
                 long offsetMicros = lastAuPtsMicros < 0L ? 0L : lastAuPtsMicros + frameMicros;
-                PreviewEncoder created = new PreviewEncoder(ffmpeg, encWidth, encHeight, config.fps(),
+                PreviewEncoder created = new PreviewEncoder(ffmpeg, width, height, targetFps,
                         config.keyframeIntervalSeconds(),
                         (keyframe, frameId, ptsMicros, annexB) ->
-                                onAu(keyframe, frameId, ptsMicros, annexB, encWidth, encHeight, offsetMicros));
+                                onAu(keyframe, frameId, ptsMicros, annexB, width, height, offsetMicros));
                 if (created.isFailed()) {
                     // 进程起不来：本帧不能丢（暂停刷新时可能没有下一帧），立即改走 RGBA
                     ENCODER_CLOSER.execute(created::close);
@@ -394,6 +428,7 @@ public final class PreviewStreamer {
                 encoder = created;
                 encoderWidth = width;
                 encoderHeight = height;
+                encoderFps = targetFps;
                 return encoder;
             } catch (RuntimeException e) {
                 FatalErrors.rethrowIfFatal(e);
@@ -464,21 +499,18 @@ public final class PreviewStreamer {
         /** 暂停：关闭编码器并清空编码输入队列（回退标志保留，恢复播放时才重试编码）。 */
         synchronized void shutdownEncoder() {
             closeEncoderLocked();
-            lastSubmitNanos = 0L;
         }
 
         /** 恢复播放：重建编码器（下一帧首帧 IDR），重新允许编码尝试。 */
         synchronized void resetForResume() {
             closeEncoderLocked();
             rgbaFallback = false;
-            lastSubmitNanos = 0L;
         }
 
         /** 配置变更：尺寸/帧率可能都变了，编码器下一帧按新参数重建。 */
         synchronized void resetForConfigChange() {
             closeEncoderLocked();
             rgbaFallback = false;
-            lastSubmitNanos = 0L;
         }
 
         /** 会话结束：释放编码器并阻止后续提交。 */

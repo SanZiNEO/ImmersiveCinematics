@@ -1,7 +1,7 @@
 # 媒体（总纲）
 
-> 状态：J-2 已实现（捕获 / 解码 / 视频图层 / 视频音轨）；J-3 已实现（预览编码流 + AUDIO 外部格式）；J-4 导出未实现
-> 范围：运行时视频播放、解码链路、共享帧捕获底座、音频解码、编辑器预览编码流、画面导出、失败降级与验收（远程媒体分片不做）
+> 状态：J-2 已实现（捕获 / 解码 / 视频图层 / 视频音轨）；J-3 已实现（预览编码流 + AUDIO 外部格式）；J-4 捕获层与预览收口（固定 1920×1080@60）
+> 范围：运行时视频播放、解码链路、共享帧捕获底座、音频解码、编辑器预览编码流（固定 1080p60）、失败降级与验收（远程媒体分片不做）
 > 关联：`../I-script-core/track-overlay-letterbox.md`（OVERLAY `image` 字段）、`../F-playback/multi-camera-rendering.md`、`../F-playback/cross-dimension-camera.md`、`../F-playback/f5-script-packet-limit.md`、`../Z-editor/README.md` §8.3
 
 ## 一、摘要
@@ -16,15 +16,15 @@
 
 - 全仓没有视频解码能力，`TextureManager` 只加载 PNG，`AudioReader` 只接受 WAV/OGG；视频文件无法进入画面。
 - OVERLAY 只有 `fade`/`image`/`subtitle`，`ImageLayer` 只处理静态图与 GIF；GIF 整段拆帧进内存，不能承载长视频。
-- 预览流只发原始 RGBA，720p@60fps 约 221 MB/s，没有 PTS、没有背压，慢客户端会拖死整条流。
+- 旧预览流只发原始 RGBA（720p@60fps 约 221 MB/s），没有 PTS、没有背压，慢客户端会拖死整条流；J-3 已改为 H.264 1080p60。
 - 不做远程媒体传输：`ResourcePath` 只解析本地文件；视频随资源目录/整合包分发。
-- 视频容器里的音轨与现有 AUDIO 轨脱节；导出只做画面，不导出音频。
-- 参考实现只解决导出/编码，不解决播放：BBS 是 MIT，ReplayMod 是 GPLv3；两者都只有录制/导出。
+- 视频容器里的音轨与现有 AUDIO 轨脱节；音轨跟随视频播放，AUDIO 轨仍独立。
+- 参考实现只解决录制/编码，不解决播放：BBS 是 MIT，ReplayMod 是 GPLv3；两者都只有录制与编码。
 
 ### 2.2 目标
 
 - 本地视频文件能在 OVERLAY 中播放，画面跟随片段局部时间；暂停、seek、循环按脚本语义走。
-- 预览流有编码、PTS、每会话背压与丢帧；慢客户端不拖死其他会话。
+- 预览流固定 1920×1080@60，有编码、PTS、每会话背压与丢帧；慢客户端不拖死其他会话。
 - 缺 ffmpeg / 坏文件 / 解码失败不崩客户端，有明确错误态与资源回收。
 - **不改脚本字段**：不新增 `layer_type`、不新增视频专用字段；`path` 扩展名决定实现。
 
@@ -34,9 +34,7 @@
 - 不内嵌解码器、不把 ffmpeg 打包进模组 jar；只调用外部可执行文件。
 - v1 不支持 HLS/DASH/RTMP 等直播流；先本地文件。
 - 视频容器内的音轨跟随视频播放；AUDIO 轨仍可播放独立音频文件，两者互不替代。
-- 视频导出是编辑器模式功能（J-4），不是普通游戏内功能；导出参数由编辑器给。
 - 不把原始 RGBA 当跨机传输格式；WebUI 本机允许原始 RGBA 回退。**远程媒体分片不做**（2026-11-08 裁决）。
-- **不导出音频**：导出文件为静音视频；声音交给外部工具 / 后续 addon（2026-11-08 裁决）。
 
 ## 三、方案
 
@@ -53,11 +51,10 @@
 |---|---|---|
 | [playback.md](playback.md) | 视频图层在 OVERLAY 中播放，时间跟随片段，seek/循环/暂停语义 | 作者能用视频当 `image` 素材 |
 | [decode.md](decode.md) | ffmpeg 解码进程、rawvideo 管道、有界队列、PTS、双缓冲纹理上传 | 帧怎么从文件到纹理 |
-| [capture.md](capture.md) | 共享帧捕获：捕获点、尺寸/格式、PTS、消费者契约 | 预览 / 导出 / 游戏内编辑器共用哪一层 |
+| [capture.md](capture.md) | 共享帧捕获：捕获点、尺寸/格式、PTS、消费者契约 | 预览 / 游戏内编辑器共用哪一层 |
 | [audio.md](audio.md) | 视频音轨的处置与独立音频解码；与 AUDIO 轨的边界 | 声音从哪来 |
-| [preview-stream.md](preview-stream.md) | 预览编码流：H.264（无 FFmpeg 退回原始 RGBA）、PTS、每会话背压、关键帧 | 预览怎么不拖死自己 |
+| [preview-stream.md](preview-stream.md) | 预览编码流：固定 1080p60 H.264（无 FFmpeg 退回原始 RGBA）、PTS、每会话背压、关键帧 | 预览怎么不拖死自己 |
 | [transport.md](transport.md) | **不做**（2026-11-08 裁决：编辑通信与播放均本地） | 历史存档 |
-| [export.md](export.md) | 实时录屏导出：按目标 fps 采样、编码、进度/取消（静音） | 怎么出成片 |
 | [degrade.md](degrade.md) | 外部依赖与失败分层：缺 ffmpeg、坏文件、解码失败、断线、资源回收 | 坏了怎么办 |
 | [acceptance.md](acceptance.md) | 跨篇验收矩阵与真实机器检查项 | 怎么算过 |
 | [handover.md](handover.md) | **J 轮开头的遗留验证**（承接 A–I）：B18 ④打断 / ⑤链式、B19 迟滞四象限、C-pause 复验、F 轮失败处理 P1/P2 | 老欠账怎么收 |
@@ -68,10 +65,9 @@
 2. `decode.md` + `playback.md`：✅ J-2 已交付（1080p 播放性能待修）。
 3. `degrade.md`：✅ J-2 已交付；J-3 补预览丢帧与固定路径口径。
 4. `audio.md`：视频音轨 ✅ J-2；AUDIO 轨外部格式 ✅ J-3。
-5. `preview-stream.md`：✅ J-3 已交付（编码帧 + PTS + 每会话队列 + 关键帧）。
-6. `export.md`：J-4；同一捕获点接文件消费者，静音导出与收尾。
-7. `acceptance.md`：每篇完成时补本行，不集中到最后。
-8. `transport.md`：**不做**。
+5. `preview-stream.md`：✅ J-3 已交付（编码帧 + PTS + 每会话队列 + 关键帧）；J-4 收口为固定 1080p60。
+6. `acceptance.md`：每篇完成时补本行，不集中到最后。
+7. `transport.md`：**不做**。
 
 ## 四、技术细节
 
@@ -83,7 +79,7 @@
 
 ### 4.2 外部依赖
 
-- ffmpeg / ffprobe 是**可选**外部可执行文件，固定路径 `<gameDir>/ffmpeg/ffmpeg.exe` + `<gameDir>/ffmpeg/ffprobe.exe`（Windows 带 `.exe`；不读 PATH、不做配置项）。**没有它模组照常使用**；缺失时只影响媒体增强能力（视频素材播放、编码预览流、AUDIO 外部格式、导出），核心脚本播放、渲染、触发器、相机均不受影响。安装 ffmpeg 是整合包 / 地图 / 服务器的责任，不是模组的义务。具体降级见 [degrade.md](degrade.md) §3.1 与本文 §7.6。
+- ffmpeg / ffprobe 是**可选**外部可执行文件，固定路径 `<gameDir>/ffmpeg/ffmpeg.exe` + `<gameDir>/ffmpeg/ffprobe.exe`（Windows 带 `.exe`；不读 PATH、不做配置项）。**没有它模组照常使用**；缺失时只影响媒体增强能力（视频素材播放、编码预览流、AUDIO 外部格式），核心脚本播放、渲染、触发器、相机均不受影响。安装 ffmpeg 是整合包 / 地图 / 服务器的责任，不是模组的义务。具体降级见 [degrade.md](degrade.md) §3.1 与本文 §7.6。
 - 不做远程传输；媒体路径由 `ResourcePath` 解析，视频随资源目录/整合包分发。
 
 ## 五、为什么不选别的
@@ -96,16 +92,17 @@
 
 **本方案的缺点**：
 
-- 媒体增强能力依赖用户自行安装 ffmpeg；没有它时视频素材播放、编码预览流与导出不可用或受限，但模组主体功能不受影响。
+- 媒体增强能力依赖用户自行安装 ffmpeg；没有它时视频素材播放与编码预览流不可用或受限，但模组主体功能不受影响。
 - `layer_type=image` 承载视频是命名债；编辑器/validator 要按扩展名分流。
-- 各篇的播放/导出都没有同构参考实现，需要实机调。
+- 各篇的播放/预览都没有同构参考实现，需要实机调。
 
 ## 六、实现结果
 
-状态：J-2 已实现（捕获 / 解码 / 视频图层 / 视频音轨）；J-3 已实现（预览编码流 + AUDIO 外部格式）；J-4 导出未实现。各篇细节见对应文档「实现结果」。
+状态：J-2 已实现（捕获 / 解码 / 视频图层 / 视频音轨）；J-3 已实现（预览编码流 + AUDIO 外部格式）；J-4 捕获层与预览收口（固定 1920×1080@60）。各篇细节见对应文档「实现结果」。
 
-- 预览流：`webui/PreviewProtocol`（18B 头）、`PreviewEncoder`（每会话 H.264）、`PreviewStreamer`（分发/暂停/统计）、`OutboundQueue`（有界丢帧）；`WebFrameStreamer` 已删除。
+- 预览流：`webui/PreviewProtocol`（18B 头）、`PreviewEncoder`（每会话 H.264）、`PreviewStreamer`（分发/暂停/统计）、`OutboundQueue`（有界丢帧）。
 - AUDIO：`media.audio.ExternalPcmDecode`（白名单整段异步解码）；`CinematicAudioInstance` / `AudioTrackPlayer` 接入 ready/failed 状态机。
+- 捕获（J-4 收口）：`media.capture.CaptureHub`（PBO 三缓冲、采样无上限、按需捕获、多消费者）；预览固定 1920×1080@60，发送端按 60fps 节流。`FrameCapture` / `FrameSink` 已删除。
 - ffmpeg：`media.video.Ffmpeg` 固定 `<gameDir>/ffmpeg/`；`available()` = ffmpeg+ffprobe，`encoderAvailable()` = ffmpeg。
 
 ---
@@ -136,10 +133,9 @@
 | 用途 | 方向 | 形态 |
 |---|---|---|
 | 播放视频 / 音频素材 | 解码 | 外部 ffmpeg 进程 → rawvideo / PCM → 纹理 / OpenAL（[decode.md](decode.md)、[audio.md](audio.md)） |
-| 编辑器预览流（WebUI 本机；游戏内编辑器同进程直传，不走网络与编码） | 编码 | `hud` 捕获点 → 外部 ffmpeg 编码 → 本地 WebSocket（[preview-stream.md](preview-stream.md)） |
-| 导出成片 | 编码 | 同一 `hud` 捕获点 → 外部 ffmpeg 编码 → 静音文件（[export.md](export.md)） |
+| 编辑器预览流（WebUI 本机；游戏内编辑器同进程直传，不走网络与编码） | 编码 | `hud` 捕获点 → 外部 ffmpeg 编码（固定 1080p60）→ 本地 WebSocket（[preview-stream.md](preview-stream.md)） |
 
-捕获点固定 `hud`：世界 + HUD + 覆盖层 + lane 合成 + 调色，不含编辑器 UI；预览、导出、游戏内编辑器共用同一捕获点。实现见 [capture.md](capture.md) §3.1。
+捕获点固定 `hud`：世界 + HUD + 覆盖层 + lane 合成 + 调色，不含编辑器 UI；预览与游戏内编辑器共用同一捕获点。实现见 [capture.md](capture.md) §3.1。
 
 ### 7.4 参考实现的查找与启动（BBS / Replay）
 
@@ -147,7 +143,7 @@
 |---|---|---|
 | 路径来源 | 设置里填「Encoder path」，或设置里「Find ffmpeg.exe…」文件选择器 | 设置里填命令 → `.minecraft/ffmpeg/bin/ffmpeg.exe` → 遍历 `.minecraft` 搜 `ffmpeg.exe` → Mac `/usr/local/bin`、`/usr/bin`、Homebrew Cellar → 回退 `PATH` 的 `ffmpeg` |
 | 启动 | `ProcessBuilder` | `ProcessBuilder`，工作目录 = 输出目录 |
-| 错误 | 设置页提示 + wiki 链接 | 失败弹窗展示 FFmpeg 日志；`export.log` 落盘 |
+| 错误 | 设置页提示 + wiki 链接 | 失败弹窗展示 FFmpeg 日志并落盘 |
 | 位置 | `example/bbs-mod-1.20.1` `utils/VideoRecorder`、`FFMpegUtils` | `example/ReplayMod-stable` `render/FFmpegWriter`、`render/RenderSettings` |
 
 ### 7.5 许可证
@@ -162,10 +158,9 @@
 | 能力 | 有 FFmpeg | 无 FFmpeg |
 |---|---|---|
 | 核心模组（脚本播放、渲染、触发器、相机、覆盖层） | 正常 | **正常** |
-| WebUI 编辑器预览流 | H.264 视频流（带宽约为原始 RGBA 的 1/200–1/350） | **退回原始 RGBA（`original` 档捕获封顶 1280×720、按配置帧率节流）**，功能可用、带宽高 |
+| WebUI 编辑器预览流 | H.264 1080p60 视频流（带宽约为原始 RGBA 的 1/200–1/350） | **退回原始 RGBA 1080p60**，功能可用、带宽高 |
 | 游戏内编辑器画面 | 同进程 GPU 直传 | 同进程 GPU 直传（不依赖 ffmpeg） |
 | 视频素材播放（OVERLAY `image` 指向 mp4/webm/mkv） | 正常解码播放 | **什么都不显示**（有什么显示什么；没有 ffmpeg 就没有视频解析，不占位、不报错、不阻塞其余轨道） |
-| 导出成片 | 正常编码写文件（静音） | 不可用（无编码器） |
 
 实现约束：
 

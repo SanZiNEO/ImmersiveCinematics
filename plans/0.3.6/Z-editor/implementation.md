@@ -55,10 +55,10 @@
 |---|---|---|
 | 游戏内编辑器（`editor/` 包 62 文件 = 10,176；另加 `client/EditorBridgeImpl` 34 行共 10,210）**已删除** | **10,176** | **33%** |
 | 外部编辑器（`editor/src` 全量文件；其中 TS+Vue 仅 5,643，另含 26 个 SVG + 1 个 PNG） | 12,799 | — |
-| WebUI 服务端（`webui/`，10 文件） | 2,144 | 7.0% |
+| WebUI 服务端（`webui/`，2026-10-09 快照 10 文件；J-4 当前 14 文件） | 2,144 | 7.0% |
 | 共享 schema（`script/schema/`，7 文件） | 654 | 2% |
 
-2026-10-09 回写：`webui/` 一行按 10 文件口径重算（新增 `ScriptGraphService` / `ResourceFileService`）；其余各行数字仍为 2026-10-07 口径。
+2026-10-09 回写：`webui/` 一行按 10 文件口径重算（新增 `ScriptGraphService` / `ResourceFileService`）；其余各行数字仍为 2026-10-07 口径。J-4 后当前为 14 文件（新增 `PreviewStreamer` / `PreviewEncoder` / `PreviewProtocol` / `OutboundQueue` / `PreviewConfig`）。
 
 ### 3.4 理由
 
@@ -109,7 +109,7 @@ GitHub 上存在 MIT 许可的剪辑器：
 | `mifi/editly` | 5,516 | MIT | CLI / API（TS） | 声明式命令行剪辑，非 GUI |
 | `Augani/openreel-video` | 5,280 | MIT | 浏览器（TS） | 开源 CapCut 替代 |
 | `AIEraDev/Clypra` | 3,305 | MIT | 桌面（Rust + Tauri + React） | GPU 渲染、帧精确时间轴 |
-| `walterlow/freecut` | 2,231 | MIT | 浏览器（TS） | 多轨 + 关键帧动画 + 导出 |
+| `walterlow/freecut` | 2,231 | MIT | 浏览器（TS） | 多轨 + 关键帧动画 |
 | `tharunbirla/LibreCuts` | 917 | MIT | Android（Kotlin） | 手机端 |
 | `MartinDelophy/ai-video-editor` | 890 | MIT | 浏览器 / PWA（JS） | local-first |
 | `mohyware/clip-js` | 769 | MIT（已核对 LICENSE 原文） | 浏览器（TS） | Next.js + Remotion + ffmpeg.wasm |
@@ -159,12 +159,12 @@ GitHub 上存在 MIT 许可的剪辑器：
 |---|---|---|
 | 1 | `editor/` 包 10,164 行 | 62 文件；顶层 12 个类 + `area`(6) / `debug`(2) / `fields`(2) / `panel`(10) / `preset`(4) / `trigger`(10) / `widget`(16) |
 | 2 | `script/` 7,929 行 | 42 文件（含 `script/schema/` 的 7 文件 654 行） |
-| 3 | `camera/` 1,036 行 / `webui/` 1,394 行 / `script/schema/` 654 行 | `webui/` 8 文件：`WebEditorServer` 213 / `WebSocketSession` 150 / `WebEditorApi` 279 / `ScriptFileService` 71 / `WebRegistryService` 120 / `WebFrameCapture` 148 / `WebFrameStreamer` 108 / `WebPreviewScreen` 305（2026-10-09 回写：现共 10 文件——新增 `ScriptGraphService` 348 / `ResourceFileService` 195） |
+| 3 | `camera/` / `webui/` / `script/schema/` | `webui/` 14 文件：`WebEditorServer` / `WebSocketSession` / `WebEditorApi` / `ScriptFileService` / `WebRegistryService` / `PreviewStreamer` / `PreviewEncoder` / `PreviewProtocol` / `OutboundQueue` / `WebPreviewScreen` / `ScriptGraphService` / `ResourceFileService` / `PreviewConfig` / `H264AuSplitter`；捕获在 `media/capture/CaptureHub` |
 | 4 | common 全部 Java 30,634 行 | 234 文件 |
 | 5 | 占比 33% / 4.5% / 2% | 10,164÷30,634 = 33.2%；1,394÷30,634 = 4.6%；654÷30,634 = 2.1% |
 | 6 | `WebEditorServer` 仅绑 127.0.0.1、端口 8765、自实现无第三方库 | `WebEditorServer.java:63` `new ServerSocket(8765, 4, InetAddress.getByName("127.0.0.1"))`；仅用 JDK `ServerSocket` + `MessageDigest`/`WS_MAGIC` 自实现握手 |
-| 7 | `WebFrameCapture` + `WebFrameStreamer`：主画面 → 小 FBO → glReadPixels；720p；worker 线程；约 60fps 节流；跟不上丢旧帧 | `WebFrameCapture.java:22-23` `TARGET_W/H = 1280/720`；`WebFrameStreamer.java` `SEND_INTERVAL_MS = 16`、单线程 `SENDER`、`AtomicReference<byte[]> PENDING` 只保留最新帧 |
-| 8 | 二进制帧 `[1B type=0x01][2B frameId][2B width][2B height][RGBA]` | `WebFrameStreamer.sendRaw()`：`headerSize = 7`、`FRAME_TYPE_RAW_RGBA = 0x01`、`ByteBuffer` 默认大端；发送前按行翻转 |
+| 7 | `CaptureHub`：主画面 → 1920×1080 FBO → PBO 三缓冲；采样无上限；消费者 `PreviewStreamer` 发送端 60fps 节流 | `media/capture/CaptureHub.java`；`webui/PreviewStreamer.java` |
+| 8 | 二进制帧 18B 头：type/flags/frameId/PTS/宽/高（H.264 Annex B AU 或 RGBA） | `webui/PreviewProtocol.pack/parse`；`PreviewEncoder` 输出 AU |
 | 9 | 消息清单 | `WebEditorApi.handle()` 的 switch 分支逐一对应，无遗漏、无多余（2026-10-09 回写：另含 `script.graph` / `resource.list`） |
 | 10 | 文本帧信封 `{type,data,id}`；请求带回执 | `WebEditorApi.handle()` 解析 + `wrap(type,data,id)` 回包（`id` 为空时省略） |
 | 11 | `WebRegistryService` 即时查询 | `query()` 直接读 `BuiltInRegistries.*` / `Registries.*`，无缓存 |
@@ -191,7 +191,7 @@ GitHub 上存在 MIT 许可的剪辑器：
 
 ### ③ 补全的信息
 
-- `webui/` 包文件清单与行数见 ①-3（2026-10-09 回写：现共 10 文件）。
+- `webui/` 包文件清单与行数见 ①-3（2026-10-09 为 10 文件；J-4 当前 14 文件）。
 - `WebRegistryService` 支持的 kind：`item` / `block` / `entity`（别名 `entity_type`）/ `sound` / `target` / `biome` / `dimension`（别名 `from_dimension`）/ `structure` / `advancement`；`stage`（`gamestage`）返回空列表（`WebRegistryService.java:39-51`）。
 - 事件推送清单：`hello_ack`（携带 `version = "0.3.5"`，0.3.6 开发期仍是该值）；`playback.state`（`WebPreviewScreen.render` 每 50ms 一次）；`flight.state`（飞控中每 100ms 一次）；`flight.exit`（带最终相机参数与 RELATIVE 基准点）；`error`。
 - `ScriptFileService` 细节：脚本根目录 `immersive_cinematics/scripts/`，`Files.walk(..., 5)` 递归列 `.json`，写盘前做 `normalize()` + `startsWith(base)` 越界校验。

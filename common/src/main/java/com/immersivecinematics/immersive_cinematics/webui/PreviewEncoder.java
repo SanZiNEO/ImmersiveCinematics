@@ -21,6 +21,9 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * 每会话 H.264 预览编码器：捕获帧 → ffmpeg(libx264) → Annex B access unit。
  *
+ * <p>输入与输出尺寸分开：{@code pipe:0} 收捕获尺寸的 RGBA（{@code -s}），ffmpeg 用
+ * {@code -vf scale} 缩到输出尺寸再编码——导出期间预览只需 720p 输出，4K 输入不必 4K 编码。</p>
+ *
  * <p>线程边界：渲染线程只调用 {@link #submit}（非阻塞，队列满丢最旧帧）；编码在两条 daemon
  * 线程上完成——stdinWriter 把帧写进 ffmpeg 的 {@code pipe:0}，stdoutReader 把 {@code pipe:1}
  * 的字节流交给 {@link H264AuSplitter} 并在配对输入时间戳后回调 {@link Sink}。stderr 由第三条
@@ -105,18 +108,23 @@ public final class PreviewEncoder implements AutoCloseable {
      * 进程启动失败<b>不</b>抛，置 {@link #isFailed()}。
      *
      * @param ffmpeg                 ffmpeg 可执行文件
-     * @param width                  输入宽度（像素，&gt; 0）
-     * @param height                 输入高度（像素，&gt; 0）
+     * @param width                  宽度（像素，&gt; 0 且偶数）
+     * @param height                 高度（像素，&gt; 0 且偶数）
      * @param fps                    输入帧率
      * @param keyframeIntervalSeconds 关键帧间隔（秒，&ge; 1）
      * @param sink                   AU 消费者
      */
-    public PreviewEncoder(Path ffmpeg, int width, int height, int fps, int keyframeIntervalSeconds, Sink sink) {
+    public PreviewEncoder(Path ffmpeg, int width, int height,
+                          int fps, int keyframeIntervalSeconds,
+                          Sink sink) {
         if (ffmpeg == null) {
             throw new IllegalArgumentException("ffmpeg must not be null");
         }
         if (width <= 0 || height <= 0) {
             throw new IllegalArgumentException("invalid encoder size: " + width + "x" + height);
+        }
+        if ((width & 1) != 0 || (height & 1) != 0) {
+            throw new IllegalArgumentException("encoder size must be even: " + width + "x" + height);
         }
         if (fps <= 0) {
             throw new IllegalArgumentException("invalid fps: " + fps);
@@ -129,7 +137,8 @@ public final class PreviewEncoder implements AutoCloseable {
         int gop = Math.max(1, fps * keyframeIntervalSeconds);
         Process started = null;
         try {
-            started = new ProcessBuilder(command(ffmpeg, width, height, fps, gop))
+            started = new ProcessBuilder(
+                    command(ffmpeg, width, height, fps, gop))
                     .redirectErrorStream(false)
                     .start();
             this.process = started;
@@ -150,6 +159,7 @@ public final class PreviewEncoder implements AutoCloseable {
 
     /** 固定命令行（顺序与参数不可随手改：前端解码依赖 baseline + AUD 边界）。 */
     private static List<String> command(Path ffmpeg, int width, int height, int fps, int gop) {
+        String scale = "scale=trunc(iw/2)*2:trunc(ih/2)*2";
         return List.of(
                 ffmpeg.toString(),
                 "-hide_banner",
@@ -160,7 +170,7 @@ public final class PreviewEncoder implements AutoCloseable {
                 "-s", width + "x" + height,
                 "-r", Integer.toString(fps),
                 "-i", "pipe:0",
-                "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+                "-vf", scale,
                 "-c:v", "libx264",
                 "-preset", "veryfast",
                 "-tune", "zerolatency",

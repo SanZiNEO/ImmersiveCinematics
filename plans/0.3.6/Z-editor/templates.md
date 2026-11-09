@@ -162,7 +162,7 @@
 **③ `ClipTemplate` / `ScriptTemplate` 迁移路径 —— 都迁编辑器，运行时零保留。**
 
 - `script/template/*`（`ClipTemplate` / `TemplateParam` / `TemplateArgs` / `TemplateRegistry` / `TemplateScriptAssembler` / `TemplateJson` + 4 实现）→ 编辑器侧模板引擎的**参考实现**；4 个模板（`fade` / `static_breath` / `dolly` / `orbit_arc`）逐个平移，参数表与算法口径以本文件 §1 落地记录为准（**文档即规格**，不依赖 Java 代码存活）。
-- `script/ScriptTemplate`（骨架生成）→ 编辑器侧「新建脚本」：编辑器用 `schema.get` 自行构造——`SchemaExporter.exportAll()` 已导出 meta / clip / keyframe / trigger 字段的 `type` / `default` / `enumValues` / `section`（`SchemaExporter.exportField`），编辑器已缓存 `state.schema`（`editor/src/store.ts` 的 `getSchema()`）且已有 `fillMetaDefaults` / `fillDefaults`（`editor/src/schema.ts`）；`script.new` 消息与 `ScriptFileService.newScriptJson()` 随之去掉（编辑器构造 → `script.save`）。轨道 id 沿用 `docs/SCRIPT_FORMAT.md` §3 约定（`{type小写}_{n}`）、`total_duration` 缺省 10（原 `ScriptTemplate.DEFAULT_TOTAL_DURATION`，编辑器侧定死）。
+- `script/ScriptTemplate`（骨架生成）→ 编辑器侧「新建脚本」：编辑器用 `schema.get` 自行构造——`SchemaExporter.exportAll()` 已提供 meta / clip / keyframe / trigger 字段的 `type` / `default` / `enumValues` / `section`（`SchemaExporter.exportField`），编辑器已缓存 `state.schema`（`editor/src/store.ts` 的 `getSchema()`）且已有 `fillMetaDefaults` / `fillDefaults`（`editor/src/schema.ts`）；`script.new` 消息与 `ScriptFileService.newScriptJson()` 随之去掉（编辑器构造 → `script.save`）。轨道 id 沿用 `docs/SCRIPT_FORMAT.md` §3 约定（`{type小写}_{n}`）、`total_duration` 缺省 10（原 `ScriptTemplate.DEFAULT_TOTAL_DURATION`，编辑器侧定死）。
 - 运行时留什么：`script/schema/`（字段权威）、`ScriptParser` / `ScriptValidator`、`script.list/load/save/delete/validate` 协议——零生成。
 
 **④ E1–E4 落点 —— 全部编辑器侧；运行时新增编码量 0。**

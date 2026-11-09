@@ -192,7 +192,6 @@ public class CameraManager implements CameraApi, PlaybackApi {
     /** 是否处于编辑器播放（玩家移动不由玩家输入驱动）。 */
     public boolean isEditorPlayback() { return previewChannel.isEditorPlayback(); }
     public boolean isEditorPaused() { return previewChannel.isEditorPaused(); }
-
     // ========== 时钟读数 ==========
     /** 游戏共享虚拟时钟读数（秒；游戏实例的时间轴）。 */
     public double getGameTimeSeconds() { return gameClock.seconds(); }

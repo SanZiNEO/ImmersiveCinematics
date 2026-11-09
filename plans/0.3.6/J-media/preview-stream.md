@@ -1,18 +1,18 @@
 # 编辑器预览编码流（网络 sink）
 
-> 状态：已实现（J-3，2026-11-09）
+> 状态：已实现（J-3，2026-11-09）；J-4 收口为固定 1920×1080@60
 > 范围：捕获帧的编码、每会话有界队列、PTS、关键帧、慢客户端丢帧；只负责本地网络输出
-> 关联：`capture.md`（共用捕获层）、`export.md`（同一捕获点的文件 sink）、`../Z-editor/README.md` §8.3.1
+> 关联：`capture.md`（共用捕获层）、`../Z-editor/README.md` §8.3.1
 
 ## 一、摘要
 
-预览消费者从共用捕获层取帧，编码成 H.264（ffmpeg 不可用时退回原始 RGBA），按会话有界队列发送；每帧带 PTS，前端按时间抖动缓冲；慢客户端丢最旧帧并计数，不阻塞其他会话。**不自动降分辨率/帧率**（用户 2026-11-09 裁决）：慢只表现为丢帧，尺寸/帧率由编辑器显式配置。
+预览消费者从共用捕获层取帧，固定 1920×1080@60 编码成 H.264（ffmpeg 不可用时退回原始 RGBA），按会话有界队列发送；每帧带 PTS，前端按时间抖动缓冲；慢客户端丢最旧帧并计数，不阻塞其他会话。**不自动降分辨率/帧率**（用户 2026-11-09 裁决）：慢只表现为丢帧，尺寸/帧率固定。
 
 ## 二、为什么做
 
 ### 2.1 问题
 
-- 现有预览只发原始 RGBA，720p@60fps 约 221 MB/s。
+- 旧实现只发原始 RGBA，720p@60fps 约 221 MB/s（J-3 起改为 H.264 1080p60）。
 - 旧帧头只有 16 bit frameId，没有 PTS；前端只能按到达顺序硬播。
 - `broadcastBinary` 串行同步写 session，慢客户端会阻塞整条流。
 
@@ -36,8 +36,8 @@
 ### 3.1 输入
 
 - 从共用捕获层取帧；捕获点固定 `hud`（HUD 后、编辑器 UI 前，见 `capture.md` §3.1）；采样策略为“跟随渲染帧、允许丢帧”。
-- 尺寸三档：`original`（默认，跟随窗口 framebuffer，窗口 resize 重建捕获会话）/ `720p`（1280×720）/ `1080p`（1920×1080），由 `editor.previewConfig` 下发。
-- 无 ffmpeg 时 `original` 档自动封顶 1280×720（避免原始 RGBA 带宽失控）。
+- 固定 1920×1080@60；不再提供 `original` / `720p` 档位，`editor.previewConfig` 只回执固定值。
+- 无 ffmpeg 时原始 RGBA 回退也是 1920×1080@60。
 - WebUI 是本地通信（本机浏览器），不做远程传输。
 
 ### 3.2 编码
@@ -78,7 +78,7 @@
 - **创建**：会话建立时创建队列与编码器（懒启动）；首帧必须是关键帧。
 - **销毁**：会话断开时释放编码器与队列；不留下编码进程。
 - **背压**：队列有界；满则丢最旧帧并计数，不无界增长。
-- **降级**：不自动降档；作者通过 `editor.previewConfig` 显式切换档位/帧率。
+- **降级**：不自动降档；尺寸/帧率固定 1920×1080@60。
 - **线程**：编码在工作线程；渲染线程不等待网络写入。
 - **暂停**：暂停不编码；恢复/seek 刷新强制新编码器首帧 IDR。
 - **PTS**：相对该会话/编码器首帧的微秒数；跨编码器重建时会话级偏移保证单调。
@@ -116,7 +116,7 @@
 **本方案的缺点**：
 
 - 预览编码增加 ffmpeg 进程与前端解码依赖。
-- 无 ffmpeg 时原始 RGBA 回退的带宽仍明显高于 H.264（已封顶 720p）。
+- 无 ffmpeg 时原始 RGBA 1080p60 回退的带宽仍明显高于 H.264。
 - 丢帧会改变预览观感，作者可能误判画面。
 
 ## 六、实现结果
@@ -126,14 +126,14 @@
 - 协议：`webui/PreviewProtocol`（18B 头，pack 复制负载、parse 全量校验）；`webui/H264AuSplitter`（AUD 优先、无 AUD 按 VCL 连续性切分，关键帧 = 含 NAL type 5）。
 - 编码：`webui/PreviewEncoder`（每会话一个 ffmpeg 进程，输入队列容量 1，PTS 按输入帧 FIFO 配对，frameId 原样配对；失败只置 `isFailed()`，不抛异常；`close()` 幂等）。命令行固定 `-profile:v baseline -level 5.1 -crf 23 -g fps*2 -x264-params aud=1`。
 - 分发：`webui/PreviewStreamer`（单例；会话 map；每会话编码器/RGBA 回退；按 `1000/fps` 节流；暂停/恢复；`requestFrame()` 暂停补帧；`preview.stats` 每秒推送 + 一行日志）。
-- 会话发送：`webui/OutboundQueue`（容量 16，帧可丢、文本优先）+ `WebSocketSession` 单 `IC-WSSender` 线程；`broadcastBinary`/`sendBinary`/`WebFrameStreamer` 已删除。
-- 捕获：`FrameCapture` 3 缓冲池 + `CapturedFrame` 引用计数（retain/release），池空丢帧计数；捕获尺寸由 `PreviewConfig.captureWidth/Height` 决定，无 ffmpeg + original 封顶 720p。
-- 配置：`editor.previewConfig`（mode/fps/keyframeIntervalSeconds/encoder）→ `editor.previewConfig.result`（回执实际捕获尺寸）；`editor.seek/pushScript/setCamera` 触发 `requestFrame()`。
-- 前端（editor 分支）：18B 头解析、WebCodecs H.264（`avc1.42E033`，Annex B）、RGBA 回退、PTS 抖动缓冲 100ms、分辨率/帧率下拉、`preview.stats` 状态栏。
+- 会话发送：`webui/OutboundQueue`（容量 16，帧可丢、文本优先）+ `WebSocketSession` 单 `IC-WSSender` 线程。
+- 捕获：`CaptureHub` PBO 三缓冲 + `CapturedFrame` 引用计数（retain/release），池空丢帧计数；固定 1920×1080@60，采样无上限，发送端 60fps 节流。
+- 配置：`editor.previewConfig` 请求字段忽略，回执固定 `1080p / 1920×1080 / 60`；`editor.seek/pushScript/setCamera` 触发 `requestFrame()`。
+- 前端（editor 分支）：18B 头解析、WebCodecs H.264（`avc1.42E033`，Annex B）、RGBA 回退、PTS 抖动缓冲 100ms、固定 1080p60、`preview.stats` 状态栏。
 - 验证：
   - 纯 Java 探针：协议/AU 切分/队列/三格式 PCM **85/85 PASS**；真实编码器 **15/15 PASS**（含 2560×1392@60，确认 level 5.1）。
-  - 实机（Fabric）：H.264 2544×1353 约 45fps、720p 54.86fps、1080p 50.53fps，PTS 单调、关键帧正常；暂停 0 帧、暂停 seek 补 4 帧首帧关键帧、恢复首帧关键帧。
+  - 实机（Fabric，J-3 历史数据；当前固定 1920×1080@60）：H.264 2544×1353 约 45fps、720p 54.86fps、1080p 50.53fps，PTS 单调、关键帧正常；暂停 0 帧、暂停 seek 补 4 帧首帧关键帧、恢复首帧关键帧。
   - 限速对照：慢端（200ms/帧）单独跑时服务端 `dropped` 223→439/4s（约 54/s）；快端单独 54.86fps vs 双会话并发 54.30fps（差 0.56fps，<1%）。
-  - 无 ffmpeg：见下方验收记录（回退 RGBA 1280×720）。
+  - 无 ffmpeg：J-3 历史记录为回退 RGBA 1280×720；当前回退 1920×1080@60。
   - 20 次 F9 开关：ffmpeg 进程 0，`IC-WSSender/Reader/PreviewEnc` 线程 0，仅常驻 `IC-PreviewEnc-closer`。
   - Electron 实跑：WebCodecs 解码/绘制 161 帧、canvas 2544×1352、中心像素非黑、无解码错误。

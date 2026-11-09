@@ -1,8 +1,8 @@
 # 失败分层与外部依赖
 
-> 状态：J-2 已实现（捕获/解码/视频音轨）；J-3 已实现预览编码与慢客户端丢帧；J-4 导出降级未实现
+> 状态：J-2 已实现（捕获/解码/视频音轨）；J-3 已实现预览编码与慢客户端丢帧；J-4 捕获与预览收口（固定 1080p60）
 > 范围：ffmpeg 缺失/不可执行、坏文件、解码失败、seek 超时、资源回收与日志限频
-> 关联：`playback.md`、`decode.md`、`preview-stream.md`、`export.md`、`../F-playback/failure-handling-audit.md`
+> 关联：`playback.md`、`decode.md`、`preview-stream.md`、`../F-playback/failure-handling-audit.md`
 
 ## 一、摘要
 
@@ -35,7 +35,7 @@
 
 | 场景 | 行为 |
 |---|---|
-| ffmpeg 不存在/不可执行 | **不是错误态**：标记「无 FFmpeg」能力位；WebUI 预览退回原始 RGBA；**视频素材什么都不显示**（有什么显示什么；不占位、不报错、不阻塞其余轨道）；导出不可用；限频日志一次；不崩 |
+| ffmpeg 不存在/不可执行 | **不是错误态**：标记「无 FFmpeg」能力位；WebUI 预览退回原始 RGBA 1080p60；**视频素材什么都不显示**（有什么显示什么；不占位、不报错、不阻塞其余轨道）；限频日志一次；不崩 |
 | 文件不存在/扩展名不支持 | 加载期错误纹理；validator 只做扩展名/路径检查，不要求 ffmpeg 在场 |
 | 解码中途失败/进程退出 | 停进程、清队列、显示最后一帧或错误纹理；记录退出码与 stderr 尾部 |
 | seek 超时 | 强制结束进程，回退最后一帧；下一次 seek 重新启动 |
@@ -101,7 +101,7 @@
 
 ## 六、实现结果
 
-状态：已实现（2026-11-08，J-2）。
+状态：已实现（2026-11-08，J-2）；J-3 预览降级已实现；J-4 捕获与预览收口（固定 1080p60）。
 
 - 缺 ffmpeg / ffprobe：`Ffmpeg.available()` 判定；视频图层 `unavailable=true`，`render` 直接返回（不占位、不报错），`ErrorLog.warnRateLimited` 5s 一次；其余轨道不受影响。
 - 坏文件 / 解码失败：`VideoProbe` 返回 null 或解码未产出帧 → `markError`，画共享错误纹理，限频日志（5s）带路径与原因。
@@ -109,5 +109,5 @@
 - seek：`seek()` 内部 stop → `join(1000ms)` → `destroyForcibly()` → 清队列 → 重启；重启期间保留当前纹理（不闪黑）。
 - 回收：`close()` 幂等（解码器 / 纹理 / 音轨）；50 次启停探针通过，探针退出后无残留 ffmpeg 进程。
 - 日志：统一 `ErrorLog`（`logRateLimited` / `warnRateLimited`），视频路径 5s，探测 60s。
-- 预览流（J-3）：缺 ffmpeg / 编码器启动失败 → 该会话回退原始 RGBA（`original` 档捕获封顶 1280×720）；慢客户端 → 会话发送队列容量 16，满丢最旧帧并计数，文本不丢；每会话独立 `IC-WSSender`，不阻塞其他会话；**不自动降档**（用户 2026-11-09 裁决）。
-- ffmpeg 固定路径：`<gameDir>/ffmpeg/ffmpeg.exe` + `ffprobe.exe`；不读 PATH、不做配置项；缺则视频不解析、AUDIO 外部格式静音、预览回退 RGBA、导出不可用。
+- 预览流（J-3）：缺 ffmpeg / 编码器启动失败 → 该会话回退原始 RGBA 1080p60；慢客户端 → 会话发送队列容量 16，满丢最旧帧并计数，文本不丢；每会话独立 `IC-WSSender`，不阻塞其他会话；**不自动降档**（用户 2026-11-09 裁决）。
+- ffmpeg 固定路径：`<gameDir>/ffmpeg/ffmpeg.exe` + `ffprobe.exe`；不读 PATH、不做配置项；缺则视频不解析、AUDIO 外部格式静音、预览回退 RGBA。

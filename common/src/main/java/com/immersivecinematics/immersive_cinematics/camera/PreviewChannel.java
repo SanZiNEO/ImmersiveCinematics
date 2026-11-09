@@ -114,32 +114,37 @@ final class PreviewChannel {
      */
     void pushScript(String jsonContent) {
         try {
-            previewScript = ScriptParser.parse(jsonContent);
-            // 编辑内容照常缓存;编辑器播放已激活且已有脚本时保持激活(编辑即预览)
-            if (editorPlayback && previewScript != null) {
-                PlaybackInstance instance = previewInstance;
-                if (instance == null) {
-                    instance = lifecycle.startScriptInternal(previewScript, "", true);
-                } else {
-                    instance.replaceScript(previewScript);
-                }
-                if (instance == null) return;
-                disableMacroLoop(instance);
-                double previewHead = previewClock.seconds();
-                instance.player().alignTime(previewHead, previewHead);
-                // 数据替换后同步暂停态并把实例定位到播放头
-                if (editorPaused) {
-                    instance.player().pauseAudio();
-                } else {
-                    instance.player().resumeAudio();
-                }
-                instance.player().repositionAudio(previewHead);
-            }
+            applyPreviewScript(ScriptParser.parse(jsonContent));
         } catch (Exception e) {
             // 编辑器边界：解析/应用失败保留上一次可用脚本，编辑器继续可用（限频留全栈供定位）
             ErrorLog.logRateLimited("Editor", "preview:push-script", 5000L,
                     "编辑器脚本应用失败（json 长度=" + (jsonContent == null ? 0 : jsonContent.length())
                             + "）：保留上一次可用脚本", e);
+        }
+    }
+
+    /** 缓存脚本并在编辑器播放激活时同步到编辑器实例（新建 / 增量替换 + 播放头对齐 + 音频态）。 */
+    private void applyPreviewScript(CinematicScript script) {
+        previewScript = script;
+        // 编辑内容照常缓存;编辑器播放已激活且已有脚本时保持激活(编辑即预览)
+        if (editorPlayback && previewScript != null) {
+            PlaybackInstance instance = previewInstance;
+            if (instance == null) {
+                instance = lifecycle.startScriptInternal(previewScript, "", true);
+            } else {
+                instance.replaceScript(previewScript);
+            }
+            if (instance == null) return;
+            disableMacroLoop(instance);
+            double previewHead = previewClock.seconds();
+            instance.player().alignTime(previewHead, previewHead);
+            // 数据替换后同步暂停态并把实例定位到播放头
+            if (editorPaused) {
+                instance.player().pauseAudio();
+            } else {
+                instance.player().resumeAudio();
+            }
+            instance.player().repositionAudio(previewHead);
         }
     }
 

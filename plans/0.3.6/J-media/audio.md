@@ -2,7 +2,7 @@
 
 > 状态：视频音轨已实现（J-2）；AUDIO 轨外部格式扩展已实现（J-3，2026-11-09）
 > 范围：AUDIO 轨的音频格式解码、视频容器音轨的处置、与视频播放的时间边界
-> 关联：`playback.md`、`export.md`、`../I-script-core/track-audio-adjust.md`、`../I-script-core/runtime-evaluation.md`
+> 关联：`playback.md`、`../I-script-core/track-audio-adjust.md`、`../I-script-core/runtime-evaluation.md`
 
 ## 一、摘要
 
@@ -107,7 +107,6 @@
 - 时间：跟随视频同一 `executionLocalTime`；暂停（时间停滞 >100ms）停实例；seek / 循环回卷（时间倒退 >0.05s）或音画漂移 >0.25s 时按当前时间重建流。
 - 音量：固定 1.0，`SoundSource.MASTER`，相对听者无衰减；不改 AUDIO 轨字段。
 - 失败：进程起不来 / 读失败 → 空流 + 限频日志，静音不影响画面。
-- 导出不包含音频（2026-11-08 裁决；见 `export.md` §3.4）；本页只负责运行时播放。
 - AUDIO 外部格式（J-3）：`media.audio.ExternalPcmDecode` 整段异步解码；白名单 `.mp3/.aac/.flac/.m4a/.opus/.wma/.oga/.ogx`；`CinematicAudioInstance` 新增 `ready/failed/pendingSeek/pendingPlay`、`ensurePlaying(localTime, volume)`、`isUsable()/isFailed()`；`AudioTrackPlayer` 用 `ensurePlaying` 起播、失败实例回收进 `failedClips`。
 - 音频实例日志（`Config.debugLogging`）：`audio-start clip=… instance=… sound=… local=…`，用于确认 seek 不重建实例。
 - 验证：三格式 PCM 探针（同源 wav/ogg/mp3）长度差 <2%、时长差 <0.2s；实机 `j3_av_test` 在 0/5/10s 分别起播 `a_wav/a_ogg/a_mp3`（`local≈0.000`），无失败日志。

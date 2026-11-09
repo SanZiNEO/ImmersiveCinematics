@@ -113,7 +113,7 @@ Forge dev 客户端（`:forge:Client`，临时 `--quickPlaySingleplayer`，测�
 
 ## 八、迁移等值（T8，替代像素对比）
 
-方法：旧树 worktree `E:/tmp/j1-old`（`42c0ef4`，同进程含旧 `keyframes` 采样器与新 `objects` 采样器）+ 旧格式夹具（`e55caef` 导出）。逐通道、每 clip 41 点对拍。
+方法：旧树 worktree `E:/tmp/j1-old`（`42c0ef4`，同进程含旧 `keyframes` 采样器与新 `objects` 采样器）+ 旧格式夹具（`e55caef` 快照）。逐通道、每 clip 41 点对拍。
 
 | 夹具 | 覆盖通道 | maxAbsDiff |
 |---|---|---|

@@ -168,6 +168,16 @@
 | 格式／迁移／编辑器／模板 | 删除 version／total_duration；旧曲线逐段迁移；几何与进度分离；生成器遵循同一结构契约 | ✅ 格式清理 + 迁移已实现（I-5）：252 支（242 迁移 / 10 新格式 / 0 错误）；迁移后全量 258 支（含 5 支旧字段负例 + 1 支独立片段夹具）校验 **8 支有 issue**（3 支既有缺陷 + 5 支负例，其余 250 全绿）；摘要见 `I-script-core/migration-report.md`；编辑器 UI / 模板展开归 Z 轮 |
 | 媒体与综合验收 | 按 J-media 与 acceptance 专篇推进 | 媒体播放归 **J 轮**（独立启停，不属 I 轮关单）；I 轮验收矩阵见 `I-script-core/acceptance.md` §十四 |
 
+## 批次 J：运行时媒体 ✅ 已关单（J-1~J-4，2026-11-09）
+
+入口：[`J-media/README.md`](J-media/README.md)。逐项证据见各专篇「实现结果」与 [`J-media/acceptance.md`](J-media/acceptance.md) §六。
+
+| ID | 范围 | 状态 |
+|---|---|---|
+| J-1 | 旧模型清零轮（A–H 孤儿欠账收口） | ✅ 已实现（2026-11-07） |
+| J-2 | 捕获 / 解码 / 视频图层 / 视频音轨 | ✅ 已实现（2026-11-08） |
+| J-3 | 预览 H.264 编码流 + PTS + 每会话队列；AUDIO 外部格式 | ✅ 已实现并验收（2026-11-09） |
+| J-4 | 捕获层与预览 1080p60 + J 轮总验收 | ✅ **收口（2026-11-09）**：`CaptureHub` 单入口 + PBO 三缓冲 + 采样无上限；预览固定 1920×1080@60，发送端 60fps 节流 |
 
 ## 用户裁决新增（2026-10-08）
 
@@ -285,3 +295,4 @@
 | 2026-11-02（兼容） | **相机中心兼容 Radium/Lithium**：Radium 用 `@Overwrite` 重写 `ChunkMap.move`，旧 `ChunkMapCameraMixin` 的 `@Redirect` 无法应用（服务端 tick 崩）。改为 `ServerChunkCacheCameraMixin` 在 `ServerChunkCache.move` 的 HEAD/RETURN 临时替换玩家 `position`/`blockPosition`/`chunkPosition`（`EntityAccessor`，不触发 `levelCallback`），原版与 Radium 的差集/Ticket/发送/配对仍围绕相机；窗口外玩家真实位置不变。**实机（BMC4 Forge 0.3.6 + Radium 0.12.4）**：`gt_far_1000` 主相机玩家东侧 1000 格贴地、30s 内 z 位移 200 格并转向，右下角副相机跨维度看末地主岛，主世界/末地区块与实体均加载、无崩溃。 |
 | 2026-11-02（LUT） | **弧长表动态缓存/重建/降级**：新增 `DynamicArcLengthTable`（5 点等距指纹；≤0.25 格复用、超阈值重建、连续 8 次重建后降级为固定采样积分 + 二分；稳定更新恢复建表）+ `PathEvaluator.positionDynamic/tangentDynamic` 入口；`E:/tmp/gcurve` 470 项 + DynamicProbe 12 项全 PASS（降级反解误差 5.8e-10）。 |
 | 2026-11-06（I-5 关单） | **I 轮全部实现（I-1~I-5）**：① **格式清理**——parser/validator/schema 删除 `meta.version` / `timeline.total_duration` / clip 级 `keyframes` 载体，旧字段出现即「已移除」；`CinematicScript` 加载期派生 `infinite` / `contentEnd` / `finiteDisplayEnd`，`Clip.getWindowEnd()` 无限抛异常、调用方先判 `hasFiniteWindowEnd()`；`goto_clip` 改按目标片段有效范围校验，不再用总时长；AUDIO `loop` → `objects.file_loop`，`attenuation` 收敛为 `none`/`linear`。② **迁移**——一次性 Java CLI 全量 252 支：旧格式 242 迁移 / 10 已是新格式 / **0 错误**；稀疏补齐 4 片段 13 处（填充帧 63）、路径条目 18、规则定义 16 / 绑定 16；`total_duration` 与派生末端不一致 6 支、未知路径丢弃 5 条、人工复核项（动态原点 15、`until → control=hold` 5、`orient=manual` 下 offset 4 处等）全部单列；重复运行幂等跳过；validator 19 → 17（余 17 条为既有夹具缺陷，见 `I-BACKLOG.md` L 表）。摘要见 `I-script-core/migration-report.md`（原始 124KB 报告不入库）。③ **派生范围消费者**——`ScriptPlayer` / `FrameDriver` / `CinematicCommand` / `ScriptGraphService` / `ScriptInfo` / `RuleActions` 全部改用派生值，`grep` 无 `getTotalDuration`。④ **spi 收敛**——11 类收进 `spi.*`（`TrackType` / `TriggerType` / `MathModel` / `FieldDef` / `PathSpec` 等），原包删除；第三方 `loop_mode=pingpong` 走通用诊断；`GuiMixin.shouldHide()` 无参。⑤ **独立片段渲染**——`ScriptPlayer.clipsForTrack` 接 `implicitTracks`，脚本级 `clips[]` 按 `track` 进入对应播放器。⑥ **文档回写**——I-script-core 各专篇状态、`I-BACKLOG.md` 清零、`docs/` 按新格式重写（T7 专单）。 |
+| 2026-11-09（J-4 收口） | **捕获层与预览收口**：`CaptureHub` 单入口（PBO 三缓冲、采样无上限、多消费者）；预览固定 1920×1080@60，发送端 60fps 节流；`FrameCapture` / `FrameSink` 删除。 |

@@ -10,6 +10,7 @@ import com.immersivecinematics.immersive_cinematics.client.lane.ScriptLaneDriver
 import com.immersivecinematics.immersive_cinematics.client.post.ColorAdjustPass;
 import com.immersivecinematics.immersive_cinematics.client.post.MasterColorAdjust;
 import com.immersivecinematics.immersive_cinematics.control.CinematicController;
+import com.immersivecinematics.immersive_cinematics.media.capture.CaptureHub;
 import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
 import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -133,6 +134,26 @@ public abstract class GameRendererMixin {
                      target = "Lcom/mojang/blaze3d/pipeline/RenderTarget;bindWrite(Z)V"))
     private void onWorldPostProcessed(float partialTick, long nanoTime, boolean renderLevel, CallbackInfo ci) {
         ColorAdjustPass.render(Minecraft.getInstance());
+    }
+
+    /**
+     * HUD 渲染完成（原版 {@code Gui.render} 调用之后）：统一捕获入口 {@link CaptureHub} 的挂点。
+     *
+     * <p>此刻世界 → lane 合成 → 原版后处理 → master 调色 → GUI 全部画完，主 framebuffer 就是最终画面。
+     * 是否捕获由 {@link CaptureHub} 按消费者需求决定（无人需要时零 GL 调用、零分配）。
+     * F1 隐藏 HUD 且 {@code screen == null} 时原版不调用 {@code Gui.render}，本钩子不执行——
+     * 导出因此少帧，由导出器的帧数校验兜底（不做特殊处理）。</p>
+     */
+    @Inject(method = "render",
+            at = @At(value = "INVOKE",
+                     target = "Lnet/minecraft/client/gui/Gui;render(Lnet/minecraft/client/gui/GuiGraphics;F)V",
+                     shift = At.Shift.AFTER))
+    private void onHudRenderedForCapture(float partialTick, long nanoTime, boolean renderLevel, CallbackInfo ci) {
+        try {
+            CaptureHub.INSTANCE.onHudRendered(Minecraft.getInstance());
+        } catch (Exception e) {
+            ErrorLog.logRateLimited("Capture", "capture-hub", 5000L, "捕获异常（本帧跳过）", e);
+        }
     }
 
     @Inject(method = "getFov", at = @At("RETURN"), cancellable = true)

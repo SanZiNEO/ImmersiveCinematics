@@ -1,12 +1,12 @@
 # 本地服务端与协议
 
-> 状态：已实现（`webui/` 10 文件；协议、帧流、预览隔离全部落地）
+> 状态：已实现（`webui/` 14 文件；协议、帧流、预览隔离全部落地）
 > 范围：模组侧本地 WebSocket 服务端、消息协议、帧流、前端形态与契约；握手校验见 [`security.md`](security.md)，飞控见 [`flight-mode.md`](flight-mode.md)
 > 关联：`editor/src/`、`docs/modules/editor.md`
 
 ## 一、组件
 
-`webui/` 包共 10 个文件；`FlightModeManager` 在 `control/`，`SchemaExporter` 在 `script/schema/`。
+`webui/` 包共 14 个文件；`FlightModeManager` 在 `control/`，`SchemaExporter` 在 `script/schema/`。
 
 | 组件 | 职责 |
 |---|---|
@@ -15,12 +15,13 @@
 | `WebEditorApi` | 消息路由；播放状态 / 飞控状态主动推送 |
 | `ScriptFileService` | 脚本文件读写、新建、删除（根目录 `immersive_cinematics/scripts/`，`Files.walk(..., 5)` 递归列 `.json`，写盘前 `normalize()` + `startsWith(base)` 越界校验） |
 | `WebRegistryService` | 物品 / 方块 / 实体 / 声音 / 目标 / 群系 / 维度 / 结构 / 进度等自动补全数据（即时查询，直接读 `BuiltInRegistries.*` / `Registries.*`，无缓存） |
-| `WebFrameCapture` + `WebFrameStreamer` | 720p raw RGBA 帧流：主画面 → 小 FBO → glReadPixels；worker 线程发送、约 60fps 节流、跟不上丢旧帧 |
+| `CaptureHub`（`media/capture/`） | 唯一捕获入口：主画面 → 1080p FBO → PBO 三缓冲；采样无上限、多消费者、池空丢帧。 |
+| `PreviewStreamer` + `PreviewEncoder` + `PreviewProtocol` + `OutboundQueue` | 固定 1920×1080@60 预览流：H.264（18B 头）或 RGBA 回退；每会话有界队列、单发送线程。 |
 | `WebPreviewScreen` | F9 预览屏：播放控制、飞控入口与飞控 HUD |
 | `ScriptGraphService` | 脚本架构图数据（`script.graph`）：扫描 scripts 目录 → 节点（脚本）/ 边（`requires` 依赖）/ 分区（文件夹）/ 提示；全量重扫，容错（坏脚本也上图，标记 `valid=false`） |
 | `ResourceFileService` | 资源列举（`resource.list`）：`resource/` 下文本 key / 图片 / 音频清单，只读；相对路径经 `resolveSafe` 越界校验 |
 | `FlightModeManager`（`control/`） | 飞控核心：不依赖具体界面，WebUI 预览屏与键盘中转共用 |
-| `SchemaExporter`（`script/schema/`） | 导出字段元数据（`schema.get`）；Java 侧是唯一 schema 权威 |
+| `SchemaExporter`（`script/schema/`） | 提供字段元数据（`schema.get`）；Java 侧是唯一 schema 权威 |
 
 `WebRegistryService` 支持的 kind：`item` / `block` / `entity`（别名 `entity_type`）/ `sound` / `target` / `biome` / `dimension`（别名 `from_dimension`）/ `structure` / `advancement`；`stage`（`gamestage`）返回空列表（`WebRegistryService.java:39-51`）。
 
@@ -74,7 +75,7 @@
 | 18 | … | payload |
 
 - RGBA payload = `width*height*4`，行序自顶向下；H.264 payload = 一个完整 Annex B access unit（关键帧内联 SPS/PPS）。
-- 新增请求 `editor.previewConfig`：`{mode:"original"|"720p"|"1080p", fps:30|60, keyframeIntervalSeconds:1..10, encoder:boolean}`；回执 `editor.previewConfig.result`（含实际捕获 `width/height`）。
+- `editor.previewConfig`：预览固定 1920×1080@60；请求字段忽略，回执 `editor.previewConfig.result` 固定 `{mode:"1080p",width:1920,height:1080,fps:60,keyframeIntervalSeconds:2,encoder:true}`。
 - 新增推送 `preview.stats`（每会话每秒）：`{mode,width,height,fps,encoder:"h264"|"rgba"|"off"|"pending",sent,dropped,inputDropped,encoderDropped}`。
 
 ### 4.5 凭据与路径

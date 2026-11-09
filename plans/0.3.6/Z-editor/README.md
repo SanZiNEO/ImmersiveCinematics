@@ -34,7 +34,7 @@
 
 ### 2.3 非目标
 
-- 不做视频剪辑器：媒体导入、成片导出、转码、特效库都不做。
+- 不做视频剪辑器：媒体导入、转码、特效库都不做。
 - 不做构图编辑器：时间轴与预览只为产出脚本服务。
 - 不把前端打包进模组 jar，不托管成网页，不做远程访问。
 - 不保留旧游戏内 Java 编辑器；游戏内编辑器由晴雪 UI 附属模组承载（§八）。
@@ -95,7 +95,7 @@
 
 **对象与曲线编辑**：属性与结构编辑、曲线绑定、规则绑定与激活预览、缓动与保形、保存 / 校验；见 [`object-model.md`](object-model.md)。
 
-**面板与工具**：调色编辑器 UI（含 `editor/src/operations.ts` 的 `continuousChannels('ADJUST')` 同步 15 通道、`demo.ts` 补 ADJUST 轨）；组合器编辑器 UI；转场面板（划像 / 遮罩预览）；叠化 hold 补帧（复制末帧 / 首帧延长 + 交叉窗口内 opacity 关键帧，作用于选中的两个 clip）；合成参数面板 + 多 lane 预览；LUT 微调工具（捕获帧 → 预览 → 调输入域 / 分区 → 导出修正 `.cube`，外部工作流见 `docs/LUT_WORKFLOW.md`）；贝塞尔控制点可视化与手柄编辑；选中片段全屏 lane 渲染；触发器编辑器的连续语义开关与事实查询 UI；几何工具见 [`geometry-tools.md`](geometry-tools.md)。
+**面板与工具**：调色编辑器 UI（含 `editor/src/operations.ts` 的 `continuousChannels('ADJUST')` 同步 15 通道、`demo.ts` 补 ADJUST 轨）；组合器编辑器 UI；转场面板（划像 / 遮罩预览）；叠化 hold 补帧（复制末帧 / 首帧延长 + 交叉窗口内 opacity 关键帧，作用于选中的两个 clip）；合成参数面板 + 多 lane 预览；LUT 微调工具（捕获帧 → 预览 → 调输入域 / 分区 → 写出修正 `.cube`，外部工作流见 `docs/LUT_WORKFLOW.md`）；贝塞尔控制点可视化与手柄编辑；选中片段全屏 lane 渲染；触发器编辑器的连续语义开关与事实查询 UI；几何工具见 [`geometry-tools.md`](geometry-tools.md)。
 
 **同步**：`demo.ts` 离线 schema；`editor/src` 表单与类型声明随 0.3.6 字段变更同步（`types.ts` 清已删的 `look_at_target` 对象形态 / `relative_origin` 系；`DynamicForm.vue` 可见性映射同步）。
 
@@ -145,12 +145,12 @@
 
 要实现的行为：
 
-- **内容**：**主画面（窗口 framebuffer），含 HUD、覆盖层、lane 合成与调色**，不含编辑器自己的 UI。捕获点 = 世界 + HUD 之后、编辑器 UI 之前（`hud`，见 [`../J-media/capture.md`](../J-media/capture.md) §3.1）；导出与预览同一捕获点。依据 [`../G-script-model/editor-playback.md`](../G-script-model/editor-playback.md) §3.2 / §八；验收记录 `capture src=main 2560x1392 -> 1280x720（含 HUD / lane / 调色）`。
+- **内容**：**主画面（窗口 framebuffer），含 HUD、覆盖层、lane 合成与调色**，不含编辑器自己的 UI。捕获点 = 世界 + HUD 之后、编辑器 UI 之前（`hud`，见 [`../J-media/capture.md`](../J-media/capture.md) §3.1）；预览固定 1080p60。依据 [`../G-script-model/editor-playback.md`](../G-script-model/editor-playback.md) §3.2 / §八；验收记录 `capture src=main -> 1920x1080（含 HUD / lane / 调色）`。
 - **时机**：沿用原版**聊天屏**的 HUD 处理方式——Screen 打开时 HUD 照常渲染，编辑器 UI 叠加在其上；每帧在 HUD 与覆盖层绘制之后、编辑器 UI 绘制之前传输，因此预览含 HUD、不含编辑器界面。
-- **尺寸**：由编辑器配置；同进程默认跟随主画面，跨进程按带宽配置（有 ffmpeg 可传原尺寸，无 ffmpeg 降尺寸）；窗口 / 分辨率变化时重建。
+- **尺寸**：固定 1920×1080@60；窗口 / 分辨率变化不影响输出（`CaptureHub` 规格固定）。
 - **传输形态按消费方选择**：
   - 同进程（游戏内编辑器 / 晴雪 UI）：GPU 内完成（blit 到编辑器可消费的目标或等价方式），不读回 CPU、不走网络。
-  - 跨进程（WebUI）：走现有帧流——有 FFmpeg 用编码流，无 FFmpeg 用原始 RGBA。
+  - 跨进程（WebUI）：固定 1080p60 帧流——有 FFmpeg 用 H.264 编码流，无 FFmpeg 用原始 RGBA。
 - **生命周期**：编辑器打开时建立，关闭时释放；重复关闭幂等。
 - **失败**：画面不可用（尺寸非法 / FBO 不完整）时编辑器显示占位，不影响游戏与播放。
 
@@ -183,13 +183,12 @@
 - 附属模组**直接使用主模组已有能力**（脚本读写、schema、播放控制、画面传输、飞控状态），不重复实现播放 / 渲染 / 媒体链路。
 - 接口放在对外稳定面（`api/` 或独立编辑器接口包），只增不删。
 
-### 8.4 三种消费方
+### 8.4 两种消费方
 
 | 消费方 | 载体 | 画面 | 信号 |
 |---|---|---|---|
-| WebUI（外部 Electron） | 跨进程 WebSocket | 帧流：有 FFmpeg 用 H.264 编码流（带宽约为原始 RGBA 的 1/200–1/350），无 FFmpeg 退回原始 RGBA（`original` 档封顶 1280×720、按配置帧率节流） | WebUI 消息集 |
+| WebUI（外部 Electron） | 跨进程 WebSocket | 固定 1080p60 帧流：有 FFmpeg 用 H.264 编码流，无 FFmpeg 退回原始 RGBA | WebUI 消息集 |
 | 游戏内编辑器（晴雪 UI，附属模组） | 同进程 | 8.3.1 画面传输：GPU 内完成，不读回 CPU、不走网络 | 同一套 WebUI 消息集（进程内调用） |
-| 导出 | 同进程文件 | 共用捕获层 | 导出会话自己的进度 / 取消 |
 
 ### 8.5 晴雪 UI 的能力与定位（2026-11-06 确认）
 

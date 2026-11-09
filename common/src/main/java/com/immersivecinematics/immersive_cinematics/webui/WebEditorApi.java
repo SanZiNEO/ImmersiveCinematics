@@ -295,26 +295,17 @@ public final class WebEditorApi {
         CameraManager.INSTANCE.setCameraDirect(yaw, pitch, roll, fov, zoom);
     }
 
-    /**
-     * 预览配置：尺寸档位 / 帧率 / 关键帧间隔 / 是否编码。
-     *
-     * <p>{@link PreviewConfig#parse} 对缺字段取默认、非法值逐项回落默认并限频日志；
-     * 应用到流层后回执「生效值」而非「请求值」，前端据此校准 UI。</p>
-     */
+    /** 预览固定 1920×1080@60：请求字段忽略，回执固定值。 */
     private static void handlePreviewConfig(WebSocketSession session, JsonObject data, String id) {
-        PreviewConfig config = PreviewConfig.parse(data);
-        PreviewStreamer.INSTANCE.setConfig(config);
-
-        Minecraft mc = Minecraft.getInstance();
+        PreviewConfig config = PreviewStreamer.INSTANCE.config();
         JsonObject out = new JsonObject();
         out.addProperty("mode", config.wireName());
-        out.addProperty("width", config.captureWidth(mc));
-        out.addProperty("height", config.captureHeight(mc));
+        out.addProperty("width", config.width());
+        out.addProperty("height", config.height());
         out.addProperty("fps", config.fps());
         out.addProperty("keyframeIntervalSeconds", config.keyframeIntervalSeconds());
         out.addProperty("encoder", config.encoderEnabled());
         session.sendText(wrap("editor.previewConfig.result", out, id));
-        // 新尺寸/新编码器：暂停状态下也要立即出一帧，否则画面停在旧尺寸
         PreviewStreamer.INSTANCE.requestFrame();
     }
 

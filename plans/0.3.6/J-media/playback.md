@@ -85,7 +85,7 @@
 
 ### 5.1 参考项目
 
-- BBS / Replay 只做导出，不提供播放链路；它们的价值在帧读回、进程管理、队列背压。
+- BBS / Replay 只做录制，不提供播放链路；它们的价值在帧读回、进程管理、队列背压。
 - [WaterMedia](https://github.com/WaterMediaTeam/watermedia) 是 MC 内视频播放的正例（LibVLC 路线），证明“视频作为图层素材”的产品形态成立；它不提供外部进程路线，也不涉及脚本时间轴。
 - 本项目把两者拆开：播放时间轴按脚本语义（`playback.md`），解码与编码交给外部进程（`decode.md`）。
 

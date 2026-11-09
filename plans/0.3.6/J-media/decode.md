@@ -25,7 +25,7 @@
 
 ### 2.3 非目标
 
-- 不做编码/导出（预览编码见 `preview-stream.md`）。
+- 不做编码（预览编码见 `preview-stream.md`）。
 - 不内嵌解码器、不做 JNI、不打包 ffmpeg。
 - 不做“从当前位置快进解码”的 seek 优化。
 
@@ -80,7 +80,7 @@
 ### 4.4 边界
 
 - 不碰脚本字段；视频参数不出现在脚本里。
-- 不做编码/导出。
+- 不做编码。
 - 不把原始帧交给网络层（见 `transport.md`、`preview-stream.md`）。
 
 ## 五、为什么不选别的
@@ -91,7 +91,7 @@
 |---|---|---|---|---|
 | LibVLC 进程内原生库 | [WaterMedia](https://github.com/WaterMediaTeam/watermedia) / [watermedia-v3](https://github.com/WaterMediaTeam/watermedia-v3) | JNA 绑 libVLC，原生 binaries 随包分发 | 包体大、natives 平台差异、与光影/渲染线程耦合 | 外部 ffmpeg 进程零打包、崩溃隔离、许可简单；代价是进程管理 |
 | FFmpeg JNI/桥 | [FFmpegLib](https://www.curseforge.com/minecraft/mc-mods/ffmpeg-lib) | 把 FFmpeg 库带进模组 | 与 LibVLC 类似的 natives/体积问题 | 不把原生库打进 jar |
-| 外部 ffmpeg 进程 | BBS / Replay 导出、本项目 | `ProcessBuilder` + rawvideo 管道 | 需要用户安装 ffmpeg | 选择此路线，见 `degrade.md` |
+| 外部 ffmpeg 进程 | BBS / Replay 录制、本项目 | `ProcessBuilder` + rawvideo 管道 | 需要用户安装 ffmpeg | 选择此路线，见 `degrade.md` |
 
 WaterMedia 证明“MC 内放视频”可行；它解决的是“进程内解码 + 纹理输出”，本项目解决的是“外部进程解码 + 有界队列 + 失败隔离”，两者不冲突，只是取舍不同。
 
@@ -119,5 +119,5 @@ WaterMedia 证明“MC 内放视频”可行；它解决的是“进程内解码
 - 帧时间：rawvideo 不带 PTS，统一走 §3.2 的回退口径——`-vf fps=` 把源重采样为恒定帧率，帧号 = `round(seekTime*fps) + n`；目标帧 = `floor(localTime*fps)`，取不晚于目标的最新帧。
 - 上传：`media.video.VideoFrameTexture` 两张 RGBA8 `DynamicTexture` 轮换，`glTexSubImage2D` 直传（不逐像素），上传后恢复 `GL_UNPACK_ALIGNMENT`；渲染线程独占。
 - **解码尺寸口径（原 R4 已重写）**：解码尺寸 = 视频自身分辨率，仅超过 4K（4096×2160）时等比缩到上限内；**不按屏幕物理分辨率钳制、不放大**。显示大小 / 位置 / 裁切 / 缩放由图层参数决定，和图片层同一套几何。
-  原 R4「按屏幕物理分辨率钳制」不可实现：`screenWidth/screenHeight` 是 GUI 缩放空间而非物理像素；视频层的实际显示尺寸 = 裁切后素材像素 × k × scale，`scale`/`source` 可关键帧动画、可多图层、可裁切，每帧都可能变；解码尺寸却在会话创建时固定，无法跟随每帧显示尺寸。窗口 resize / 全屏 / GUI scale 变化还会让「屏幕分辨率」本身变化。可实现的口径只能是「源分辨率 + 硬上限」，显示交给 GPU 缩放；若将来要省解码，应按消费者输出分辨率（预览 / 导出）设 cap，而不是屏幕。
+  原 R4「按屏幕物理分辨率钳制」不可实现：`screenWidth/screenHeight` 是 GUI 缩放空间而非物理像素；视频层的实际显示尺寸 = 裁切后素材像素 × k × scale，`scale`/`source` 可关键帧动画、可多图层、可裁切，每帧都可能变；解码尺寸却在会话创建时固定，无法跟随每帧显示尺寸。窗口 resize / 全屏 / GUI scale 变化还会让「屏幕分辨率」本身变化。可实现的口径只能是「源分辨率 + 硬上限」，显示交给 GPU 缩放；若将来要省解码，应按消费者输出分辨率（预览）设 cap，而不是屏幕。
 - 管道读取：64KB 分块读（Windows `ProcessPipeInputStream` 对整帧 8.3MB 单次请求只有约 37MB/s，会掉到 4fps；分块后 1080p 探针 73fps、4K 约 28.6fps）。
