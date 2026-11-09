@@ -54,6 +54,8 @@ public final class WebEditorApi {
                     System.out.println("[IC-WebUI-Backend] seek " + data);
                     handleSeek(data);
                     pushPlaybackState();
+                    // 暂停状态下拖动播放头也必须看到新画面
+                    PreviewStreamer.INSTANCE.requestFrame();
                 }
                 case "editor.play" -> {
                     System.out.println("[IC-WebUI-Backend] play");
@@ -70,8 +72,16 @@ public final class WebEditorApi {
                     CameraManager.INSTANCE.stop();
                     pushPlaybackState();
                 }
-                case "editor.setCamera" -> handleSetCamera(data);
-                case "editor.pushScript" -> handlePushScript(data);
+                case "editor.setCamera" -> {
+                    handleSetCamera(data);
+                    PreviewStreamer.INSTANCE.requestFrame();
+                }
+                case "editor.previewConfig" -> handlePreviewConfig(session, data, id);
+                case "editor.pushScript" -> {
+                    handlePushScript(data);
+                    // 编辑即预览：暂停状态下也要刷新一帧，避免画面停在旧脚本
+                    PreviewStreamer.INSTANCE.requestFrame();
+                }
                 case "editor.enter_flight_mode" -> handleEnterFlightMode(data);
                 case "editor.exit_flight_mode" -> WebPreviewScreen.requestFlightExit(true);
                 case "editor.cancel_flight_mode" -> WebPreviewScreen.requestFlightExit(false);
@@ -283,6 +293,29 @@ public final class WebEditorApi {
         float fov = data.has("fov") ? data.get("fov").getAsFloat() : 70f;
         float zoom = data.has("zoom") ? data.get("zoom").getAsFloat() : 1f;
         CameraManager.INSTANCE.setCameraDirect(yaw, pitch, roll, fov, zoom);
+    }
+
+    /**
+     * 预览配置：尺寸档位 / 帧率 / 关键帧间隔 / 是否编码。
+     *
+     * <p>{@link PreviewConfig#parse} 对缺字段取默认、非法值逐项回落默认并限频日志；
+     * 应用到流层后回执「生效值」而非「请求值」，前端据此校准 UI。</p>
+     */
+    private static void handlePreviewConfig(WebSocketSession session, JsonObject data, String id) {
+        PreviewConfig config = PreviewConfig.parse(data);
+        PreviewStreamer.INSTANCE.setConfig(config);
+
+        Minecraft mc = Minecraft.getInstance();
+        JsonObject out = new JsonObject();
+        out.addProperty("mode", config.wireName());
+        out.addProperty("width", config.captureWidth(mc));
+        out.addProperty("height", config.captureHeight(mc));
+        out.addProperty("fps", config.fps());
+        out.addProperty("keyframeIntervalSeconds", config.keyframeIntervalSeconds());
+        out.addProperty("encoder", config.encoderEnabled());
+        session.sendText(wrap("editor.previewConfig.result", out, id));
+        // 新尺寸/新编码器：暂停状态下也要立即出一帧，否则画面停在旧尺寸
+        PreviewStreamer.INSTANCE.requestFrame();
     }
 
     /** 广播当前播放器状态（供 WebPreviewScreen 每帧调用，形成实时双向通信）。 */

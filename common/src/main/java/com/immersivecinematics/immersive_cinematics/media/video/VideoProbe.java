@@ -81,7 +81,7 @@ public final class VideoProbe {
     private static VideoMetadata doProbe(Path absolute) {
         Path ffprobe = Ffmpeg.ffprobe();
         if (ffprobe == null) {
-            return fail(absolute, "未在 PATH 中找到 ffprobe");
+            return fail(absolute, "未在 <gameDir>/ffmpeg/ 中找到 ffprobe");
         }
         String videoOutput = run(ffprobe, List.of(
                 "-v", "error",

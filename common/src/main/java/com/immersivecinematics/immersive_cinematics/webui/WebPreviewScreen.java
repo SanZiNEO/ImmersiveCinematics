@@ -55,6 +55,28 @@ public class WebPreviewScreen extends Screen {
     /** 通用捕获层实例；渲染线程创建，onClose 释放。 */
     private FrameCapture frameCapture;
 
+    /**
+     * 按当前预览配置同步捕获尺寸：档位/窗口尺寸变化时才重建 FBO。
+     *
+     * <p>只在渲染线程调用（{@link FrameCapture#create} / {@link FrameCapture#close} 直接发 GL 调用）。</p>
+     */
+    private void ensureCaptureSize() {
+        PreviewConfig config = PreviewStreamer.INSTANCE.config();
+        int width = config.captureWidth(minecraft);
+        int height = config.captureHeight(minecraft);
+        // 窗口最小化/初始化极端时刻 framebuffer 可能为 0：保持旧捕获器，别让一次非法尺寸关掉整条捕获
+        if (width <= 0 || height <= 0) {
+            return;
+        }
+        if (frameCapture != null && frameCapture.width() == width && frameCapture.height() == height) {
+            return;
+        }
+        if (frameCapture != null) {
+            frameCapture.close();
+        }
+        frameCapture = FrameCapture.create(width, height);
+    }
+
     /** 打开预览屏：{@code init()} 时启动本地 WebUI 服务并开始推流。 */
     public WebPreviewScreen() {
         super(Component.literal("Web Preview"));
@@ -64,9 +86,9 @@ public class WebPreviewScreen extends Screen {
     protected void init() {
         activeScreen = this;
         WebEditorServer.INSTANCE.start();
-        // 窗口尺寸变化会重新走 init()，捕获器只建一次（FBO 在渲染线程创建）。
-        if (frameCapture == null) {
-            frameCapture = FrameCapture.create(1280, 720);
+        // 窗口尺寸变化会重新走 init()，捕获器只在档位/窗口尺寸变化时重建（FBO 必须在渲染线程创建）。
+        if (!captureDisabled) {
+            ensureCaptureSize();
         }
         if (minecraft.player != null) {
             if (WebEditorServer.INSTANCE.hasClients()) {
@@ -82,11 +104,21 @@ public class WebPreviewScreen extends Screen {
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         minecraft.renderBuffers().bufferSource().endBatch();
+
+        // 只有「编辑器播放已激活且暂停」才停流；普通游戏画面与飞控模式都要持续出画面。
+        // setPaused 同值幂等：每帧调用，靠内部早退保持零成本。
+        PreviewStreamer streamer = PreviewStreamer.INSTANCE;
+        boolean paused = !FlightModeManager.INSTANCE.isActive()
+                && CameraManager.INSTANCE.isEditorPlayback()
+                && CameraManager.INSTANCE.isEditorPaused();
+        streamer.setPaused(paused);
+
         if (!captureDisabled) {
             try {
-                // 无客户端时不捕获：避免每帧 glReadPixels 读回开销。
-                if (WebFrameStreamer.shouldCapture()) {
-                    frameCapture.capture(minecraft, WebFrameStreamer::onCapturedFrame);
+                ensureCaptureSize();
+                // 无客户端/暂停（且无刷新请求）时不捕获：避免每帧 glReadPixels 读回开销。
+                if (frameCapture != null && streamer.shouldCapture()) {
+                    frameCapture.capture(minecraft, streamer::onCapturedFrame);
                 }
             } catch (Exception e) {
                 // 渲染边界：关闭本次捕获直到重开编辑器；播放状态推送 / 飞控照常
@@ -96,6 +128,8 @@ public class WebPreviewScreen extends Screen {
                         "编辑器预览画面捕获异常（已关闭本次捕获，重开编辑器后恢复）", e);
             }
         }
+        // 统计推送（内部 1s 节流）：preview.stats + 限频日志
+        streamer.tick(minecraft);
 
         // 核心双向通信：按 50ms 节流把真实播放器时间/播放状态推给外部编辑器。
         // 没有这个，前端只能收到画面，永远不知道脚本是否在播放、播到哪。
@@ -353,6 +387,7 @@ public class WebPreviewScreen extends Screen {
         }
         if (activeScreen == this) activeScreen = null;
         CameraManager.INSTANCE.exitPreview();
+        PreviewStreamer.INSTANCE.close();
         if (frameCapture != null) frameCapture.close();
         WebEditorServer.INSTANCE.stop();
         CinematicKeyBindings.notifyEditorClosed();

@@ -1,6 +1,6 @@
 # 帧捕获底座（预览与导出共用）
 
-> 状态：J-2 已实现 CPU 读回路径；GPU 直连 / 尺寸参数化待 J 轮收尾
+> 状态：J-2 已实现 CPU 读回路径；J-3 已实现尺寸参数化与缓冲池/引用计数；GPU 直连未做（J 轮收尾）
 > 范围：捕获点、输出尺寸、像素格式、帧时间戳、消费者接口；预览 / 导出 / 游戏内编辑器共用的捕获层
 > 关联：`preview-stream.md`、`export.md`、`../F-playback/multi-camera-rendering.md`、`../Z-editor/README.md` §8.3.1
 
@@ -52,7 +52,7 @@
 ### 3.2 尺寸与格式
 
 - 捕获尺寸是**消费者参数**：编辑器配置多少就是多少；`FrameCapture.create(w,h)` 不写死。
-- 现状：WebUI 预览默认 1280×720（J-2 现状默认，不是捕获层约束）；导出按目标分辨率；无 ffmpeg 时原始画面按带宽降尺寸。
+- J-3 现状：WebUI 预览三档 `original`（默认，窗口 framebuffer，resize 重建）/ `720p` / `1080p`，由 `editor.previewConfig` 下发；`original` 在无 ffmpeg 时自动封顶 1280×720（RGBA 回退带宽保护）。
 - 像素格式固定一种（RGBA8），行序约定一次；消费者不得各自假设。
 - 尺寸在捕获会话创建时固定；会话期间窗口变化不影响输出（需要新尺寸就重建会话）。
 
@@ -67,7 +67,7 @@
 
 ### 3.4 产出与背压
 
-- J-2 现状：捕获在渲染线程同步产出，`FrameSink` 同线程回调；捕获层不持跨线程队列。多一层队列只增加延迟与拷贝，违背“同一帧”的一致性。
+- J-3 现状：捕获在渲染线程同步产出，`FrameSink` 同线程回调；捕获层不持跨线程队列。捕获层内部维护 3 个 `byte[]` 缓冲池，`CapturedFrame` 用引用计数（`retain/release`）在消费者之间共享；池被下游占满时丢弃本帧并计数（`FrameCapture.droppedFrames()`），不阻塞渲染线程。
 - 跨线程消费者（编码 / 文件写入）自己持有界队列；预览丢最旧帧并计数，导出阻塞提交（导出不随便丢）。
 - 背压策略由消费者声明，捕获层不硬编码。
 
@@ -122,13 +122,13 @@
 
 ## 六、实现结果
 
-状态：CPU 读回路径已实现（2026-11-08，J-2）；GPU 直连 / 尺寸参数化待 J 轮收尾。
+状态：CPU 读回路径已实现（2026-11-08，J-2）；J-3 已实现尺寸参数化、缓冲池与引用计数；GPU 直连未做。
 
 - 捕获层：`media.capture.FrameCapture` / `CapturedFrame` / `FrameSink`。
-- 捕获点：`hud`。`WebPreviewScreen.render` 开头、画飞控 HUD 之前提交捕获；原版 HUD 在 Screen 之前已画完 → 含 HUD、不含 `WebPreviewScreen` 自己的 UI。这是 J-2 已实现的行为，本页补记为契约。
-- 输出契约：尺寸是 `FrameCapture.create(w,h)` 参数；`WebPreviewScreen` 目前固定 1280×720（现状默认，不是捕获层约束）；RGBA8；行序自顶向下（捕获层内完成翻转）；PTS = `System.nanoTime()`；frameId 每次捕获自增。
-- 产出：同步回调 `FrameSink`；捕获层不持队列；预览消费者单槽丢旧 + 16ms 发送节流。
-- 预览消费者：`WebFrameStreamer` 实现 `FrameSink`，WebSocket 帧格式与改造前一致（`[0x01][frameId][w][h][rgba]`，大端）；`WebFrameCapture` 已删除。
+- 捕获点：`hud`。`WebPreviewScreen.render` 开头、画飞控 HUD 之前提交捕获；原版 HUD 在 Screen 之前已画完 → 含 HUD、不含 `WebPreviewScreen` 自己的 UI。
+- 输出契约：尺寸是 `FrameCapture.create(w,h)` 参数；WebUI 预览三档 `original/720p/1080p`（默认 original，无 ffmpeg 时 original 封顶 720p）；RGBA8；行序自顶向下（捕获层内完成翻转）；PTS = `System.nanoTime()`；frameId 每次捕获自增。
+- 产出：同步回调 `FrameSink`；捕获层不持队列；3 缓冲池 + `CapturedFrame.retain/release`（池空丢帧计数）；预览消费者每会话编码器/发送队列。
+- 预览消费者：`PreviewStreamer` 实现 `FrameSink`，帧格式 18B 头（type/flags/frameId/PTS/宽/高）+ payload；`WebFrameStreamer` 已删除。
 - 同进程 GPU 消费者接口：**未实现**（J 轮铺路项，见 §七）。当前只有 CPU 读回路径。
 - 逐位一致：同一读回字节经旧路径（逐行拷贝翻转 + 打包）与新路径（`FrameCapture.flipRows` + 打包）输出逐位相同（无头探针 10/10，含 1280×720）。
 

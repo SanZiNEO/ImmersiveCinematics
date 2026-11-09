@@ -302,16 +302,21 @@ J1-R1~R5 已在 J-1 内全部关闭，不留移交：
 
 | 优先级 | 项 | 关闭条件 |
 |---|---|---|
-| P0 | `webui/WebFrameStreamer` 读回侧节流 + 缓冲复用（每帧 `glReadPixels` + 3 次全量拷贝） | 读回次数 / 秒 ≤ 发送次数（60）；每帧分配从约 11 MB 降到 0；画面一致 |
+| P0 | ~~`webui/WebFrameStreamer` 读回侧节流 + 缓冲复用（每帧 `glReadPixels` + 3 次全量拷贝）~~ | ✅ J-3 已关闭：`WebFrameStreamer` 删除；`FrameCapture` 3 缓冲池 + `CapturedFrame` 引用计数，读回零分配（一次 direct 缓冲拷贝）；预览按会话编码器 + 有界队列发送 |
 | P1 | `camera/FrameDriver.frame()` 每帧 `new ArrayList` 消除 | 25 实例场景帧分配计数下降；启停行为不变 |
 | P1 | `client/lane/LaneRenderer` 每 lane `new PoseStack` / `new Matrix3f` 复用 | 25 lane 场景逐帧分配下降；画面逐位一致 |
 | P1 | `LaneRenderer` 9 个静态可变字段 → 显式 `LaneRenderContext` | `private static` 可变字段降到 1–2 个；渲染行为不变 |
 | P2 | `ScriptValidator` / `ObjectValidator.Check` / `ScriptParser` / `LaneDiagnostics` 巨型文件按域拆分 | 公开签名不变；夹具校验结果逐条一致 |
 | P3 | `ScriptPlayer` 职责拆分（`AudioRuntime` / `CameraLaneSource`）；`script ↔ camera` 包重排 | `ScriptPlayer` 可脱离 `CameraManager.INSTANCE` 构造；播放行为不变 |
 
-### N-3. 本轮无新增遗留
+### N-4. J-3 移交与契约边界
 
-旧模型清零项全部在本轮落地；`E:/tmp` 下的探针与一次性脚本不入库、不进打包。
+| 项 | 归属 | 关闭条件 |
+|---|---|---|
+| 同进程 GPU 直连捕获（游戏内编辑器消费者，不读回 CPU） | J-4 / Z 轮前置 | 暴露捕获 FBO/纹理 id + 帧回调；附属模组可直接 GPU 采样/blit，不强制 CPU 读回 |
+| editor 分支仍用旧 schema（本轮只改预览接线） | 编辑器仓库 / Z 轮 | 编辑器仓库同步 0.3.6 schema 并完成对象模型；预览协议已与服务端对齐 |
+| Forge 实机未跑（用户裁决：一个加载器实机即可） | 契约边界 | 若后续要求双加载器，补 Forge 预览/音频实机 |
+| 导出（J-4）未实现 | J-4 | 按 `export.md` 落地 `hud` 捕获 + 静音编码 + 收尾 |
 
 ---
 

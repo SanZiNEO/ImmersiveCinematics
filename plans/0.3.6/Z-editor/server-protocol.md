@@ -33,7 +33,7 @@
 ## 三、实施时定的差异
 
 - WebSocket 服务为自实现，未用 NanoHTTPD / Java-WebSocket。
-- 预览为 raw RGBA 720p + 约 60fps 节流；未做 JPEG / H.264 / WebRTC。**2026-11-06 更新**：后续计划改为编码流（H.264，外部 ffmpeg），帧头随编码格式调整；见 [`../J-media/preview-stream.md`](../J-media/preview-stream.md)。编辑器侧接收形态不变（二进制帧 → 前端解码）。
+- 预览为 H.264 编码流（外部 ffmpeg，每会话一个编码器）；无 ffmpeg / 编码失败回退原始 RGBA。帧头 18 字节（type/flags/frameId/PTS/宽/高），见 [`../J-media/preview-stream.md`](../J-media/preview-stream.md) §4.3。编辑器侧接收形态不变（二进制帧 → 前端解码）。
 - Editor 是独立 Electron 应用，不由 mod 托管页面。
 - 飞控留在游戏原生环境，WebUI 只做进入 / 退出与状态显示。
 
@@ -45,7 +45,7 @@
 
 ### 4.2 请求与回执
 
-已实现消息：`hello`；`script.list` / `script.load` / `script.save` / `script.delete` / `script.new` / `script.validate`；`registry.query` / `registry.get`；`schema.get`；`script.graph` / `resource.list`；`editor.seek` / `editor.play` / `editor.pause` / `editor.stop` / `editor.setCamera` / `editor.pushScript`；`editor.enter_flight_mode` / `editor.exit_flight_mode` / `editor.cancel_flight_mode`。
+已实现消息：`hello`；`script.list` / `script.load` / `script.save` / `script.delete` / `script.new` / `script.validate`；`registry.query` / `registry.get`；`schema.get`；`script.graph` / `resource.list`；`editor.seek` / `editor.play` / `editor.pause` / `editor.stop` / `editor.setCamera` / `editor.pushScript` / `editor.previewConfig`；`editor.enter_flight_mode` / `editor.exit_flight_mode` / `editor.cancel_flight_mode`。
 
 回执族：`hello_ack`、各 `*.result`、`schema.data`。
 
@@ -61,7 +61,21 @@
 
 ### 4.4 二进制帧
 
-`[1 byte type = 0x01][2 bytes frameId][2 bytes width][2 bytes height][RGBA payload]`；宽度 / 高度 / frameId 均为大端 2 字节；像素为 1280×720 RGBA，发送前已做上下翻转（OpenGL 自底向上）。
+18 字节大端头 + payload：
+
+| 偏移 | 大小 | 字段 |
+|---|---|---|
+| 0 | 1 | `type`：1 = RGBA8，2 = H.264 Annex B access unit |
+| 1 | 1 | `flags`：bit0 = 关键帧 |
+| 2 | 4 | `frameId`（u32） |
+| 6 | 8 | `ptsMicros`（u64，相对该会话/编码器首帧） |
+| 14 | 2 | `width`（u16） |
+| 16 | 2 | `height`（u16） |
+| 18 | … | payload |
+
+- RGBA payload = `width*height*4`，行序自顶向下；H.264 payload = 一个完整 Annex B access unit（关键帧内联 SPS/PPS）。
+- 新增请求 `editor.previewConfig`：`{mode:"original"|"720p"|"1080p", fps:30|60, keyframeIntervalSeconds:1..10, encoder:boolean}`；回执 `editor.previewConfig.result`（含实际捕获 `width/height`）。
+- 新增推送 `preview.stats`（每会话每秒）：`{mode,width,height,fps,encoder:"h264"|"rgba"|"off"|"pending",sent,dropped,inputDropped}`。
 
 ### 4.5 凭据与路径
 

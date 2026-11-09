@@ -1,8 +1,5 @@
 package com.immersivecinematics.immersive_cinematics.webui;
 
-import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
-import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -22,6 +19,7 @@ import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -353,26 +351,19 @@ public class WebEditorServer {
         socket.setSoTimeout(0);
         WebSocketSession session = new WebSocketSession(socket, out);
         sessions.add(session);
+        PreviewStreamer.INSTANCE.onSessionOpened(session);
         session.startReader();
         System.out.println("[IC-WebUI] editor client connected: " + socket.getRemoteSocketAddress());
     }
 
     void removeSession(WebSocketSession session) {
         sessions.remove(session);
+        PreviewStreamer.INSTANCE.onSessionClosed(session);
     }
 
-    /** 发送一帧二进制消息给所有已连接的客户端。 */
-    public void broadcastBinary(byte[] payload) {
-        for (WebSocketSession s : sessions) {
-            try {
-                s.sendBinary(payload);
-            } catch (RuntimeException e) {
-                // 广播边界：单个会话失败只跳过该会话，不中断其余客户端（限频留全栈供定位）
-                FatalErrors.rethrowIfFatal(e);
-                ErrorLog.logRateLimited("WebUI", "broadcast-binary", 5000L,
-                        "二进制广播失败（bytes=" + payload.length + "）：跳过该会话", e);
-            }
-        }
+    /** 当前会话快照（只读副本；调用方可安全遍历，不受后续连接/断开影响）。 */
+    public List<WebSocketSession> sessions() {
+        return List.copyOf(sessions);
     }
 
     /** 发送文本消息给所有已连接的客户端。 */

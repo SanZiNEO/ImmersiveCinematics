@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
+import com.immersivecinematics.immersive_cinematics.Config;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipRuntimeCache;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipValueView;
 import com.immersivecinematics.immersive_cinematics.script.object.ObjectSlotLayout;
@@ -121,6 +122,14 @@ public class AudioTrackPlayer implements TrackDriver {
             CinematicAudioInstance inst = entry.getValue();
 
             if (clip == activeClip) {
+                if (inst.isFailed()) {
+                    // 解码失败：本帧回收并记入 failedClips，后续帧不再重建/重试
+                    inst.cleanup();
+                    it.remove();
+                    failedClips.add(clip);
+                    previouslyActive.remove(clip);
+                    continue;
+                }
                 updateClipInstance(clip, inst, globalTime);
             } else {
                 if (clip.isEffectivelyInfinite()) {
@@ -340,6 +349,10 @@ public class AudioTrackPlayer implements TrackDriver {
 
         inst.play();
         instances.put(clip, inst);
+        if (Config.debugLogging) {
+            LOGGER.info("audio-start clip={} instance={} sound={} local={}",
+                    clip.getClipId(), System.identityHashCode(inst), sound, String.format("%.3f", localTime));
+        }
         if (LOGGER.isDebugEnabled()) {
             LOGGER.debug("audio start: sound={} category={} instances={} paused={}", sound, category, instances.size(), paused);
         }
@@ -355,13 +368,12 @@ public class AudioTrackPlayer implements TrackDriver {
         double fadeIn = values.f("fade_in", 0f);
         double fadeOut = values.f("fade_out", 0f);
         double fadeFactor = fadeEnvelope(localTime, dur, clip.isEffectivelyInfinite(), fadeIn, fadeOut);
-        inst.setVolume((float) (audioValue(sample, SLOT_VOLUME, 1f) * fadeFactor));
+        float vol = (float) (audioValue(sample, SLOT_VOLUME, 1f) * fadeFactor);
         inst.setPosition(resolveAudioPosition(values.s("position_mode", "relative"),
                 new Vec3(audioValue(sample, SLOT_X, 0f), audioValue(sample, SLOT_Y, 0f),
                         audioValue(sample, SLOT_Z, 0f))));
-        if (!inst.isPlaying()) {
-            inst.play();
-        }
+        // 外部解码未就绪：内部只记待办（静音等待）；就绪且未在播时按当前执行时间起播
+        inst.ensurePlaying(localTime, vol);
         inst.update();
     }
 

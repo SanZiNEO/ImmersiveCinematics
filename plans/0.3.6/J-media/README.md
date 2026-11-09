@@ -1,6 +1,6 @@
 # 媒体（总纲）
 
-> 状态：J-2 已实现（捕获 / 解码 / 视频图层 / 视频音轨；1080p 播放性能待修）；J-3 / J-4 未实现
+> 状态：J-2 已实现（捕获 / 解码 / 视频图层 / 视频音轨）；J-3 已实现（预览编码流 + AUDIO 外部格式）；J-4 导出未实现
 > 范围：运行时视频播放、解码链路、共享帧捕获底座、音频解码、编辑器预览编码流、画面导出、失败降级与验收（远程媒体分片不做）
 > 关联：`../I-script-core/track-overlay-letterbox.md`（OVERLAY `image` 字段）、`../F-playback/multi-camera-rendering.md`、`../F-playback/cross-dimension-camera.md`、`../F-playback/f5-script-packet-limit.md`、`../Z-editor/README.md` §8.3
 
@@ -64,11 +64,11 @@
 
 ### 3.3 交付顺序
 
-1. `capture.md`：✅ J-2 已交付（CPU 读回；GPU 直连 / 尺寸参数化待收尾）。
+1. `capture.md`：✅ J-2 已交付（CPU 读回）；J-3 补尺寸参数化 / 缓冲池；GPU 直连待收尾。
 2. `decode.md` + `playback.md`：✅ J-2 已交付（1080p 播放性能待修）。
-3. `degrade.md`：✅ J-2 已交付。
-4. `audio.md`：视频音轨 ✅ J-2；AUDIO 轨扩展名 J-3。
-5. `preview-stream.md`：J-3；预览改为编码消费者，复用捕获点 `hud`。
+3. `degrade.md`：✅ J-2 已交付；J-3 补预览丢帧与固定路径口径。
+4. `audio.md`：视频音轨 ✅ J-2；AUDIO 轨外部格式 ✅ J-3。
+5. `preview-stream.md`：✅ J-3 已交付（编码帧 + PTS + 每会话队列 + 关键帧）。
 6. `export.md`：J-4；同一捕获点接文件消费者，静音导出与收尾。
 7. `acceptance.md`：每篇完成时补本行，不集中到最后。
 8. `transport.md`：**不做**。
@@ -83,7 +83,7 @@
 
 ### 4.2 外部依赖
 
-- ffmpeg / ffprobe 是**可选**外部可执行文件，可配置路径。**没有它模组照常使用**；缺失时只影响媒体增强能力（视频素材播放、编码预览流、导出），核心脚本播放、渲染、触发器、相机均不受影响。具体降级见 [degrade.md](degrade.md) §3.1 与本文 §7.6。
+- ffmpeg / ffprobe 是**可选**外部可执行文件，固定路径 `<gameDir>/ffmpeg/ffmpeg.exe` + `<gameDir>/ffmpeg/ffprobe.exe`（Windows 带 `.exe`；不读 PATH、不做配置项）。**没有它模组照常使用**；缺失时只影响媒体增强能力（视频素材播放、编码预览流、AUDIO 外部格式、导出），核心脚本播放、渲染、触发器、相机均不受影响。安装 ffmpeg 是整合包 / 地图 / 服务器的责任，不是模组的义务。具体降级见 [degrade.md](degrade.md) §3.1 与本文 §7.6。
 - 不做远程传输；媒体路径由 `ResourcePath` 解析，视频随资源目录/整合包分发。
 
 ## 五、为什么不选别的
@@ -102,7 +102,11 @@
 
 ## 六、实现结果
 
-状态：J-2 已实现（捕获 / 解码 / 视频图层 / 视频音轨；1080p 播放性能待修）；J-3 预览编码与 AUDIO 扩展、J-4 导出未实现。各篇细节见对应文档「实现结果」。
+状态：J-2 已实现（捕获 / 解码 / 视频图层 / 视频音轨）；J-3 已实现（预览编码流 + AUDIO 外部格式）；J-4 导出未实现。各篇细节见对应文档「实现结果」。
+
+- 预览流：`webui/PreviewProtocol`（18B 头）、`PreviewEncoder`（每会话 H.264）、`PreviewStreamer`（分发/暂停/统计）、`OutboundQueue`（有界丢帧）；`WebFrameStreamer` 已删除。
+- AUDIO：`media.audio.ExternalPcmDecode`（白名单整段异步解码）；`CinematicAudioInstance` / `AudioTrackPlayer` 接入 ready/failed 状态机。
+- ffmpeg：`media.video.Ffmpeg` 固定 `<gameDir>/ffmpeg/`；`available()` = ffmpeg+ffprobe，`encoderAvailable()` = ffmpeg。
 
 ---
 
@@ -158,7 +162,7 @@
 | 能力 | 有 FFmpeg | 无 FFmpeg |
 |---|---|---|
 | 核心模组（脚本播放、渲染、触发器、相机、覆盖层） | 正常 | **正常** |
-| WebUI 编辑器预览流 | H.264 视频流（带宽约为原始 RGBA 的 1/200–1/350） | **退回现有方式：原始 RGBA（尺寸由编辑器配置 / 约 60fps 节流）**，功能可用、带宽高 |
+| WebUI 编辑器预览流 | H.264 视频流（带宽约为原始 RGBA 的 1/200–1/350） | **退回原始 RGBA（`original` 档捕获封顶 1280×720、按配置帧率节流）**，功能可用、带宽高 |
 | 游戏内编辑器画面 | 同进程 GPU 直传 | 同进程 GPU 直传（不依赖 ffmpeg） |
 | 视频素材播放（OVERLAY `image` 指向 mp4/webm/mkv） | 正常解码播放 | **什么都不显示**（有什么显示什么；没有 ffmpeg 就没有视频解析，不占位、不报错、不阻塞其余轨道） |
 | 导出成片 | 正常编码写文件（静音） | 不可用（无编码器） |

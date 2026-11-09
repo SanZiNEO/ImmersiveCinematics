@@ -1,6 +1,6 @@
 # 音频解码（AUDIO 轨与视频音轨）
 
-> 状态：视频音轨已实现（J-2）；AUDIO 轨外部格式扩展未实现（J-3）
+> 状态：视频音轨已实现（J-2）；AUDIO 轨外部格式扩展已实现（J-3，2026-11-09）
 > 范围：AUDIO 轨的音频格式解码、视频容器音轨的处置、与视频播放的时间边界
 > 关联：`playback.md`、`export.md`、`../I-script-core/track-audio-adjust.md`、`../I-script-core/runtime-evaluation.md`
 
@@ -33,9 +33,12 @@
 
 ### 3.1 AUDIO 轨
 
-- `path` 按扩展名分流：WAV/OGG 走现有内存解码；其他格式走外部 ffmpeg 解码为 PCM。
+- `path` 按扩展名分流：WAV/OGG 走现有内存解码；白名单其他格式（`.mp3` / `.aac` / `.flac` / `.m4a` / `.opus` / `.wma` / `.oga` / `.ogx`）走外部 ffmpeg **整段解码为 PCM**（s16le / 48kHz / 立体声）。
+- 外部解码异步：构造立即返回，加载期静音等待；就绪后由渲染线程下一帧按**当前片段局部时间**定位起播（跳过加载耗时，不追帧）。无时长上限（用户 2026-11-09 裁决）。
+- `source=minecraft`（资源包内音频）仍仅 OGG：ffmpeg 读不到 jar 内资源，不做解包临时文件。
 - 播放时间取片段局部时间；暂停/seek/循环与现有 AUDIO 实例语义一致。
 - 音频实例跨执行边界仍然活跃的，不重启；不再活跃的下次执行重新起实例。
+- 失败：缺 ffmpeg / 坏文件 / 非白名单扩展名 → 静音 + 限频日志，不崩、不每帧重试。
 
 ### 3.2 视频音轨
 
@@ -63,10 +66,10 @@
 
 ### 4.2 契约
 
-- **创建**：AUDIO 片段进入活跃窗口时创建实例；解码器按扩展名懒启动。
-- **销毁**：片段结束/脚本停止/世界退出时释放句柄与缓冲。
+- **创建**：AUDIO 片段进入活跃窗口时创建实例；解码器按扩展名懒启动。内置格式构造即就绪；外部格式先 `ready=false`，异步回调置 `ready=true`（volatile 发布）。
+- **销毁**：片段结束/脚本停止/世界退出时释放句柄与缓冲；异步解码回调发现实例已失效则丢弃结果。
 - **状态归谁**：播放位置与音量归音频实例；解码缓冲归解码器。
-- **失败**：缺解码器/坏文件 → 静音 + 错误日志，不抛异常。
+- **失败**：缺解码器/坏文件 → 静音 + 错误日志，不抛异常；`failed` 实例由 `AudioTrackPlayer` 回收并加入失败集合，不重试。
 
 ### 4.3 数据形态
 
@@ -97,7 +100,7 @@
 
 ## 六、实现结果
 
-状态：视频音轨已实现（2026-11-08，J-2）；AUDIO 轨的 mp3/aac/flac 扩展未做（本文 §3.1，归 J-3）。
+状态：视频音轨已实现（2026-11-08，J-2）；AUDIO 轨外部格式扩展已实现（2026-11-09，J-3）。
 
 - 视频音轨：`media.video.VideoAudioTrack` + `VideoAudioInstance`（`AbstractTickableSoundInstance` + `CustomStreamProvider`）+ `ProcessPcmStream`；命令 `ffmpeg -v error -nostdin [-ss t] -i <path> -vn -f s16le -ac 2 -ar 48000 pipe:1`。
 - 实现口径：概念不拆轨；视频进程 `-an` + 音频进程 `-vn` 两进程，共享同一 `executionLocalTime`。
@@ -105,3 +108,6 @@
 - 音量：固定 1.0，`SoundSource.MASTER`，相对听者无衰减；不改 AUDIO 轨字段。
 - 失败：进程起不来 / 读失败 → 空流 + 限频日志，静音不影响画面。
 - 导出不包含音频（2026-11-08 裁决；见 `export.md` §3.4）；本页只负责运行时播放。
+- AUDIO 外部格式（J-3）：`media.audio.ExternalPcmDecode` 整段异步解码；白名单 `.mp3/.aac/.flac/.m4a/.opus/.wma/.oga/.ogx`；`CinematicAudioInstance` 新增 `ready/failed/pendingSeek/pendingPlay`、`ensurePlaying(localTime, volume)`、`isUsable()/isFailed()`；`AudioTrackPlayer` 用 `ensurePlaying` 起播、失败实例回收进 `failedClips`。
+- 音频实例日志（`Config.debugLogging`）：`audio-start clip=… instance=… sound=… local=…`，用于确认 seek 不重建实例。
+- 验证：三格式 PCM 探针（同源 wav/ogg/mp3）长度差 <2%、时长差 <0.2s；实机 `j3_av_test` 在 0/5/10s 分别起播 `a_wav/a_ogg/a_mp3`（`local≈0.000`），无失败日志。

@@ -19,7 +19,7 @@
 
 **为什么两道都要**：只做 Origin——`file://` / `null` 必须在白名单里（Electron 打包态就是 `file://` 页面），“用户本地打开的一个 HTML 文件”也落在这一档，Origin 挡不住，token 挡得住；只做 token——Origin 是浏览器强制、不可伪造的，能第一时间把网页挡在门外，不给 token 留爆破面。两者互补，都不是可选项。
 
-**不改协议**：token 只出现在握手 URL 的 query 里，`{type,data,id}` 信封、全部消息类型与二进制帧格式不变。
+**不改协议（安全轮范围内）**：token 只出现在握手 URL 的 query 里，`{type,data,id}` 信封与全部消息类型不变。二进制帧格式在 J-3 单独升级为 18B 头（见 [`server-protocol.md`](server-protocol.md) §4.4），不属于安全轮改动。
 
 ## 三、两端改动点
 

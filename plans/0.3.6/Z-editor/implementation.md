@@ -1,6 +1,6 @@
 # 实现结果
 
-> 状态：独立编辑器、服务端、协议、握手校验、预览推流、飞控绑定、架构图步骤 1–4 已落地；游戏内编辑器已删除；选中片段全屏 lane、可选编码与远程面板未做
+> 状态：独立编辑器、服务端、协议、握手校验、预览推流（J-3 H.264 编码流 + PTS）、飞控绑定、架构图步骤 1–4 已落地；游戏内编辑器已删除；选中片段全屏 lane、飞控远程面板未做
 > 范围：实现状态、与设计的偏离、游戏内编辑器退役、参考编辑器评估、验证与事实核查
 > 关联：[`server-protocol.md`](server-protocol.md)、[`security.md`](security.md)、[`flight-mode.md`](flight-mode.md)、[`script-graph.md`](script-graph.md)
 
@@ -8,7 +8,7 @@
 
 独立编辑器、服务端、协议、握手校验、预览推流、飞控绑定、架构图步骤 1–4 已落地，游戏内编辑器已删除。
 
-剩余：选中片段全屏 lane 渲染；H.264 / WebRTC 与飞控远程面板；调色、组合器、转场、模板面板与贝塞尔控制点可视化（见 [`README.md`](README.md) §六）。
+剩余：选中片段全屏 lane 渲染；飞控远程面板；调色、组合器、转场、模板面板与贝塞尔控制点可视化（见 [`README.md`](README.md) §六）。预览编码已在 J-3 落地（H.264 + PTS + WebCodecs；无 ffmpeg 回退 RGBA）。
 
 ## 二、与设计的偏离
 
@@ -18,7 +18,7 @@
 | 预览与游戏播放通道隔离（原列为并行播放步骤 5） | 预览为独立实例，已隔离（2026-10-07） | — |
 | 协议只列脚本、注册表、schema 与编辑器命令 | 另加资源列举与保存后通知（2026-10-07） | 脚本 i18n 与服务器同步需要 |
 | WebSocket 服务用 NanoHTTPD / Java-WebSocket | 自实现（2026-10-07） | 需求只有文本帧、二进制帧与单机连接 |
-| 预览为 JPEG / H.264 / WebRTC | raw RGBA 720p + 约 60fps 节流 | 先保证可用；编码未做 |
+| 预览为 JPEG / H.264 / WebRTC | J-3 已实现 H.264 + PTS + WebCodecs（无 ffmpeg 回退 RGBA）；WebRTC 未做 | J-3 收口；编码/背压见 `J-media/preview-stream.md` |
 
 ## 三、游戏内编辑器退役
 
@@ -173,7 +173,7 @@ GitHub 上存在 MIT 许可的剪辑器：
 | 14 | 前端组件清单 | `editor/src/components/`：`Timeline.vue`、`Preview.vue`、`ScriptList.vue`、`TriggerPanel.vue` + `trigger/*.vue`（10 个类型专用编辑器）、`DynamicForm.vue` + `fields/*.vue`（12 个）、`TrackListPanel.vue` / `ClipPanel.vue` / `KeyframePanel.vue`；`i18n/{index,zh_cn,en_us}.ts` |
 | 15 | 已覆盖能力 | 撤销重做 `store.ts:78-104`（上限 200）；A-B 循环 `loopStart/loopEnd` + `setLoopIn/Out/clearLoop`；marker `markers` + `addMarker/removeMarker`；快捷键 `App.vue`（Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y / M）；飞控 `store.ts enterFlightMode` + `Preview.vue` 飞控叠层 |
 | 16 | 形态 | `editor/package.json` `"version": "0.1.0"`；`editor/release/ImmersiveCinematicsEditor Setup 0.1.0.exe` 存在；`store.ts:19` `SERVER_URL = 'ws://127.0.0.1:8765/ws'`；`CinematicKeyBindings.java:26` F6 = 旧 Java 编辑器、`:48` F9 = WebUI；`WebPreviewScreen.init()` 调 `WebEditorServer.INSTANCE.start()`；`demo.ts` + `loadDemo()` = 离线演示 |
-| 17 | 差异 | 全仓无 NanoHTTPD / Java-WebSocket 依赖（grep 无命中）；预览无 JPEG / H.264 / WebRTC 代码路径 |
+| 17 | 差异 | 全仓无 NanoHTTPD / Java-WebSocket 依赖（grep 无命中）；预览无 JPEG / WebRTC 代码路径（2026-11-07 核查；J-3 已接 H.264） |
 | 18 | 安全现状 | `WebEditorServer` 无 Origin / token / 子协议校验（现已实现，见 [`security.md`](security.md)） |
 | 19 | 预览走 `CameraManager` 直控 | `handleSeek/play/pause/stop` 与 `handleSetCamera` 均调 `CameraManager.INSTANCE`（`setTime` / `resume` / `pause` / `stop` / `setCameraDirect`） |
 | 20 | 许可 | `example/editor/olive/LICENSE` = GPL v3 全文（`CMakeLists.txt:5-7` 为 "version 3 or later"）；`example/editor/lossless-cut/LICENSE` = GPL v2 全文 + `package.json:46` `"license": "GPL-2.0-only"`；本仓 `LICENSE` = MIT |

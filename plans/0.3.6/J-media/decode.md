@@ -113,7 +113,7 @@ WaterMedia 证明“MC 内放视频”可行；它解决的是“进程内解码
 
 状态：已实现（2026-11-08，J-2）。
 
-- `media.video.Ffmpeg`：仅 PATH 查找 `ffmpeg` / `ffprobe`（Windows 试 `.exe`），结果缓存；不做配置项。
+- `media.video.Ffmpeg`：固定 `<gameDir>/ffmpeg/ffmpeg.exe` + `<gameDir>/ffmpeg/ffprobe.exe`（Windows 带 `.exe`），不读 PATH、不做配置项；结果缓存（含负结果）。`available()` = 两者都在，`encoderAvailable()` = 只需 ffmpeg。
 - `media.video.VideoProbe`：`ffprobe -v error -select_streams v:0 ... -of default=noprint_wrappers=1` 探测宽高 / fps（`avg_frame_rate` 优先，回退 `r_frame_rate`）/ duration（format 优先）/ 音轨；按（路径, size, mtime）缓存；失败限频日志（60s）。
 - `media.video.VideoDecoder`：外部进程 `ffmpeg -v error -nostdin [-ss t] -i <path> -an -vf fps=<fps>,scale=<w>:<h>:flags=bilinear -f rawvideo -pix_fmt rgba pipe:1`；解码线程读满 `w*h*4` 入 `ArrayBlockingQueue`（容量 3，满则阻塞）；stderr 独立线程排空并保留尾部 8 行；seek = 停进程 → join(200ms) → 强制销毁 → 清队列 → 按 `-ss` 重启；`close()` 幂等。
 - 帧时间：rawvideo 不带 PTS，统一走 §3.2 的回退口径——`-vf fps=` 把源重采样为恒定帧率，帧号 = `round(seekTime*fps) + n`；目标帧 = `floor(localTime*fps)`，取不晚于目标的最新帧。
