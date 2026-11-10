@@ -421,6 +421,12 @@ ImmersiveCinematics 的脚本是一个 JSON 文件，用一条时间线描述镜
 | `position_mode` | VALUE | ENUM | NONE | relative | relative / absolute |  |
 | `category` | VALUE | ENUM | NONE | music | music / ambient |  |
 
+**声音来源与文件格式：**
+
+- `source = file`：`sound` 写相对于 `<游戏目录>/immersive_cinematics/resource/` 的文件路径。`.ogg` / `.wav` 走内置解码，不依赖 FFmpeg；`.mp3` / `.aac` / `.flac` / `.m4a` / `.opus` / `.wma` / `.oga` / `.ogx` 走外部 FFmpeg。外部工具固定放在 `<游戏目录>/ffmpeg/`（Windows 为 `ffmpeg.exe`，其他平台为 `ffmpeg`），不搜索系统 `PATH`，不由模组下载。
+- 外部音频按整段异步解码为 48 kHz、双声道、16 位 PCM；未就绪时等待，不是边解码边播放的长音频流。整段结果驻留内存，长素材需要考虑内存开销。缺工具或解码失败会记录错误并跳过失败片段，不会把失败伪装成成功的静音。
+- `source = minecraft`：`sound` 使用资源包中的 OGG 资源路径，与上述外部文件扩展格式分流不同。完整的工具目录、视频音轨和降级边界见 [媒体说明](modules/media.md)。
+
 `objects` 真实夹具（`test_objects_audio.json`）：
 
 ```json
@@ -511,6 +517,12 @@ ImmersiveCinematics 的脚本是一个 JSON 文件，用一条时间线描述镜
 | `text` | VALUE | STRING | NONE |  |  |  |
 | `z_index` | VALUE | INT | NONE | 10 |  |  |
 
+**图片与视频共用 `layer_type = image`：**
+
+- `path` 写相对于 `<游戏目录>/immersive_cinematics/resource/` 的素材路径。当前校验白名单为 `.png` / `.gif` / `.mp4` / `.webm` / `.mkv`；其中三个视频后缀（大小写不敏感）分流至视频层，PNG/GIF 走图片层。后缀识别本身不保证文件存在或解码成功。
+- 不新增 `VIDEO` 轨道，也不填写 `layer_type = video`。视频沿用此表的 `x/y`、`anchor_x/y`、`scale_x/y`、`source.x/y/w/h`、`opacity`、`z_index`，由片段局部时间驱动画面。
+- 视频探测和解码需要 `<游戏目录>/ffmpeg/` 下同时有 `ffprobe` 与 `ffmpeg`（Windows 均带 `.exe`）。视频音轨由视频层独立管理，不使用 `AUDIO` 的 `file_loop` 字段控制视频。缺工具时该视频层不显示；工具齐全但素材探测或解码失败时可显示错误占位，具体条件和音轨限制见 [媒体说明](modules/media.md)。
+
 `objects` 真实夹具（`test_objects_overlay.json`，节选 fade 与 subtitle 两条轨）：
 
 ```json
@@ -527,6 +539,20 @@ ImmersiveCinematics 的脚本是一个 JSON 文件，用一条时间线描述镜
     "layer_type": { "value": "subtitle" }, "text": { "value": "测试字幕" },
     "font_scale": { "keyframes": [{ "time": 0, "value": 1 }, { "time": 6, "value": 1.4 }] },
     "z_index": { "value": 100 } } }] }
+```
+
+视频覆盖示例（素材放在 `resource/video/intro.mp4`；仍使用 `OVERLAY` + `image`）：
+
+```json
+{ "type": "OVERLAY", "clips": [{ "start_time": 0, "duration": 5, "objects": {
+  "layer_type": { "value": "image" },
+  "path": { "value": "video/intro.mp4" },
+  "x": { "value": 0.5 }, "y": { "value": 0.5 },
+  "scale_x": { "value": 1 }, "scale_y": { "value": 1 },
+  "source.x": { "value": 0 }, "source.y": { "value": 0 },
+  "source.w": { "value": 1 }, "source.h": { "value": 1 },
+  "opacity": { "value": 1 }, "z_index": { "value": 10 }
+} }] }
 ```
 
 ### 4.7 ADJUST

@@ -62,17 +62,22 @@
 | CAMERA | `CameraTrackPlayer` + `ObjectCameraEvaluator` | `ClipSampler` + `PositionEvaluator` / `OrientationEvaluator`；lane 合成参数走 `CameraLaneComposite` |
 | OVERLAY | `OverlayTrackPlayer` + `OverlayClipRuntime` | `SampledClip` + `ColorMaskSpec.forObjects`（渐变/遮罩结构 value-only） |
 | LETTERBOX | `LetterboxTrackPlayer` | `SampledClip`（`aspect_ratio` / `opacity`） |
-| AUDIO | `AudioTrackPlayer` | `ClipValueView`（`sound` / `source` / `pitch` / `file_loop` / `fade_*` / `attenuation` / `position_mode` / `category`）+ `SampledClip`（`volume` / `x/y/z`） |
+| AUDIO | `AudioTrackPlayer` + `CinematicAudioInstance` | `ClipValueView`（`sound` / `source` / `pitch` / `file_loop` / `fade_*` / `attenuation` / `position_mode` / `category`）+ `SampledClip`（`volume` / `x/y/z`）；每个活跃片段一个实例，实例自管解码 |
 | ADJUST | `AdjustTrackPlayer` | `ColorAdjustSampler.sampleObjects`（59 通道） |
 | EVENT | 服务端 `ScriptEventManager` + `EventClipRuntime` | `objects.event` 事件记录（客户端不建驱动） |
 | MOD_EVENT | `ModEventTrackPlayer` | 格式与编译完整（`objects.mod_event`），**当前不消费**（占位，第三方以后可接） |
 
 - ✅ 每渲染帧调度：`ScriptPlayer` 持有 `TrackDriver` 列表；`clipsForTrack(i)` 的索引空间 = timeline 轨道 + 隐式轨道（脚本级独立片段按 `track` 类型分组）。
 - ✅ 画面 lane：`collectCameraLanes()` 按绘制顺序扁平列出各 CAMERA 轨本帧活跃 clip 的 `LaneFrame`；合成参数 `opacity` / `dest` / `source` / 遮罩由 `ScriptLaneDriver` 逐 lane 上屏。
+- ✅ AUDIO 文件支持边界（`CinematicAudioInstance.decode`）：`source=minecraft` 读取资源包 OGG 后内存解码；文件源按扩展名分流——`.ogg` 走 stb_vorbis、`.wav` 走 `javax.sound`（仅 8/16 bit 位深），两者同步解码；`.mp3` / `.aac` / `.flac` / `.m4a` / `.opus` / `.wma` / `.oga` / `.ogx` 交给 `ExternalPcmDecode` → `Ffmpeg` 整段异步解码为 s16le / 48kHz / 立体声，未设素材时长阈值，但整段 PCM 驻留内存。其余扩展名、缺失文件或缺工具会构造失败，由 `AudioTrackPlayer.failedClips` 记一次并跳过该片段（不每帧重试；细节见 [media 模块](media.md)）。
+- ✅ 异步解码期间实例 `isUsable()=false`：`play()` / seek 只记待办（`pendingPlay` / `pendingSeek`），PCM 就绪后由渲染线程下一帧 `ensurePlaying(localTime, volume)` 按当前片段局部时间定位起播（跳过加载耗时，不追帧）；解码失败置 `failed` 并限频写 `ErrorLog`，随后被 `AudioTrackPlayer` 回收。缺 `ffmpeg` 属配置错误，同样在构造期抛错并记为失败片段。
+- ✅ 分类语义（`AudioTrackPlayer.startClipInstance`）：`category=music` 强制相对听者、无衰减、位置取玩家；`category=ambient` 走空间音源，`position_mode=relative` 时位置 = 当前听者位置（`AudioListenerController`，listener=camera 即镜头）+ `x/y/z` 偏移，`absolute` 时直接用偏移，衰减由 `attenuation` 决定；字段表见 [SCRIPT_FORMAT §4.3](../SCRIPT_FORMAT.md)。视频容器自带音轨不经过本轨，见 [overlay 模块](overlay.md)。
 
 ## 七、已知问题
 
 - 内联 timeline 片段的**默认 `exit` 不会执行**：`ClipBranchController.poll()` 只在 `branching`（规则启动的分支）时工作，普通片段播完没人读出口策略 → `I-BACKLOG.md` I5-R4。
 - 多人服务器下编辑器预览无法解析结构类目标（客户端无服务端访问）；服务端 `/icinematics play` 推送前替换为坐标，不受影响。
-- 音频文件名含非 ASCII 字符（中文等）时 Windows 下可能无法解码（stb_vorbis 内部 C `fopen` 用 ANSI 代码页），仅输出警告（`CinematicAudioInstance`）。
+- `CinematicAudioInstance` 构造器仍对含非 ASCII 字符的文件名统一打警告。其中本地 `.ogg` 使用 `stb_vorbis_decode_filename` 的文件名入口，存在 Windows 路径编码风险；`source=minecraft` 走内存解码、`.wav` 走 `javax.sound`、扩展格式把路径作为 FFmpeg 进程参数，不经过该 C 文件名入口。不要将该警告泛化为所有格式都会因中文路径失败；本轮未做各格式的中文路径实机验收。
 - `AUDIO` 的 `fade_in + fade_out > duration` 现在是**校验期错误**（`ObjectValidator`），不再静默跳过。
+
+> 本章媒体/音频条目的事实基线：源码 HEAD `4b49c68`（J 轮媒体已合入）。本轮只做源码对照同步，未做游戏内实机验收；页面顶部的历史警告仍然有效。

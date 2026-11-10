@@ -17,7 +17,9 @@
   - ✅ `CameraMixin`：`getEntity()` 返回玩家实体防止渲染管线 NPE；`isDetached()` 按 `player_model` 层判定返回，控制玩家身体模型是否渲染（`CameraMixin`）
   - ✅ `CameraMixin` 仅在相机激活且存在活跃 CAMERA clip 时接管，退场动画结束的当帧放弃接管避免白模闪烁（`CameraMixin`）
   - ✅ `GameRendererMixin`（注入 `GameRenderer`）：`getFov()` RETURN 时按关键帧 FOV/zoom 覆盖视场角；`renderItemInHand()` 按 `viewmodel` 层隐藏手臂与手持物品；`bobHurt()`/`bobView()` 按 `view_bobbing` 层抑制视角摆动（`GameRendererMixin`）
-  - ✅ `GameRendererMixin`：在 `renderLevel()` 的 `prepareCullFrustum` 之前绕相机视线轴（getLookVector）施加 roll 旋转，任何朝向下 roll>0 均为屏幕顺时针（画面向右倒）（`GameRendererMixin`）
+  - ✅ `GameRendererMixin`（捕获出口，J-4）：原版 `Gui.render` 调用之后（注入 `INVOKE` + `AFTER`）调 `CaptureHub.INSTANCE.onHudRendered` —— 此刻世界 → lane 合成 → 原版后处理 → master 调色 → GUI 已画完，主 framebuffer 即最终画面。是否捕获按消费者 `needsFrame` 决定（无人需要时零 GL 调用、零分配），规格由消费者提供（预览固定 1920×1080@60），异常只限频记日志、不打断渲染帧（`GameRendererMixin`、`CaptureHub`；捕获层细节见 [media 模块](media.md) §5）
+  - ⚠️ 捕获点依赖 `Gui.render`：该调用未执行时就没有捕获回调；F1 隐藏 HUD 且没有打开 Screen 是源码注释指出的受限场景。当前没有录像导出入口，不能将此限制描述为已有导出器会补帧或校验兜底；本轮未做该场景实机验收。
+  - ✅ roll 不由 `GameRendererMixin` 注入：lane 的 roll 在 `LaneRenderer.renderLane` 里施加到该 lane 自己的 `PoseStack`（绕相机视线轴，roll>0 = 屏幕空间顺时针）；本 mixin 只保留 lane 相机 `getMainCamera` 覆盖、帧首驱动、FOV / 手持物 / 视角摆动等钩子（`GameRendererMixin`、`LaneRenderer`）
   - ✅ 画面扭曲抑制（反胃/传送门旋转）不在此包：由 `CinematicController` 按 `screen_effects` 层判定，在脚本 apply/revert 时临时修改原版 `screenEffectScale` 实现（`CinematicController`）
   - ✅ `LevelRendererMixin`（注入 `LevelRenderer`）：把 `setupRender` 中玩家坐标局部变量替换为**本帧最上层 lane 的相机位置**（无活跃 lane 时用玩家坐标），使可见/待建渲染区块跟随相机；同一挂点按本 pass 的相机判定遮挡剔除——lane pass 的相机在实心方块内则本 pass 关掉遮挡剪枝（`LevelRendererMixin`）
 - **HUD 画面层控制（不在本包）**
@@ -37,3 +39,5 @@
   - ✅ `SoundManagerMixin`（注入 `SoundManager`）：脚本 listener=player 时把原版 SoundEngine 的 listener 覆盖为玩家视角代理（`SoundManagerMixin`、`AudioListenerController`）
   - ✅ `BiomeAmbientSoundsHandlerMixin` / `UnderwaterAmbientSoundHandlerMixin` / `BubbleColumnAmbientSoundHandlerMixin`：听者=相机时，把群系环境音采样点、水下判定、气泡柱环境音判定改到相机位置（`BiomeAmbientSoundsHandlerMixin`、`UnderwaterAmbientSoundHandlerMixin`、`BubbleColumnAmbientSoundHandlerMixin`）
   - ✅ `MinecraftMixin`（注入 `Minecraft`）：听者=相机时，环境粒子/方块音采样中心从玩家改为相机（`MinecraftMixin`、`AudioListenerController`）
+
+> 本次同步的事实基线：源码 HEAD `4b49c68`（J-4 捕获出口已合入）。捕获条目只按源码核对，未做游戏内实机验收；页面顶部的历史警告仍然有效。

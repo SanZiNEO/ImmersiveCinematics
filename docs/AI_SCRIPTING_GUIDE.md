@@ -91,6 +91,15 @@
 - `base` 空间的方向源：`facing_source` = `auto`/`world`/`entity`/`line`，配 `facing_entity` 或 `facing_target`。
 - `yaw_offset` / `pitch_offset` 需要 `orient="tangent"`，否则不生效。
 
+### 3.5 音频与视频资源
+
+- `AUDIO` 的文件路径放在 `objects.sound.value`，并使用 `objects.source.value = "file"`；路径相对于 `<游戏目录>/immersive_cinematics/resource/`。`.ogg` / `.wav` 内置解码；`.mp3` / `.aac` / `.flac` / `.m4a` / `.opus` / `.wma` / `.oga` / `.ogx` 需要外部 FFmpeg，整段异步解码后起播。`source = "minecraft"` 仍指向资源包中的 OGG 资源，不是外部格式入口。
+- 视频使用 **`OVERLAY` 轨道 + `layer_type = "image"`**，把 `.mp4` / `.webm` / `.mkv` 路径放在 `objects.path.value`；不要编造 `VIDEO` 轨道或 `layer_type = "video"`。位置、缩放、取材和透明度仍用 OVERLAY 的原有字段。
+- 外部工具只从 `<游戏目录>/ffmpeg/` 读取，不查 `PATH`、不自动下载；Windows 文件名为 `ffmpeg.exe` / `ffprobe.exe`，其他平台无 `.exe`。视频需要两者；扩展音频解码只需要 `ffmpeg`。静态脚本校验通过不代表工具、素材或媒体解码已经可用。
+- `AUDIO.file_loop` 是声音文件循环，不是视频控制字段；视频时间由 OVERLAY 片段的局部时间驱动。不要把编辑器固定的 1920×1080@60 预览规格写成脚本字段，也不要由预览能力推断已有录像导出接口。
+- 当前分类资源列表与解码能力不同：`resource.list(kind=image)` 只列 PNG/GIF，`kind=audio` 只列 OGG/WAV。没有在列表看到 MP4/MP3 等文件，不代表脚本不能按正确路径使用它们；也不要假设前端选择器已接入全部新格式。
+- 字段与视频 JSON 示例见 [SCRIPT_FORMAT §4.3、§4.6](SCRIPT_FORMAT.md)；工具安装位置、失败行为与当前限制见 [媒体说明](modules/media.md)。
+
 ## 四、脚本级集合
 
 ### 4.1 `clips[]`（独立片段）

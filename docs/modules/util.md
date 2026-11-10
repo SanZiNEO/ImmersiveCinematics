@@ -18,12 +18,13 @@
   - ✅ Hermite 基函数 h00/h10/h01/h11（速度曲线引擎用）（`script/ColorCurve`）
   - ✅ NaN/Infinity 防护：`sanitizeFloat`/`sanitizeVec3` 防止异常脚本数据污染相机状态（`MathUtil`）
 - **资源路径**
-  - ✅ `ResourcePath` 统一管理外部资源（音频/图片）路径：根目录 `<游戏目录>/immersive_cinematics/resource/`，提供解析/存在性检查/目录创建（`ResourcePath`）
+  - ✅ `ResourcePath` 统一管理外部资源（音频/图片/视频）路径：根目录 `<游戏目录>/immersive_cinematics/resource/`，提供路径解析、存在性检查和目录创建；`resolve` 允许子目录、不保证文件存在。单机、联机、编辑器共用本地资源目录，不做文件同步；缺失由 `CinematicAudioInstance`、`TextureLoader`、`VideoLayer` 等消费点处理，具体失败行为见 [media 模块](media.md)。
+  - ✅ 外部解码工具不在该目录：`ffmpeg` / `ffprobe` 固定放 `<游戏目录>/ffmpeg/`（Windows 带 `.exe`），不读 `PATH`、无配置项；查找结果按游戏目录缓存（含「不存在」这一负结果），无客户端实例（专用服务器）时返回 `null` 不抛异常（`Ffmpeg`）
 - **文本资源（脚本 i18n，0.3.6）**
   - ✅ `LangResources` 把 `@lang:<key>` 解析成客户端当前语言的译文：字典 = `<resource>/lang/<语言>.json`（扁平 `key → 译文`），回退链 = 当前语言 → `en_us` → 原样显示引用串；`@@lang:` 转义为字面 `@lang:`；key 语法 = 一段或多段 `[a-zA-Z0-9_]{1,32}` 用 `.` 连接，语言代码严格小写（不合格回落 `en_us`）；进程内缓存（改译文重启生效）、缺失只记日志不阻塞播放；`readDictionary(Path)` 供编辑器列举复用同一口径（`LangResources`、消费点 `OverlayTrackPlayer` 字幕分支与 `ScriptGraphService` 的 `description`）
 - **纹理/GIF 加载**
   - ✅ `TextureLoader` 从资源目录加载 PNG/GIF：静态图注册为 `DynamicTexture`，GIF 拆帧后由 `GifAnimation` 轮播；以 `immersive_cinematics:<文件名>` 注册，带缓存与清空缓存接口（`TextureLoader`）
-  - ✅ `GifAnimation` 持有拆帧后的全部帧与延迟，按全局时间推进帧索引，只显存占一帧（`GifAnimation`）
+  - ✅ `GifAnimation` 持有拆帧后的全部帧与延迟，按调用方传入的时间推进帧索引；OVERLAY 的 `ImageLayer.setTime` 接收片段局部时间，因此暂停、定位和片段循环跟随该时间，不再用全局游戏时间（`GifAnimation`、`ImageLayer`、`OverlayTrackPlayer`）。
 - **定位工具**
   - ✅ `StructureLocator`：在已加载区域内按 chunk 步进扫描结构引用，返回结构 bounding box 中心（look_at 结构 / 位置点源 position_origin 结构共用，不采用 /locate 网格环序）（`StructureLocator`）
   - ✅ `BlockLocator`：玩家附近搜索最近匹配方块（xz 半径 + y ± 12），返回方块坐标（`BlockLocator`）
@@ -34,3 +35,5 @@
 ## 已知问题
 
 - `TextureLoader.clearCache()` 无调用方：纹理缓存只在进程生命周期内累积，资源重载后不会自动清空（来源：`TextureLoader`）
+
+> 本次同步的事实基线：源码 HEAD `4b49c68`。`ResourcePath` / ffmpeg 定位条目只按源码核对，未做游戏内实机验收；页面顶部的历史警告仍然有效。
