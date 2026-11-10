@@ -131,7 +131,7 @@ Script paths are relative to `immersive_cinematics/scripts/`; `.json` is optiona
 
 ## Editor
 
-Cutscenes are authored in the **Standalone Editor** — a desktop app (Electron + Vue 3) that talks to the game over a local connection. It is a separate download — currently a Windows installer (version 0.1.0, testing); its sources live in `editor/`.
+Cutscenes are authored in the **Standalone Editor** — a desktop app (Electron + Vue 3) that talks to the game over a local connection. It is a separate download — currently a Windows installer (version 0.1.0, testing) — and its sources live in the separate [ImmersiveCinematicsEditor](https://github.com/SanZiNEO/ImmersiveCinematicsEditor) repository. Editor releases name the mod version they target; this repository no longer carries editor sources.
 
 Press **F9** in game to start the local service and open the preview screen. The editor provides a multi-track timeline, schema-driven forms, live preview, flight camera (**F7**), A-B looping, markers and shortcut keys, and ships the mod's script format so its forms always match the running version. Easing and speed curves are baked into explicit keyframes by the editor; the runtime only interpolates linearly.
 

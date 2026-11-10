@@ -131,7 +131,7 @@ ImmersiveCinematics 是一个 Minecraft 1.20.1 模组，按 JSON 脚本播放过
 
 ## 编辑器
 
-过场动画在**独立编辑器**里制作——一个桌面程序（Electron + Vue 3），通过本地连接与游戏通信，需单独下载——目前是 Windows 安装包（版本 0.1.0，测试中），源码在 `editor/`。
+过场动画在**独立编辑器**里制作——一个桌面程序（Electron + Vue 3），通过本地连接与游戏通信，需单独下载——目前是 Windows 安装包（版本 0.1.0，测试中）；源码在独立的 [ImmersiveCinematicsEditor](https://github.com/SanZiNEO/ImmersiveCinematicsEditor) 仓库，编辑器每次发布都会注明对应的模组版本。本仓库不再包含编辑器源码。
 
 游戏内按 **F9** 启动本地服务并打开预览屏。编辑器提供多轨时间轴、按 schema 生成的表单、实时预览、飞行取景（**F7**）、A-B 循环、marker 与快捷键；脚本格式随模组走，所以表单始终对应正在运行的版本。缓动与速度曲线由编辑器烘焙成显式关键帧，运行时只做线性插值。
 
